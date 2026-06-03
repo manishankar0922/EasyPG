@@ -1,0 +1,47 @@
+services:
+  # Backend API Service
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "4000:4000"
+    environment:
+      - NODE_ENV=development
+      - REDIS_URL=redis://redis:6379
+    env_file:
+      - ./backend/.env
+    depends_on:
+      - redis
+    networks:
+      - hostel-network
+
+  # Redis for Queues and Caching
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - hostel-network
+
+  # Optional: Monitoring for BullMQ
+  bull-board:
+    image: felixmosh/bull-board:latest
+    ports:
+      - "3001:3000"
+    environment:
+      - REDIS_HOSTNAME=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - redis
+    networks:
+      - hostel-network
+
+networks:
+  hostel-network:
+    driver: bridge
+
+volumes:
+  redis-data:
