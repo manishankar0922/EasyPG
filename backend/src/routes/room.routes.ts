@@ -22,11 +22,12 @@ router.get('/', async (req, res) => {
     },
     include: { branch: true }
   });
+  
   res.json({ success: true, data: rooms });
-  });
+});
 
-  // GET /rooms/availability
-  router.get('/availability', async (req, res) => {
+// GET /rooms/availability
+router.get('/availability', async (req, res) => {
   const orgId = req.user!.organizationId;
   const rooms = await prisma.room.findMany({
     where: { 
@@ -38,10 +39,10 @@ router.get('/', async (req, res) => {
 
   const availableRooms = rooms.filter(r => r.occupiedCapacity < r.totalCapacity);
   res.json({ success: true, data: availableRooms });
-  });
+});
 
-  // GET /rooms/occupancy
-  router.get('/occupancy', async (req, res) => {
+// GET /rooms/occupancy
+router.get('/occupancy', async (req, res) => {
   const orgId = req.user!.organizationId;
   const rooms = await prisma.room.findMany({
     where: { organizationId: orgId },
@@ -59,12 +60,10 @@ router.get('/', async (req, res) => {
       percentage: total > 0 ? (occupied / total * 100).toFixed(2) : 0 
     } 
   });
-  });
+});
 
-  // Get single room details
-  router.get('/:id', validate(z.object({ params: z.object({ id: z.string().uuid() }) })), async (req, res) => {
-  ...
-
+// Get single room details
+router.get('/:id', validate(z.object({ params: z.object({ id: z.string().uuid() }) })), async (req, res) => {
   const roomId = req.params.id as string;
   const room = await prisma.room.findFirst({
     where: { id: roomId, organizationId: req.user!.organizationId },

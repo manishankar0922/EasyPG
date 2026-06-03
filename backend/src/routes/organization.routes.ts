@@ -4,6 +4,7 @@ import { authMiddleware } from '../middlewares/auth.middleware';
 import { validate } from '../middlewares/validation.middleware';
 import { updateOrganizationSchema } from '../schemas/organization.schema';
 import { z } from 'zod';
+
 const router = Router();
 
 router.use(authMiddleware);
@@ -27,8 +28,6 @@ router.post('/', validate(z.object({
 
 // Get organization by ID
 router.get('/:id', validate(z.object({ params: z.object({ id: z.string().uuid() }) })), async (req, res) => {
-...
-
   const { organizationId } = req.user!;
   const targetId = req.params.id as string;
 
