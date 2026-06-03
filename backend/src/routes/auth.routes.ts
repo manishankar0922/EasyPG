@@ -61,8 +61,7 @@ router.post('/register', validate(registerSchema), async (req, res) => {
 
 // POST /auth/login
 router.post('/login', validate(loginSchema), async (req, res) => {
-...
-
+  const { email, password } = req.body;
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
   
   if (error) return res.status(401).json({ success: false, error: error.message });
