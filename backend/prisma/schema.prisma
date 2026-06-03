@@ -1,0 +1,251 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Organization {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name       String   @db.VarChar(100)
+  ownerName  String   @map("owner_name") @db.VarChar(100)
+  ownerPhone String   @map("owner_phone") @db.VarChar(20)
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  profiles   Profile[]
+  branches   Branch[]
+  rooms      Room[]
+  tenants    Tenant[]
+  admissions Admission[]
+  invoices   Invoice[]
+  payments   Payment[]
+  complaints Complaint[]
+  notifications Notification[]
+
+  @@map("organizations")
+}
+
+enum Role {
+  OWNER
+  WARDEN
+}
+
+model Profile {
+  id             String       @id @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  name           String       @db.VarChar(100)
+  phone          String?      @db.VarChar(20)
+  role           Role
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  @@map("profiles")
+}
+
+model Branch {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  name           String       @db.VarChar(100)
+  address        String?
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  rooms Room[]
+
+  @@map("branches")
+}
+
+enum RoomType {
+  SINGLE
+  DOUBLE
+  TRIPLE
+  FOUR_SHARE
+  FIVE_SHARE
+  CUSTOM
+}
+
+enum GenderType {
+  BOYS
+  GIRLS
+  UNISEX
+}
+
+enum RoomStatus {
+  ACTIVE
+  BLOCKED
+  MAINTENANCE
+}
+
+model Room {
+  id               String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId   String       @map("organization_id") @db.Uuid
+  organization     Organization @relation(fields: [organizationId], references: [id])
+  branchId         String       @map("branch_id") @db.Uuid
+  branch           Branch       @relation(fields: [branchId], references: [id])
+  roomNumber       String       @map("room_number") @db.VarChar(20)
+  roomType         RoomType?    @map("room_type")
+  totalCapacity    Int          @map("total_capacity")
+  occupiedCapacity Int          @default(0) @map("occupied_capacity")
+  rentAmount       Decimal      @map("rent_amount") @db.Decimal(10,2)
+  genderType       GenderType?  @map("gender_type")
+  status           RoomStatus?  @default(ACTIVE)
+  createdAt        DateTime     @default(now()) @map("created_at")
+  updatedAt        DateTime     @updatedAt @map("updated_at")
+
+  admissions Admission[]
+
+  @@map("rooms")
+}
+
+enum TenantStatus {
+  ACTIVE
+  CHECKED_OUT
+}
+
+model Tenant {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  name           String       @db.VarChar(120)
+  phone          String       @db.VarChar(20)
+  parentPhone    String?      @map("parent_phone") @db.VarChar(20)
+  aadhaarLast4   String?      @map("aadhaar_last4") @db.VarChar(4)
+  collegeName    String?      @map("college_name") @db.VarChar(150)
+  status         TenantStatus? @default(ACTIVE)
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  admissions Admission[]
+  invoices   Invoice[]
+  complaints Complaint[]
+  notifications Notification[]
+
+  @@map("tenants")
+}
+
+enum AdmissionStatus {
+  ACTIVE
+  COMPLETED
+}
+
+model Admission {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  tenantId       String       @map("tenant_id") @db.Uuid
+  tenant         Tenant       @relation(fields: [tenantId], references: [id])
+  roomId         String       @map("room_id") @db.Uuid
+  room           Room         @relation(fields: [roomId], references: [id])
+  checkinDate    DateTime     @map("checkin_date") @db.Date
+  checkoutDate   DateTime?    @map("checkout_date") @db.Date
+  monthlyRent    Decimal      @map("monthly_rent") @db.Decimal(10,2)
+  depositAmount  Decimal?     @default(0) @map("deposit_amount") @db.Decimal(10,2)
+  status         AdmissionStatus?
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  @@map("admissions")
+}
+
+enum InvoiceStatus {
+  PAID
+  PARTIAL
+  UNPAID
+}
+
+model Invoice {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  tenantId       String       @map("tenant_id") @db.Uuid
+  tenant         Tenant       @relation(fields: [tenantId], references: [id])
+  month          String       @db.VarChar(20)
+  amount         Decimal      @db.Decimal(10,2)
+  dueDate        DateTime     @map("due_date") @db.Date
+  status         InvoiceStatus? @default(UNPAID)
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  payments Payment[]
+
+  @@map("invoices")
+}
+
+enum PaymentMode {
+  UPI
+  CASH
+  BANK_TRANSFER
+}
+
+model Payment {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  invoiceId      String       @map("invoice_id") @db.Uuid
+  invoice        Invoice      @relation(fields: [invoiceId], references: [id])
+  amount         Decimal      @db.Decimal(10,2)
+  paymentMode    PaymentMode? @map("payment_mode")
+  paymentDate    DateTime     @map("payment_date")
+  createdAt      DateTime     @default(now()) @map("created_at")
+
+  @@map("payments")
+}
+
+enum ComplaintStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+}
+
+enum ComplaintPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+model Complaint {
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String           @map("organization_id") @db.Uuid
+  organization   Organization     @relation(fields: [organizationId], references: [id])
+  tenantId       String?          @map("tenant_id") @db.Uuid
+  tenant         Tenant?          @relation(fields: [tenantId], references: [id])
+  title          String           @db.VarChar(150)
+  description    String
+  status         ComplaintStatus? @default(OPEN)
+  priority       ComplaintPriority? @default(MEDIUM)
+  resolvedAt     DateTime?        @map("resolved_at")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  @@map("complaints")
+}
+
+enum NotificationType {
+  RENT_DUE
+  OVERDUE
+  WELCOME
+  CHECKIN
+  CHECKOUT
+  GENERAL
+}
+
+model Notification {
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String           @map("organization_id") @db.Uuid
+  organization   Organization     @relation(fields: [organizationId], references: [id])
+  tenantId       String?          @map("tenant_id") @db.Uuid
+  tenant         Tenant?          @relation(fields: [tenantId], references: [id])
+  type           NotificationType
+  title          String           @db.VarChar(150)
+  message        String
+  sentAt         DateTime         @default(now()) @map("sent_at")
+  isRead         Boolean          @default(false) @map("is_read")
+
+  @@map("notifications")
+}
