@@ -1,10 +1,11 @@
 import { z } from 'zod';
 
-const RoleEnum = z.enum(['OWNER', 'WARDEN']);
+const RoleEnum = z.enum(['OWNER', 'WARDEN', 'STAFF']);
 
 export const createProfileSchema = z.object({
   body: z.object({
-    id: z.string().uuid(), // Supabase User ID
+    email: z.string().email(),
+    password: z.string().min(6).optional(),
     name: z.string().min(2).max(100),
     phone: z.string().min(10).max(20).optional(),
     role: RoleEnum,

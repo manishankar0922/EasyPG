@@ -11,13 +11,15 @@ import {
   FileText, 
   CreditCard, 
   Settings, 
-  LogOut 
+  LogOut,
+  UserPlus
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/auth-store';
 
 const menuItems = [
   { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },
+  { icon: UserPlus, label: 'Team', href: '/users' },
   { icon: Building2, label: 'Branches', href: '/branches' },
   { icon: Bed, label: 'Rooms', href: '/rooms' },
   { icon: Users, label: 'Tenants', href: '/tenants' },

@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import prisma from '../config/db';
+import { supabaseAdmin } from '../config/supabase';
 import { authMiddleware } from '../middlewares/auth.middleware';
 import { validate } from '../middlewares/validation.middleware';
 import { createProfileSchema, updateProfileSchema } from '../schemas/profile.schema';
@@ -29,27 +30,62 @@ router.get('/:id', validate(z.object({ params: z.object({ id: z.string().uuid() 
   res.json({ success: true, data: user });
 });
 
-// Create user (Warden)
+// Create user (Hierarchical: OWNER creates anyone, WARDEN creates STAFF)
 router.post('/', validate(createProfileSchema), async (req, res) => {
   const { organizationId, role: currentUserRole } = req.user!;
-  
-  if (currentUserRole !== 'OWNER') {
-    return res.status(403).json({ success: false, error: 'Only owners can create users' });
+  const { email, password: providedPassword, name, phone, role: targetRole } = req.body;
+
+  // 1. Hierarchy Check
+  if (currentUserRole === 'WARDEN' && targetRole !== 'STAFF') {
+    return res.status(403).json({ success: false, error: 'Wardens can only create Staff members' });
   }
 
-  const { id, name, phone, role } = req.body;
+  if (currentUserRole !== 'OWNER' && currentUserRole !== 'WARDEN') {
+    return res.status(403).json({ success: false, error: 'Unauthorized to create users' });
+  }
 
-  const user = await prisma.profile.create({
-    data: {
-      id,
-      name,
-      phone,
-      role,
-      organizationId
+  // 2. Set Default Password if not provided
+  let password = providedPassword;
+  if (!password) {
+    if (targetRole === 'WARDEN') password = 'warden@123';
+    else if (targetRole === 'STAFF') password = 'staff@123';
+    else password = 'user@123';
+  }
+
+  try {
+    // 3. Create User in Supabase using Admin SDK (bypasses email confirmation)
+    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: { name, organizationId }
+    });
+
+    if (authError || !authData.user) {
+      return res.status(400).json({ success: false, error: authError?.message || 'Failed to create auth user' });
     }
-  });
 
-  res.status(201).json({ success: true, data: user });
+    // 4. Create Profile in Prisma
+    const profile = await prisma.profile.create({
+      data: {
+        id: authData.user.id,
+        name,
+        phone,
+        role: targetRole,
+        organizationId
+      }
+    });
+
+    res.status(201).json({ 
+      success: true, 
+      message: `User created with default password: ${password}`,
+      data: profile 
+    });
+
+  } catch (err: any) {
+    console.error('User Creation Error:', err);
+    res.status(500).json({ success: false, error: 'Internal Server Error' });
+  }
 });
 
 // Update user

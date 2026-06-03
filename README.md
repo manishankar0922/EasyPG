@@ -1,44 +1,74 @@
 # U9 Solutions - Hostel Operations Intelligence Platform
 
-![Version](https://img.shields.io/badge/version-MVP__v1-blue.svg)
-![Stack](https://img.shields.io/badge/stack-Next.js%20%7C%20Express%20%7C%20Prisma%20%7C%20Supabase-success.svg)
+![Version](https://img.shields.io/badge/version-v1.1-blue.svg)
+![Stack](https://img.shields.io/badge/stack-Next.js%20%7C%20Express%20%7C%20BullMQ%20%7C%20Supabase-success.svg)
+![Architecture](https://img.shields.io/badge/architecture-Multi--Tenant-orange.svg)
 
-U9 Solutions is a comprehensive, multi-tenant SaaS application designed to streamline and automate hostel and PG (Paying Guest) operations. 
+U9 Solutions is a high-scale, multi-tenant SaaS application designed to automate and optimize hostel and PG (Paying Guest) operations through real-time intelligence and distributed task processing.
 
-## 🏗️ Tech Stack
-*   **Frontend:** Next.js 15 (App Router), React, TypeScript, Tailwind CSS, Zustand, Axios, Lucide Icons.
-*   **Backend:** Node.js, Express.js, TypeScript, Zod (Validation).
-*   **Database & ORM:** PostgreSQL (via Supabase), Prisma ORM.
-*   **Authentication:** Supabase Auth (JWT).
+---
 
-## ✨ Features Implemented (Phase 1 MVP)
-*   **Multi-Tenant Architecture:** Strict data isolation by `organizationId` across all models.
-*   **Secure Authentication:** Integration with Supabase GoTrue, complete with an atomic registration flow and role-based access control (Owner/Warden).
-*   **Property Management:** CRUD operations for Branches and Rooms, including automatic capacity calculations and availability tracking.
-*   **Tenant & Admission Management:** Complete lifecycle management (Check-in, Check-out, Room Transfers) with transactional database integrity preventing overbooking.
-*   **Financial Operations:** Automated monthly invoice generation, precise payment tracking (handling partial and full payments), and overdue detection.
-*   **Intelligence Dashboard:** Real-time metrics for occupancy rates, vacant capacities, and revenue tracking (invoiced vs. collected vs. pending).
+## 🏗️ Technical Architecture
+
+### 1. Core Stack
+*   **Frontend:** Next.js 15 (App Router), TypeScript, Tailwind CSS, Zustand, Lucide Icons.
+*   **Backend:** Node.js, Express.js (REST API), TypeScript, Zod.
+*   **Data Layer:** PostgreSQL (Supabase), Prisma ORM.
+*   **Infrastructure:** BullMQ & Redis (Distributed Queues), Docker.
+
+### 2. High-Scale Design
+The platform is designed to handle thousands of concurrent tenants through:
+*   **Background Workers:** Intensive tasks like monthly billing, OCR processing, and mass notifications are offloaded to BullMQ workers.
+*   **Transactional Integrity:** Critical operations (Check-ins, Room Transfers) use Prisma transactions to prevent data drift and overbooking.
+*   **Atomic Hierarchy:** Data is strictly isolated using `organizationId` globally.
+
+---
+
+## ✨ Features & Capabilities
+
+### 👥 Hierarchical User Management
+A sophisticated administrative system allows for delegated management:
+*   **Owner:** Full control over the organization, branches, and high-level team creation.
+*   **Warden:** Manages daily operations (rooms/tenants) and can create `Staff` members.
+*   **Staff:** Entry-level access for recording payments and managing check-ins.
+*   **Administrative Account Generation:** Admins create accounts via email; system auto-generates default passwords (`warden@123`, `staff@123`).
+
+### 🏠 Intelligent Property Management
+*   **Branch & Room Control:** Supports multiple branches per organization.
+*   **Smart Room Numbering:** Validated 5-digit room identifiers for standardized tracking.
+*   **Atomic Room Transfers:** Instant movement of tenants between rooms with automated capacity adjustments.
+
+### 📊 Intelligence Dashboard
+*   **Real-time KPIs:** Occupancy rates, Vacant beds, and Revenue collection status.
+*   **Financial Tracking:** Precision monitoring of Invoiced vs. Collected vs. Pending dues.
+*   **Branch Analytics:** Visual occupancy heatmaps across different hostel locations.
+
+---
 
 ## 🚀 Local Development Setup
 
 ### 1. Prerequisites
-*   Node.js (v18+)
-*   npm or yarn
-*   A Supabase project (for PostgreSQL and Auth)
+*   Node.js (v20+)
+*   Docker & Docker Compose
+*   Supabase Account (Database + Auth)
 
-### 2. Environment Configuration
-Create `.env` files in both the `backend` and `frontend` directories based on the provided Supabase credentials.
+### 2. Infrastructure Startup
+The project includes a full Docker environment for Redis and Monitoring tools:
+```bash
+docker-compose up -d
+```
+*   **Redis:** `localhost:6379`
+*   **Bull Board (Queue Monitor):** `localhost:3001`
 
+### 3. Environment Configuration
 **Backend (`backend/.env`):**
 ```env
 PORT=4000
-NODE_ENV=development
-DATABASE_URL="postgresql://...:6543/postgres?pgbouncer=true"
-DIRECT_URL="postgresql://...:5432/postgres"
+DATABASE_URL="postgresql://..."
+DIRECT_URL="postgresql://..."
+SUPABASE_SERVICE_ROLE_KEY="admin-secret-key"
+REDIS_URL="redis://localhost:6379"
 ENABLE_MOCK_AUTH=true
-SUPABASE_URL="..."
-SUPABASE_ANON_KEY="..."
-SUPABASE_SERVICE_ROLE_KEY="..."
 ```
 
 **Frontend (`frontend/.env.local`):**
@@ -48,34 +78,33 @@ NEXT_PUBLIC_SUPABASE_URL="..."
 NEXT_PUBLIC_SUPABASE_ANON_KEY="..."
 ```
 
-### 3. Database Initialization & Seeding
+### 4. Database Seeding (Hierarchical Data)
+The new seeding script creates a complete test environment with realistic relationships:
 ```bash
 cd backend
 npm install
-npx prisma db push
-npx prisma db seed          # Seeds dummy Organization & Rooms
-npx ts-node prisma/seed-auth.ts # Seeds the Supabase Auth user
+npx prisma db push --force-reset
+npx prisma db seed
 ```
-
-### 4. Running the Servers
-Start both servers simultaneously in separate terminal windows:
-
-**Backend:**
-```bash
-cd backend
-npm run dev
-```
-
-**Frontend:**
-```bash
-cd frontend
-npm run dev
-```
-
-### 5. Test Credentials
-Access the dashboard at `http://localhost:3000` using:
-*   **Email:** `admin@u9solutions.com`
-*   **Password:** `Password123!`
 
 ---
+
+## 🧪 Testing Credentials
+For local development, use the `dev-bypass` token (if enabled) to log in as the default Owner:
+*   **Organization:** Skyline Premium Hostels
+*   **Default Owner:** Vikram Sethi
+*   **Default Password Logic:**
+    *   Warden: `warden@123`
+    *   Staff: `staff@123`
+
+---
+
+## 🛠️ Roadmap
+- [x] Hierarchical User Management (Owner/Warden/Staff)
+- [x] Intelligence Dashboard & Revenue Tracking
+- [x] Atomic Room Transfers
+- [ ] Automated Monthly Billing Service (BullMQ)
+- [ ] OCR-based Tenant ID Verification
+- [ ] WhatsApp/SMS Notification Engine
+
 *Built with ❤️ by sivaganeshv1729*

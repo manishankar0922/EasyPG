@@ -4,7 +4,7 @@ import { persist } from 'zustand/middleware';
 interface User {
   id: string;
   name: string;
-  role: 'OWNER' | 'WARDEN';
+  role: 'OWNER' | 'WARDEN' | 'STAFF';
   organizationId: string;
 }
 

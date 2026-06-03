@@ -32,6 +32,7 @@ model Organization {
 enum Role {
   OWNER
   WARDEN
+  STAFF
 }
 
 model Profile {
