@@ -8,7 +8,7 @@ declare global {
       user?: {
         id: string;
         organizationId: string;
-        role: 'OWNER' | 'WARDEN' | 'STAFF';
+        role: 'SUPER_ADMIN' | 'OWNER' | 'WARDEN' | 'STAFF';
       };
     }
   }
@@ -26,14 +26,37 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
     
     // Developer bypass for local testing
     if (process.env.NODE_ENV === 'development' && 
-        process.env.ENABLE_MOCK_AUTH === 'true' && 
-        token === 'mock-dev-token') {
-      req.user = {
-        id: '00000000-0000-0000-0000-000000000001', // Should match a profile in DB
-        organizationId: '00000000-0000-0000-0000-000000000001',
-        role: 'OWNER',
-      };
-      return next();
+        process.env.ENABLE_MOCK_AUTH === 'true') {
+      if (token === 'mock-dev-token') {
+        req.user = {
+          id: '00000000-0000-0000-0000-000000000001',
+          organizationId: '00000000-0000-0000-0000-000000000001',
+          role: 'OWNER',
+        };
+        return next();
+      }
+      if (token === 'mock-admin-token') {
+        req.user = {
+          id: '00000000-0000-0000-0000-000000000000',
+          organizationId: '00000000-0000-0000-0000-000000000000',
+          role: 'SUPER_ADMIN',
+        };
+        return next();
+      }
+      if (token.startsWith('mock-user-token-')) {
+        const userId = token.replace('mock-user-token-', '');
+        const profile = await prisma.profile.findUnique({
+          where: { id: userId },
+        });
+        if (profile) {
+          req.user = {
+            id: profile.id,
+            organizationId: profile.organizationId || '00000000-0000-0000-0000-000000000000',
+            role: profile.role,
+          };
+          return next();
+        }
+      }
     }
     
     // Verify token with Supabase
@@ -54,7 +77,7 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
 
     req.user = {
       id: profile.id,
-      organizationId: profile.organizationId,
+      organizationId: profile.organizationId || '00000000-0000-0000-0000-000000000000',
       role: profile.role,
     };
 

@@ -62,7 +62,51 @@ router.post('/register', validate(registerSchema), async (req, res) => {
 // POST /auth/login
 router.post('/login', validate(loginSchema), async (req, res) => {
   const { email, password } = req.body;
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  const cleanEmail = email.trim().toLowerCase();
+
+  // Mock Authentication Bypass in Development
+  if (process.env.NODE_ENV === 'development' && process.env.ENABLE_MOCK_AUTH === 'true') {
+    if (cleanEmail === 'dev@gmail.com' && password === 'dev123') {
+      return res.json({
+        success: true,
+        data: {
+          session: {
+            access_token: 'mock-dev-token'
+          }
+        }
+      });
+    }
+    if (cleanEmail === 'admin@gmail.com' && password === 'admin123') {
+      return res.json({
+        success: true,
+        data: {
+          session: {
+            access_token: 'mock-admin-token'
+          }
+        }
+      });
+    }
+
+    // Check if the user exists in database profile
+    const profile = await prisma.profile.findFirst({
+      where: { email: cleanEmail }
+    });
+
+    if (profile) {
+      return res.json({
+        success: true,
+        data: {
+          session: {
+            access_token: `mock-user-token-${profile.id}`
+          }
+        }
+      });
+    }
+
+    return res.status(401).json({ success: false, error: 'Invalid mock credentials or profile not found' });
+  }
+
+  const { data, error } = await supabase.auth.signInWithPassword({ email: cleanEmail, password });
   
   if (error) return res.status(401).json({ success: false, error: error.message });
   
@@ -93,6 +137,30 @@ router.post('/forgot-password', async (req, res) => {
   const { error } = await supabase.auth.resetPasswordForEmail(email);
   if (error) return res.status(400).json({ success: false, error: error.message });
   res.json({ success: true, message: 'Password reset email sent' });
+});
+
+// POST /auth/change-password
+router.post('/change-password', authMiddleware, async (req, res) => {
+  const { newPassword } = req.body;
+  if (!newPassword || newPassword.length < 6) {
+    return res.status(400).json({ success: false, error: 'Password must be at least 6 characters long' });
+  }
+
+  try {
+    if (process.env.NODE_ENV === 'development' && process.env.ENABLE_MOCK_AUTH === 'true') {
+      return res.json({ success: true, message: 'Password updated successfully (Mock Mode)' });
+    }
+
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) {
+      return res.status(400).json({ success: false, error: error.message });
+    }
+
+    res.json({ success: true, message: 'Password updated successfully' });
+  } catch (err: any) {
+    console.error('Change Password Error:', err);
+    res.status(500).json({ success: false, error: 'Internal Server Error' });
+  }
 });
 
 export default router;

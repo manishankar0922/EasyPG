@@ -20,6 +20,7 @@ import admissionRoutes from './routes/admission.routes';
 import invoiceRoutes from './routes/invoice.routes';
 import paymentRoutes from './routes/payment.routes';
 import dashboardRoutes from './routes/dashboard.routes';
+import adminRoutes from './routes/admin.routes';
 
 dotenv.config();
 
@@ -64,6 +65,7 @@ app.use('/api/admissions', admissionRoutes);
 app.use('/api/invoices', invoiceRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Error Middleware
 app.use(errorHandler);
