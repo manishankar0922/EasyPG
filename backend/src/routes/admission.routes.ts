@@ -10,8 +10,15 @@ router.use(authMiddleware);
 
 // GET /admissions (All)
 router.get('/', async (req, res) => {
+  const { role, branchId: userBranchId, organizationId: orgId } = req.user!;
+  
   const admissions = await prisma.admission.findMany({
-    where: { organizationId: req.user!.organizationId },
+    where: { 
+      organizationId: orgId,
+      ...(role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && {
+        room: { branchId: userBranchId }
+      })
+    },
     include: { tenant: true, room: { include: { branch: true } } },
     orderBy: { createdAt: 'desc' }
   });
@@ -20,8 +27,16 @@ router.get('/', async (req, res) => {
 
 // GET /admissions/active
 router.get('/active', async (req, res) => {
+  const { role, branchId: userBranchId, organizationId: orgId } = req.user!;
+
   const admissions = await prisma.admission.findMany({
-    where: { organizationId: req.user!.organizationId, status: 'ACTIVE' },
+    where: { 
+      organizationId: orgId, 
+      status: 'ACTIVE',
+      ...(role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && {
+        room: { branchId: userBranchId }
+      })
+    },
     include: { tenant: true, room: { include: { branch: true } } },
     orderBy: { createdAt: 'desc' }
   });
@@ -30,8 +45,16 @@ router.get('/active', async (req, res) => {
 
 // GET /admissions/history
 router.get('/history', async (req, res) => {
+  const { role, branchId: userBranchId, organizationId: orgId } = req.user!;
+
   const admissions = await prisma.admission.findMany({
-    where: { organizationId: req.user!.organizationId, status: 'COMPLETED' },
+    where: { 
+      organizationId: orgId, 
+      status: 'COMPLETED',
+      ...(role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && {
+        room: { branchId: userBranchId }
+      })
+    },
     include: { tenant: true, room: { include: { branch: true } } },
     orderBy: { checkoutDate: 'desc' }
   });

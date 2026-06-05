@@ -12,11 +12,18 @@ router.use(authMiddleware);
 router.get('/', async (req, res) => {
   const { branchId, status, genderType } = req.query;
   const orgId = req.user!.organizationId as string;
+  const { role, branchId: userBranchId } = req.user!;
+
+  // Branch Isolation: Wardens/Staff can only see their assigned branch
+  let effectiveBranchId = branchId as string;
+  if (role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId) {
+    effectiveBranchId = userBranchId;
+  }
 
   const rooms = await prisma.room.findMany({
     where: {
       organizationId: orgId,
-      ...(branchId && { branchId: branchId as string }),
+      ...(effectiveBranchId && { branchId: effectiveBranchId }),
       ...(status && { status: status as any }),
       ...(genderType && { genderType: genderType as any }),
     },
@@ -29,10 +36,13 @@ router.get('/', async (req, res) => {
 // GET /rooms/availability
 router.get('/availability', async (req, res) => {
   const orgId = req.user!.organizationId as string;
+  const { role, branchId: userBranchId } = req.user!;
+
   const rooms = await prisma.room.findMany({
     where: { 
       organizationId: orgId, 
       status: 'ACTIVE',
+      ...(role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && { branchId: userBranchId })
     },
     include: { branch: true }
   });
@@ -44,8 +54,13 @@ router.get('/availability', async (req, res) => {
 // GET /rooms/occupancy
 router.get('/occupancy', async (req, res) => {
   const orgId = req.user!.organizationId as string;
+  const { role, branchId: userBranchId } = req.user!;
+
   const rooms = await prisma.room.findMany({
-    where: { organizationId: orgId },
+    where: { 
+      organizationId: orgId,
+      ...(role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && { branchId: userBranchId })
+    },
     select: { totalCapacity: true, occupiedCapacity: true }
   });
 
@@ -65,8 +80,14 @@ router.get('/occupancy', async (req, res) => {
 // Get single room details
 router.get('/:id', validate(z.object({ params: z.object({ id: z.string().uuid() }) })), async (req, res) => {
   const roomId = req.params.id as string;
+  const { role, branchId: userBranchId, organizationId: orgId } = req.user!;
+
   const room = await prisma.room.findFirst({
-    where: { id: roomId, organizationId: req.user!.organizationId as string },
+    where: { 
+      id: roomId, 
+      organizationId: orgId,
+      ...(role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && { branchId: userBranchId })
+    },
     include: { 
       branch: true,
       admissions: {
@@ -76,7 +97,7 @@ router.get('/:id', validate(z.object({ params: z.object({ id: z.string().uuid() 
     }
   });
 
-  if (!room) return res.status(404).json({ success: false, error: 'Room not found' });
+  if (!room) return res.status(404).json({ success: false, error: 'Room not found or access denied' });
   
   res.json({ success: true, data: room });
 });
@@ -84,10 +105,15 @@ router.get('/:id', validate(z.object({ params: z.object({ id: z.string().uuid() 
 // Create room
 router.post('/', validate(createRoomSchema), async (req, res) => {
   const { branchId, roomNumber, roomType, totalCapacity, rentAmount, genderType, status } = req.body;
-  const orgId = req.user!.organizationId as string;
+  const { role, branchId: userBranchId, organizationId: orgId } = req.user!;
 
   if (!orgId) {
     return res.status(403).json({ success: false, error: 'System administrators cannot create rooms' });
+  }
+
+  // Branch Isolation Check
+  if (role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && userBranchId !== branchId) {
+    return res.status(403).json({ success: false, error: 'You can only create rooms in your assigned branch' });
   }
   
   // Verify branch belongs to organization
