@@ -9,9 +9,9 @@ const connection = new IORedis(process.env.REDIS_URL || 'redis://localhost:6379'
 });
 
 // 1. Define Queues
-export const invoiceQueue = new Queue('invoice-generation', { connection });
-export const notificationQueue = new Queue('notifications', { connection });
-export const ocrQueue = new Queue('ocr-processing', { connection });
+export const invoiceQueue = new Queue('invoice-generation', { connection: connection as any });
+export const notificationQueue = new Queue('notifications', { connection: connection as any });
+export const ocrQueue = new Queue('ocr-processing', { connection: connection as any });
 
 // 2. Queue Service to add jobs
 export const QueueService = {
@@ -43,13 +43,13 @@ export const startWorkers = () => {
   new Worker('invoice-generation', async (job: Job) => {
     console.log(`📑 Processing invoice job ${job.id} for org: ${job.data.organizationId}`);
     // Real logic will be imported from services later
-  }, { connection });
+  }, { connection: connection as any });
 
   new Worker('notifications', async (job: Job) => {
     console.log(`🔔 Sending notification job ${job.id}`);
-  }, { connection });
+  }, { connection: connection as any });
 
   new Worker('ocr-processing', async (job: Job) => {
     console.log(`🔍 Processing OCR job ${job.id}`);
-  }, { connection });
+  }, { connection: connection as any });
 };

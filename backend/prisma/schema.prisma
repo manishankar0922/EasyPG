@@ -13,6 +13,10 @@ model Organization {
   name       String   @db.VarChar(100)
   ownerName  String   @map("owner_name") @db.VarChar(100)
   ownerPhone String   @map("owner_phone") @db.VarChar(20)
+  subscriptionPlan   String   @default("TRIAL") @map("subscription_plan") @db.VarChar(30)
+  subscriptionStatus String   @default("ACTIVE") @map("subscription_status") @db.VarChar(30)
+  maxBranches        Int      @default(3) @map("max_branches")
+  maxRooms           Int      @default(50) @map("max_rooms")
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
 
@@ -30,16 +34,18 @@ model Organization {
 }
 
 enum Role {
+  SUPER_ADMIN
   OWNER
   WARDEN
   STAFF
 }
 
 model Profile {
-  id             String       @id @db.Uuid
-  organizationId String       @map("organization_id") @db.Uuid
-  organization   Organization @relation(fields: [organizationId], references: [id])
-  name           String       @db.VarChar(100)
+  id             String        @id @db.Uuid
+  organizationId String?       @map("organization_id") @db.Uuid
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  name           String        @db.VarChar(100)
+  email          String?       @db.VarChar(100)
   phone          String?      @db.VarChar(20)
   role           Role
   createdAt      DateTime     @default(now()) @map("created_at")
