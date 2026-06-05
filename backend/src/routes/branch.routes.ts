@@ -10,7 +10,7 @@ router.use(authMiddleware);
 
 // Get all branches with basic occupancy data
 router.get('/', async (req, res) => {
-  const orgId = req.user!.organizationId;
+  const orgId = req.user!.organizationId as string;
   const branches = await prisma.branch.findMany({
     where: { organizationId: orgId },
     include: {
@@ -46,7 +46,7 @@ router.get('/', async (req, res) => {
 
 // Get single branch with detailed occupancy
 router.get('/:id', validate(z.object({ params: z.object({ id: z.string().uuid() }) })), async (req, res) => {
-  const orgId = req.user!.organizationId;
+  const orgId = req.user!.organizationId as string;
   const branchId = req.params.id as string;
 
   const branch = await prisma.branch.findFirst({
@@ -74,7 +74,7 @@ router.get('/:id', validate(z.object({ params: z.object({ id: z.string().uuid() 
 
 // GET /branches/:id/stats
 router.get('/:id/stats', validate(z.object({ params: z.object({ id: z.string().uuid() }) })), async (req, res) => {
-  const orgId = req.user!.organizationId;
+  const orgId = req.user!.organizationId as string;
   const branchId = req.params.id as string;
 
   const branch = await prisma.branch.findFirst({
@@ -103,11 +103,37 @@ router.get('/:id/stats', validate(z.object({ params: z.object({ id: z.string().u
 // Create branch
 router.post('/', validate(createBranchSchema), async (req, res) => {
   const { name, address } = req.body;
+  const orgId = req.user!.organizationId;
+  
+  if (!orgId) {
+    return res.status(403).json({ success: false, error: 'System administrators cannot create branches' });
+  }
+
+  const org = await prisma.organization.findUnique({
+    where: { id: orgId },
+    select: { maxBranches: true }
+  });
+
+  if (!org) {
+    return res.status(404).json({ success: false, error: 'Organization not found' });
+  }
+
+  const currentCount = await prisma.branch.count({
+    where: { organizationId: orgId }
+  });
+
+  if (currentCount >= org.maxBranches) {
+    return res.status(403).json({
+      success: false,
+      error: `Branch limit reached (${org.maxBranches}). Please contact the system administrator to upgrade your subscription.`
+    });
+  }
+
   const branch = await prisma.branch.create({
     data: {
       name,
       address,
-      organizationId: req.user!.organizationId
+      organizationId: orgId
     }
   });
   res.status(201).json({ success: true, data: branch });
@@ -118,7 +144,7 @@ router.patch('/:id', validate(updateBranchSchema), async (req, res) => {
   const { name, address } = req.body;
   const branchId = req.params.id as string;
   const branch = await prisma.branch.updateMany({
-    where: { id: branchId, organizationId: req.user!.organizationId },
+    where: { id: branchId, organizationId: req.user!.organizationId as string },
     data: { name, address }
   });
   
@@ -130,7 +156,7 @@ router.patch('/:id', validate(updateBranchSchema), async (req, res) => {
 // Delete branch
 router.delete('/:id', validate(z.object({ params: z.object({ id: z.string().uuid() }) })), async (req, res) => {
   const branchId = req.params.id as string;
-  const orgId = req.user!.organizationId;
+  const orgId = req.user!.organizationId as string;
 
   // Check if branch has rooms before deleting (optional but safer)
   const roomsCount = await prisma.room.count({

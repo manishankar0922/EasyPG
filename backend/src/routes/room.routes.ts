@@ -11,7 +11,7 @@ router.use(authMiddleware);
 // Get all rooms with filtering
 router.get('/', async (req, res) => {
   const { branchId, status, genderType } = req.query;
-  const orgId = req.user!.organizationId;
+  const orgId = req.user!.organizationId as string;
 
   const rooms = await prisma.room.findMany({
     where: {
@@ -28,7 +28,7 @@ router.get('/', async (req, res) => {
 
 // GET /rooms/availability
 router.get('/availability', async (req, res) => {
-  const orgId = req.user!.organizationId;
+  const orgId = req.user!.organizationId as string;
   const rooms = await prisma.room.findMany({
     where: { 
       organizationId: orgId, 
@@ -43,7 +43,7 @@ router.get('/availability', async (req, res) => {
 
 // GET /rooms/occupancy
 router.get('/occupancy', async (req, res) => {
-  const orgId = req.user!.organizationId;
+  const orgId = req.user!.organizationId as string;
   const rooms = await prisma.room.findMany({
     where: { organizationId: orgId },
     select: { totalCapacity: true, occupiedCapacity: true }
@@ -66,7 +66,7 @@ router.get('/occupancy', async (req, res) => {
 router.get('/:id', validate(z.object({ params: z.object({ id: z.string().uuid() }) })), async (req, res) => {
   const roomId = req.params.id as string;
   const room = await prisma.room.findFirst({
-    where: { id: roomId, organizationId: req.user!.organizationId },
+    where: { id: roomId, organizationId: req.user!.organizationId as string },
     include: { 
       branch: true,
       admissions: {
@@ -84,19 +84,44 @@ router.get('/:id', validate(z.object({ params: z.object({ id: z.string().uuid() 
 // Create room
 router.post('/', validate(createRoomSchema), async (req, res) => {
   const { branchId, roomNumber, roomType, totalCapacity, rentAmount, genderType, status } = req.body;
+  const orgId = req.user!.organizationId as string;
+
+  if (!orgId) {
+    return res.status(403).json({ success: false, error: 'System administrators cannot create rooms' });
+  }
   
   // Verify branch belongs to organization
   const branch = await prisma.branch.findFirst({
-    where: { id: branchId, organizationId: req.user!.organizationId }
+    where: { id: branchId, organizationId: orgId }
   });
 
   if (!branch) {
     return res.status(400).json({ success: false, error: 'Invalid branch ID' });
   }
 
+  const org = await prisma.organization.findUnique({
+    where: { id: orgId },
+    select: { maxRooms: true }
+  });
+
+  if (!org) {
+    return res.status(404).json({ success: false, error: 'Organization not found' });
+  }
+
+  const currentCount = await prisma.room.count({
+    where: { organizationId: orgId }
+  });
+
+  if (currentCount >= org.maxRooms) {
+    return res.status(403).json({
+      success: false,
+      error: `Room limit reached (${org.maxRooms}). Please contact the system administrator to upgrade your subscription.`
+    });
+  }
+
   const room = await prisma.room.create({
     data: {
-      organizationId: req.user!.organizationId,
+      organizationId: orgId,
       branchId,
       roomNumber,
       roomType,
@@ -114,7 +139,7 @@ router.post('/', validate(createRoomSchema), async (req, res) => {
 router.patch('/:id', validate(updateRoomSchema), async (req, res) => {
   const roomId = req.params.id as string;
   const room = await prisma.room.updateMany({
-    where: { id: roomId, organizationId: req.user!.organizationId },
+    where: { id: roomId, organizationId: req.user!.organizationId as string },
     data: req.body
   });
 
@@ -127,7 +152,7 @@ router.patch('/:id', validate(updateRoomSchema), async (req, res) => {
 router.patch('/:id/block', validate(z.object({ params: z.object({ id: z.string().uuid() }) })), async (req, res) => {
   const roomId = req.params.id as string;
   const room = await prisma.room.updateMany({
-    where: { id: roomId, organizationId: req.user!.organizationId },
+    where: { id: roomId, organizationId: req.user!.organizationId as string },
     data: { status: 'BLOCKED' }
   });
 
@@ -140,7 +165,7 @@ router.patch('/:id/block', validate(z.object({ params: z.object({ id: z.string()
 router.patch('/:id/activate', validate(z.object({ params: z.object({ id: z.string().uuid() }) })), async (req, res) => {
   const roomId = req.params.id as string;
   const room = await prisma.room.updateMany({
-    where: { id: roomId, organizationId: req.user!.organizationId },
+    where: { id: roomId, organizationId: req.user!.organizationId as string },
     data: { status: 'ACTIVE' }
   });
 
@@ -152,7 +177,7 @@ router.patch('/:id/activate', validate(z.object({ params: z.object({ id: z.strin
 // Delete room
 router.delete('/:id', validate(z.object({ params: z.object({ id: z.string().uuid() }) })), async (req, res) => {
   const roomId = req.params.id as string;
-  const orgId = req.user!.organizationId;
+  const orgId = req.user!.organizationId as string;
 
   // Check for active admissions
   const activeAdmissions = await prisma.admission.count({
