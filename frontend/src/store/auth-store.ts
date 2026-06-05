@@ -6,6 +6,8 @@ interface User {
   name: string;
   role: 'OWNER' | 'WARDEN' | 'STAFF';
   organizationId: string;
+  branchId: string | null;
+  status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
 }
 
 interface AuthState {

@@ -26,19 +26,6 @@ services:
     networks:
       - hostel-network
 
-  # Optional: Monitoring for BullMQ
-  bull-board:
-    image: felixmosh/bull-board:latest
-    ports:
-      - "3001:3000"
-    environment:
-      - REDIS_HOSTNAME=redis
-      - REDIS_PORT=6379
-    depends_on:
-      - redis
-    networks:
-      - hostel-network
-
 networks:
   hostel-network:
     driver: bridge
