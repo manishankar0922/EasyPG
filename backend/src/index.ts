@@ -7,7 +7,7 @@ import compression from 'compression';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import { errorHandler } from './middlewares/error.middleware';
-import { startWorkers } from './config/queue';
+import { startWorkers, serverAdapter } from './config/queue';
 
 // Routes (to be imported)
 import authRoutes from './routes/auth.routes';
@@ -33,6 +33,9 @@ app.use(compression());
 app.use(cors());
 app.use(express.json());
 app.use(morgan('dev'));
+
+// Mount Bull Board (Queue Monitor) - Needs to be before any body parsers if it conflicts, but standard express is fine.
+app.use('/api/admin/queues', serverAdapter.getRouter());
 
 // Rate Limiting
 const limiter = rateLimit({

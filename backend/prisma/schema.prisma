@@ -40,14 +40,23 @@ enum Role {
   STAFF
 }
 
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
 model Profile {
   id             String        @id @db.Uuid
   organizationId String?       @map("organization_id") @db.Uuid
   organization   Organization? @relation(fields: [organizationId], references: [id])
+  branchId       String?       @map("branch_id") @db.Uuid
+  branch         Branch?       @relation(fields: [branchId], references: [id])
   name           String        @db.VarChar(100)
   email          String?       @db.VarChar(100)
   phone          String?      @db.VarChar(20)
   role           Role
+  status         UserStatus    @default(ACTIVE)
   createdAt      DateTime     @default(now()) @map("created_at")
   updatedAt      DateTime     @updatedAt @map("updated_at")
 
@@ -63,7 +72,8 @@ model Branch {
   createdAt      DateTime     @default(now()) @map("created_at")
   updatedAt      DateTime     @updatedAt @map("updated_at")
 
-  rooms Room[]
+  rooms    Room[]
+  profiles Profile[]
 
   @@map("branches")
 }

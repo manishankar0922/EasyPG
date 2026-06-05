@@ -1,6 +1,9 @@
 import { Queue, Worker, Job } from 'bullmq';
 import IORedis from 'ioredis';
 import dotenv from 'dotenv';
+import { ExpressAdapter } from '@bull-board/express';
+import { createBullBoard } from '@bull-board/api';
+import { BullMQAdapter } from '@bull-board/api/bullMQAdapter';
 
 dotenv.config();
 
@@ -12,6 +15,19 @@ const connection = new IORedis(process.env.REDIS_URL || 'redis://localhost:6379'
 export const invoiceQueue = new Queue('invoice-generation', { connection: connection as any });
 export const notificationQueue = new Queue('notifications', { connection: connection as any });
 export const ocrQueue = new Queue('ocr-processing', { connection: connection as any });
+
+// 1.5 Bull Board Setup
+export const serverAdapter = new ExpressAdapter();
+serverAdapter.setBasePath('/api/admin/queues');
+
+createBullBoard({
+  queues: [
+    new BullMQAdapter(invoiceQueue),
+    new BullMQAdapter(notificationQueue),
+    new BullMQAdapter(ocrQueue)
+  ],
+  serverAdapter: serverAdapter,
+});
 
 // 2. Queue Service to add jobs
 export const QueueService = {
