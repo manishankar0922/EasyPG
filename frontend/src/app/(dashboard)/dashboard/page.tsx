@@ -7,7 +7,6 @@ import {
   TrendingUp, 
   CreditCard, 
   Loader2, 
-  ArrowUpRight, 
   ArrowDownRight,
   Building2,
   Calendar

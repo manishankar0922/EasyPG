@@ -2,10 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import api from '@/lib/api';
+import Link from 'next/link';
 import { 
-  FileText, 
   Calendar, 
-  IndianRupee, 
   Filter,
   Plus,
   Clock,
@@ -26,7 +25,6 @@ interface Invoice {
 
 export default function InvoicesPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function fetchInvoices() {
@@ -37,8 +35,6 @@ export default function InvoicesPage() {
         }
       } catch (err) {
         console.error('Failed to fetch invoices', err);
-      } finally {
-        setLoading(false);
       }
     }
     fetchInvoices();
@@ -53,10 +49,13 @@ export default function InvoicesPage() {
             <Filter className="h-4 w-4" />
             <span>Filter</span>
           </button>
-          <button className="flex items-center space-x-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition">
+          <Link 
+            href="/invoices/create"
+            className="flex items-center space-x-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition"
+          >
             <Plus className="h-4 w-4" />
             <span>New Invoice</span>
-          </button>
+          </Link>
         </div>
       </div>
 
