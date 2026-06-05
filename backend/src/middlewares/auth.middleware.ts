@@ -8,6 +8,7 @@ declare global {
       user?: {
         id: string;
         organizationId: string;
+        branchId?: string | null;
         role: 'SUPER_ADMIN' | 'OWNER' | 'WARDEN' | 'STAFF';
       };
     }
@@ -31,6 +32,7 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
         req.user = {
           id: '00000000-0000-0000-0000-000000000001',
           organizationId: '00000000-0000-0000-0000-000000000001',
+          branchId: null,
           role: 'OWNER',
         };
         return next();
@@ -39,6 +41,7 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
         req.user = {
           id: '00000000-0000-0000-0000-000000000000',
           organizationId: '00000000-0000-0000-0000-000000000000',
+          branchId: null,
           role: 'SUPER_ADMIN',
         };
         return next();
@@ -52,6 +55,7 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
           req.user = {
             id: profile.id,
             organizationId: profile.organizationId || '00000000-0000-0000-0000-000000000000',
+            branchId: profile.branchId,
             role: profile.role,
           };
           return next();
@@ -75,9 +79,15 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
       return res.status(403).json({ success: false, error: 'Forbidden: Profile not found' });
     }
 
+    // Check if account is active
+    if (profile.status !== 'ACTIVE') {
+      return res.status(403).json({ success: false, error: `Your account is ${profile.status.toLowerCase()}. Please contact your administrator.` });
+    }
+
     req.user = {
       id: profile.id,
       organizationId: profile.organizationId || '00000000-0000-0000-0000-000000000000',
+      branchId: profile.branchId,
       role: profile.role,
     };
 
