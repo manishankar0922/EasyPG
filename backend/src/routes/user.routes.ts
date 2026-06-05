@@ -14,7 +14,8 @@ router.use(authMiddleware);
 router.get('/', async (req, res) => {
   const orgId = req.user!.organizationId;
   const users = await prisma.profile.findMany({
-    where: { organizationId: orgId }
+    where: { organizationId: orgId },
+    include: { branch: true }
   });
   res.json({ success: true, data: users });
 });
@@ -23,7 +24,8 @@ router.get('/', async (req, res) => {
 router.get('/:id', validate(z.object({ params: z.object({ id: z.string().uuid() }) })), async (req, res) => {
   const userId = req.params.id as string;
   const user = await prisma.profile.findFirst({
-    where: { id: userId, organizationId: req.user!.organizationId }
+    where: { id: userId, organizationId: req.user!.organizationId },
+    include: { branch: true }
   });
   
   if (!user) return res.status(404).json({ success: false, error: 'User not found' });
@@ -34,7 +36,7 @@ router.get('/:id', validate(z.object({ params: z.object({ id: z.string().uuid() 
 // Create user (Hierarchical: OWNER creates anyone, WARDEN creates STAFF)
 router.post('/', validate(createProfileSchema), async (req, res) => {
   const { organizationId, role: currentUserRole } = req.user!;
-  const { email, password: providedPassword, name, phone, role: targetRole } = req.body;
+  const { email, password: providedPassword, name, phone, role: targetRole, branchId } = req.body;
 
   // 1. Hierarchy Check
   if (currentUserRole === 'WARDEN' && targetRole !== 'STAFF') {
@@ -64,7 +66,7 @@ router.post('/', validate(createProfileSchema), async (req, res) => {
         email,
         password,
         email_confirm: true,
-        user_metadata: { name, organizationId }
+        user_metadata: { name, organizationId, branchId }
       });
 
       if (authError || !authData.user) {
@@ -81,7 +83,8 @@ router.post('/', validate(createProfileSchema), async (req, res) => {
         email: email.toLowerCase(),
         phone,
         role: targetRole,
-        organizationId
+        organizationId,
+        branchId
       }
     });
 
@@ -95,6 +98,95 @@ router.post('/', validate(createProfileSchema), async (req, res) => {
     console.error('User Creation Error:', err);
     res.status(500).json({ success: false, error: 'Internal Server Error' });
   }
+});
+
+// Update user status
+router.patch('/:id/status', validate(z.object({ 
+  params: z.object({ id: z.string().uuid() }),
+  body: z.object({ status: z.enum(['ACTIVE', 'INACTIVE', 'SUSPENDED']) }) 
+})), async (req, res) => {
+  const { organizationId, role: currentUserRole } = req.user!;
+  const targetId = req.params.id as string;
+  const { status } = req.body;
+
+  if (currentUserRole !== 'OWNER' && currentUserRole !== 'WARDEN') {
+    return res.status(403).json({ success: false, error: 'Unauthorized to update status' });
+  }
+
+  const result = await prisma.profile.updateMany({
+    where: { id: targetId, organizationId },
+    data: { status }
+  });
+
+  if (result.count === 0) return res.status(404).json({ success: false, error: 'User not found' });
+  
+  res.json({ success: true, message: `User status updated to ${status}` });
+});
+
+// Admin Password Reset
+router.post('/:id/reset-password', validate(z.object({ 
+  params: z.object({ id: z.string().uuid() }),
+  body: z.object({ newPassword: z.string().min(6) }) 
+})), async (req, res) => {
+  const { organizationId, role: currentUserRole } = req.user!;
+  const targetId = req.params.id as string;
+  const { newPassword } = req.body;
+
+  if (currentUserRole !== 'OWNER') {
+    return res.status(403).json({ success: false, error: 'Only owners can reset passwords' });
+  }
+
+  try {
+    if (process.env.NODE_ENV === 'development' && process.env.ENABLE_MOCK_AUTH === 'true') {
+      // Mock success
+    } else {
+      const { error } = await supabaseAdmin.auth.admin.updateUserById(targetId, {
+        password: newPassword
+      });
+
+      if (error) {
+        return res.status(400).json({ success: false, error: error.message });
+      }
+    }
+
+    res.json({ success: true, message: 'Password reset successful' });
+  } catch (err: any) {
+    console.error('Admin Reset Password Error:', err);
+    res.status(500).json({ success: false, error: 'Internal Server Error' });
+  }
+});
+
+// Assign Branch
+router.patch('/:id/assign-branch', validate(z.object({ 
+  params: z.object({ id: z.string().uuid() }),
+  body: z.object({ branchId: z.string().uuid().nullable() }) 
+})), async (req, res) => {
+  const { organizationId, role: currentUserRole } = req.user!;
+  const targetId = req.params.id as string;
+  const { branchId } = req.body;
+
+  if (currentUserRole !== 'OWNER') {
+    return res.status(403).json({ success: false, error: 'Only owners can assign branches' });
+  }
+
+  // Verify branch belongs to organization if provided
+  if (branchId) {
+    const branch = await prisma.branch.findFirst({
+      where: { id: branchId, organizationId }
+    });
+    if (!branch) {
+      return res.status(400).json({ success: false, error: 'Branch not found in your organization' });
+    }
+  }
+
+  const result = await prisma.profile.updateMany({
+    where: { id: targetId, organizationId },
+    data: { branchId }
+  });
+
+  if (result.count === 0) return res.status(404).json({ success: false, error: 'User not found' });
+  
+  res.json({ success: true, message: 'Branch assignment updated' });
 });
 
 // Update user

@@ -7,17 +7,35 @@ router.use(authMiddleware);
 
 // GET /dashboard/overview
 router.get('/overview', async (req, res) => {
-  const orgId = req.user!.organizationId;
+  const { role, branchId: userBranchId, organizationId: orgId } = req.user!;
 
-  const rooms = await prisma.room.findMany({ where: { organizationId: orgId } });
+  const rooms = await prisma.room.findMany({ 
+    where: { 
+      organizationId: orgId,
+      ...(role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && { branchId: userBranchId })
+    } 
+  });
   const total_rooms = rooms.length;
   const total_capacity = rooms.reduce((acc, r) => acc + r.totalCapacity, 0);
   const occupied_capacity = rooms.reduce((acc, r) => acc + r.occupiedCapacity, 0);
   
-  const total_tenants = await prisma.tenant.count({ where: { organizationId: orgId, status: 'ACTIVE' } });
+  const total_tenants = await prisma.tenant.count({ 
+    where: { 
+      organizationId: orgId, 
+      status: 'ACTIVE',
+      ...(role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && {
+        admissions: { some: { room: { branchId: userBranchId }, status: 'ACTIVE' } }
+      })
+    } 
+  });
 
   const invoices = await prisma.invoice.findMany({ 
-    where: { organizationId: orgId },
+    where: { 
+      organizationId: orgId,
+      ...(role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && {
+        tenant: { admissions: { some: { room: { branchId: userBranchId }, status: 'ACTIVE' } } }
+      })
+    },
     include: { payments: true }
   });
 
@@ -46,10 +64,15 @@ router.get('/overview', async (req, res) => {
 
 // GET /dashboard/revenue
 router.get('/revenue', async (req, res) => {
-  const orgId = req.user!.organizationId;
+  const { role, branchId: userBranchId, organizationId: orgId } = req.user!;
   
   const payments = await prisma.payment.findMany({
-    where: { organizationId: orgId },
+    where: { 
+      organizationId: orgId,
+      ...(role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && {
+        invoice: { tenant: { admissions: { some: { room: { branchId: userBranchId }, status: 'ACTIVE' } } } }
+      })
+    },
     orderBy: { paymentDate: 'asc' }
   });
 
@@ -65,10 +88,13 @@ router.get('/revenue', async (req, res) => {
 
 // GET /dashboard/occupancy
 router.get('/occupancy', async (req, res) => {
-  const orgId = req.user!.organizationId;
+  const { role, branchId: userBranchId, organizationId: orgId } = req.user!;
 
   const branches = await prisma.branch.findMany({
-    where: { organizationId: orgId },
+    where: { 
+      organizationId: orgId,
+      ...(role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && { id: userBranchId })
+    },
     include: { rooms: true }
   });
 
@@ -88,10 +114,16 @@ router.get('/occupancy', async (req, res) => {
 
 // GET /dashboard/pending-payments
 router.get('/pending-payments', async (req, res) => {
-  const orgId = req.user!.organizationId;
+  const { role, branchId: userBranchId, organizationId: orgId } = req.user!;
 
   const pendingInvoices = await prisma.invoice.findMany({
-    where: { organizationId: orgId, status: { not: 'PAID' } },
+    where: { 
+      organizationId: orgId, 
+      status: { not: 'PAID' },
+      ...(role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && {
+        tenant: { admissions: { some: { room: { branchId: userBranchId }, status: 'ACTIVE' } } }
+      })
+    },
     include: { tenant: true, payments: true },
     orderBy: { dueDate: 'asc' }
   });
