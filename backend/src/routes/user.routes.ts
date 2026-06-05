@@ -5,6 +5,7 @@ import { authMiddleware } from '../middlewares/auth.middleware';
 import { validate } from '../middlewares/validation.middleware';
 import { createProfileSchema, updateProfileSchema } from '../schemas/profile.schema';
 import { z } from 'zod';
+import { randomUUID } from 'crypto';
 
 const router = Router();
 router.use(authMiddleware);
@@ -53,23 +54,31 @@ router.post('/', validate(createProfileSchema), async (req, res) => {
   }
 
   try {
-    // 3. Create User in Supabase using Admin SDK (bypasses email confirmation)
-    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-      user_metadata: { name, organizationId }
-    });
+    let newUserId: string;
 
-    if (authError || !authData.user) {
-      return res.status(400).json({ success: false, error: authError?.message || 'Failed to create auth user' });
+    if (process.env.NODE_ENV === 'development' && process.env.ENABLE_MOCK_AUTH === 'true') {
+      newUserId = randomUUID();
+    } else {
+      // 3. Create User in Supabase using Admin SDK (bypasses email confirmation)
+      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: { name, organizationId }
+      });
+
+      if (authError || !authData.user) {
+        return res.status(400).json({ success: false, error: authError?.message || 'Failed to create auth user' });
+      }
+      newUserId = authData.user.id;
     }
 
     // 4. Create Profile in Prisma
     const profile = await prisma.profile.create({
       data: {
-        id: authData.user.id,
+        id: newUserId,
         name,
+        email: email.toLowerCase(),
         phone,
         role: targetRole,
         organizationId
