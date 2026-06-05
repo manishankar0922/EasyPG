@@ -1,19 +1,18 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import api from '@/lib/api';
 import { 
-  Users, 
   Search, 
   Plus, 
   Phone, 
   School, 
-  MoreVertical,
   ChevronRight,
   ArrowLeftRight,
   X,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
@@ -24,7 +23,14 @@ interface Tenant {
   phone: string;
   collegeName: string;
   status: string;
-  admissions: any[];
+  admissions: Array<{
+    id: string;
+    roomId: string;
+    room: {
+      roomNumber: string;
+      branch: { name: string };
+    };
+  }>;
 }
 
 interface Room {
@@ -49,7 +55,7 @@ export default function TenantsPage() {
   const [transferring, setTransferring] = useState(false);
   const [transferError, setTransferError] = useState('');
 
-  const fetchTenants = async () => {
+  const fetchTenants = useCallback(async () => {
     try {
       setLoading(true);
       const { data } = await api.get(`/tenants?search=${search}`);
@@ -61,12 +67,12 @@ export default function TenantsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [search]);
 
   useEffect(() => {
     const timer = setTimeout(fetchTenants, 300);
     return () => clearTimeout(timer);
-  }, [search]);
+  }, [fetchTenants]);
 
   const openTransferModal = async (tenant: Tenant) => {
     setSelectedTenant(tenant);
@@ -99,12 +105,21 @@ export default function TenantsPage() {
         setShowTransferModal(false);
         fetchTenants();
       }
-    } catch (err: any) {
-      setTransferError(err.response?.data?.error || 'Transfer failed');
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Transfer failed';
+      setTransferError(errorMessage);
     } finally {
       setTransferring(false);
     }
   };
+
+  if (loading && tenants.length === 0) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
