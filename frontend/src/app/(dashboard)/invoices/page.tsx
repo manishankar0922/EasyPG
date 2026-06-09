@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import api from '@/lib/api';
 import Link from 'next/link';
 import { 
@@ -9,7 +9,11 @@ import {
   Plus,
   Clock,
   CheckCircle2,
-  AlertTriangle
+  AlertTriangle,
+  Loader2,
+  X,
+  CreditCard,
+  IndianRupee
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -25,29 +29,111 @@ interface Invoice {
 
 export default function InvoicesPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Payment Modal State
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const [paymentData, setPaymentData] = useState({
+    amount: '',
+    paymentMode: 'UPI',
+    paymentDate: format(new Date(), 'yyyy-MM-dd'),
+  });
+  const [submitting, setSubmitting] = useState(false);
+
+  const fetchInvoices = useCallback(async () => {
+    try {
+      setLoading(true);
+      const { data } = await api.get('/invoices');
+      if (data.success) {
+        setInvoices(data.data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch invoices', err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    async function fetchInvoices() {
-      try {
-        const { data } = await api.get('/invoices');
-        if (data.success) {
-          setInvoices(data.data);
-        }
-      } catch (err) {
-        console.error('Failed to fetch invoices', err);
-      }
-    }
     fetchInvoices();
-  }, []);
+  }, [fetchInvoices]);
+
+  const openPaymentModal = (invoice: Invoice) => {
+    setSelectedInvoice(invoice);
+    setPaymentData({
+      amount: invoice.amount.toString(),
+      paymentMode: 'UPI',
+      paymentDate: format(new Date(), 'yyyy-MM-dd'),
+    });
+    setShowPaymentModal(true);
+  };
+
+  const handlePayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedInvoice) return;
+
+    setSubmitting(true);
+    try {
+      const { data } = await api.post('/payments', {
+        invoiceId: selectedInvoice.id,
+        amount: Number(paymentData.amount),
+        paymentMode: paymentData.paymentMode,
+        paymentDate: paymentData.paymentDate,
+      });
+      if (data.success) {
+        setShowPaymentModal(false);
+        fetchInvoices();
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Payment recording failed');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Bulk Generation State
+  const [showBulkModal, setShowBulkModal] = useState(false);
+  const [bulkData, setBulkData] = useState({
+    month: format(new Date(), 'MMMM yyyy'),
+    dueDate: format(new Date(), 'yyyy-MM-dd'),
+  });
+  const [generating, setGenerating] = useState(false);
+
+  const handleBulkGenerate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setGenerating(true);
+    try {
+      const { data } = await api.post('/invoices/generate-monthly', bulkData);
+      if (data.success) {
+        setShowBulkModal(false);
+        fetchInvoices();
+        alert(data.message);
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Generation failed');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  if (loading && invoices.length === 0) return (
+    <div className="flex h-64 items-center justify-center">
+      <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+    </div>
+  );
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-slate-900">Invoices</h1>
         <div className="flex space-x-3">
-          <button className="flex items-center space-x-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition">
-            <Filter className="h-4 w-4" />
-            <span>Filter</span>
+          <button 
+            onClick={() => setShowBulkModal(true)}
+            className="flex items-center space-x-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition"
+          >
+            <Calendar className="h-4 w-4" />
+            <span>Generate Monthly</span>
           </button>
           <Link 
             href="/invoices/create"
@@ -119,7 +205,14 @@ export default function InvoicesPage() {
                   </span>
                 </td>
                 <td className="px-6 py-4 text-right">
-                  <button className="text-blue-600 hover:text-blue-700 font-medium mr-4">Receive Payment</button>
+                  {invoice.status !== 'PAID' && (
+                    <button 
+                      onClick={() => openPaymentModal(invoice)}
+                      className="text-blue-600 hover:text-blue-700 font-medium mr-4"
+                    >
+                      Receive Payment
+                    </button>
+                  )}
                   <button className="text-slate-400 hover:text-slate-600">View</button>
                 </td>
               </tr>
@@ -127,6 +220,133 @@ export default function InvoicesPage() {
           </tbody>
         </table>
       </div>
+
+      {/* Payment Modal */}
+      {showPaymentModal && selectedInvoice && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl animate-in zoom-in duration-200">
+            <div className="flex items-center justify-between border-b border-slate-100 p-6">
+              <div>
+                <h2 className="text-xl font-bold text-slate-900">Receive Payment</h2>
+                <p className="text-sm text-slate-500">For {selectedInvoice.tenant.name} - {selectedInvoice.month}</p>
+              </div>
+              <button onClick={() => setShowPaymentModal(false)} className="rounded-full p-2 hover:bg-slate-100 transition">
+                <X className="h-5 w-5 text-slate-400" />
+              </button>
+            </div>
+
+            <form onSubmit={handlePayment} className="p-6 space-y-5">
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-700">Amount Received</label>
+                <div className="relative">
+                  <IndianRupee className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                  <input
+                    type="number"
+                    required
+                    className="w-full rounded-xl border border-slate-200 py-2.5 pl-10 pr-4 text-sm focus:border-blue-500 outline-none"
+                    value={paymentData.amount}
+                    onChange={(e) => setPaymentData({ ...paymentData, amount: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-700">Payment Mode</label>
+                <div className="relative">
+                  <CreditCard className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                  <select
+                    className="w-full rounded-xl border border-slate-200 py-2.5 pl-10 pr-4 text-sm focus:border-blue-500 outline-none appearance-none"
+                    value={paymentData.paymentMode}
+                    onChange={(e) => setPaymentData({ ...paymentData, paymentMode: e.target.value })}
+                  >
+                    <option value="UPI">UPI / GPay / PhonePe</option>
+                    <option value="CASH">Cash</option>
+                    <option value="BANK_TRANSFER">Bank Transfer / NEFT</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-700">Payment Date</label>
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                  <input
+                    type="date"
+                    required
+                    className="w-full rounded-xl border border-slate-200 py-2.5 pl-10 pr-4 text-sm focus:border-blue-500 outline-none"
+                    value={paymentData.paymentDate}
+                    onChange={(e) => setPaymentData({ ...paymentData, paymentDate: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="flex space-x-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowPaymentModal(false)}
+                  className="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-bold text-slate-600"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="flex-[2] rounded-xl bg-blue-600 py-2.5 text-sm font-bold text-white hover:bg-blue-700 transition disabled:opacity-50"
+                >
+                  {submitting ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : 'Record Payment'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+ssName="p-6 space-y-5">
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-700">Billing Month</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. October 2023"
+                  className="w-full rounded-xl border border-slate-200 py-2.5 px-4 text-sm focus:border-blue-500 outline-none"
+                  value={bulkData.month}
+                  onChange={(e) => setBulkData({ ...bulkData, month: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-700">Due Date</label>
+                <input
+                  type="date"
+                  required
+                  className="w-full rounded-xl border border-slate-200 py-2.5 px-4 text-sm focus:border-blue-500 outline-none"
+                  value={bulkData.dueDate}
+                  onChange={(e) => setBulkData({ ...bulkData, dueDate: e.target.value })}
+                />
+              </div>
+
+              <div className="flex space-x-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowBulkModal(false)}
+                  className="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-bold text-slate-600"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={generating}
+                  className="flex-[2] rounded-xl bg-slate-900 py-2.5 text-sm font-bold text-white hover:bg-slate-800 transition disabled:opacity-50"
+                >
+                  {generating ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : 'Generate Now'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

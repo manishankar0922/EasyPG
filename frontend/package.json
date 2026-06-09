@@ -18,7 +18,6 @@
     "next": "15.5.19",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "root": "github:tanstack/react-query",
     "tailwind-merge": "^3.6.0",
     "zustand": "^5.0.14"
   },

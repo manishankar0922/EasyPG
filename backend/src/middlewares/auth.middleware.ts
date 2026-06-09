@@ -28,29 +28,16 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
     // Developer bypass for local testing
     if (process.env.NODE_ENV === 'development' && 
         process.env.ENABLE_MOCK_AUTH === 'true') {
-      if (token === 'mock-dev-token') {
-        req.user = {
-          id: '00000000-0000-0000-0000-000000000001',
-          organizationId: '00000000-0000-0000-0000-000000000001',
-          branchId: null,
-          role: 'OWNER',
-        };
-        return next();
-      }
-      if (token === 'mock-admin-token') {
-        req.user = {
-          id: '00000000-0000-0000-0000-000000000000',
-          organizationId: '00000000-0000-0000-0000-000000000000',
-          branchId: null,
-          role: 'SUPER_ADMIN',
-        };
-        return next();
-      }
-      if (token.startsWith('mock-user-token-')) {
-        const userId = token.replace('mock-user-token-', '');
+      if (token === 'mock-dev-token' || token === 'mock-admin-token' || token.startsWith('mock-user-token-')) {
+        let userId = '';
+        if (token === 'mock-dev-token') userId = '00000000-0000-0000-0000-000000000001';
+        else if (token === 'mock-admin-token') userId = '00000000-0000-0000-0000-000000000000';
+        else userId = token.replace('mock-user-token-', '');
+
         const profile = await prisma.profile.findUnique({
           where: { id: userId },
         });
+
         if (profile) {
           req.user = {
             id: profile.id,
