@@ -1,0 +1,18 @@
+{
+  "name": "easypg",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev:frontend": "npm run dev --prefix frontend",
+    "dev:backend": "npm run dev --prefix backend",
+    "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
+    "build:frontend": "npm run build --prefix frontend",
+    "build:backend": "npm run build --prefix backend",
+    "build": "npm run build:backend && npm run build:frontend",
+    "install:all": "npm install && npm install --prefix frontend && npm install --prefix backend",
+    "start": "concurrently \"npm start --prefix frontend\" \"npm start --prefix backend\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

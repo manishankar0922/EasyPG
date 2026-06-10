@@ -30,6 +30,9 @@ model Organization {
   payments   Payment[]
   complaints Complaint[]
   notifications Notification[]
+  beds       Bed[]
+  securityDeposits SecurityDeposit[]
+  vacateNotices    VacateNotice[]
 
   @@map("organizations")
 }
@@ -70,6 +73,7 @@ model Branch {
   organization   Organization @relation(fields: [organizationId], references: [id])
   name           String       @db.VarChar(100)
   address        String?
+  floors         Int          @default(1)
   createdAt      DateTime     @default(now()) @map("created_at")
   updatedAt      DateTime     @updatedAt @map("updated_at")
 
@@ -96,6 +100,7 @@ enum GenderType {
 
 enum RoomStatus {
   ACTIVE
+  INACTIVE
   BLOCKED
   MAINTENANCE
 }
@@ -107,6 +112,8 @@ model Room {
   branchId         String       @map("branch_id") @db.Uuid
   branch           Branch       @relation(fields: [branchId], references: [id])
   roomNumber       String       @map("room_number") @db.VarChar(20)
+  floor            Int          @default(1)
+  hasAC            Boolean      @default(false)
   roomType         RoomType?    @map("room_type")
   totalCapacity    Int          @map("total_capacity")
   occupiedCapacity Int          @default(0) @map("occupied_capacity")
@@ -117,8 +124,25 @@ model Room {
   updatedAt        DateTime     @updatedAt @map("updated_at")
 
   admissions Admission[]
+  beds       Bed[]
 
   @@map("rooms")
+}
+
+model Bed {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  roomId         String       @map("room_id") @db.Uuid
+  room           Room         @relation(fields: [roomId], references: [id])
+  bedNumber      String       @map("bed_number") @db.VarChar(50)
+  isOccupied     Boolean      @default(false) @map("is_occupied")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  admissions     Admission[]
+
+  @@map("beds")
 }
 
 enum TenantStatus {
@@ -134,6 +158,8 @@ model Tenant {
   phone          String       @db.VarChar(20)
   parentPhone    String?      @map("parent_phone") @db.VarChar(20)
   aadhaarLast4   String?      @map("aadhaar_last4") @db.VarChar(4)
+  photoUrl       String?      @map("photo_url") @db.VarChar(255)
+  aadhaarPhotoUrl String?     @map("aadhaar_photo_url") @db.VarChar(255)
   collegeName    String?      @map("college_name") @db.VarChar(150)
   status         TenantStatus? @default(ACTIVE)
   createdAt      DateTime     @default(now()) @map("created_at")
@@ -143,7 +169,11 @@ model Tenant {
   invoices   Invoice[]
   complaints Complaint[]
   notifications Notification[]
+  securityDeposits SecurityDeposit[]
+  vacateNotices    VacateNotice[]
 
+  @@index([organizationId])
+  @@index([status])
   @@map("tenants")
 }
 
@@ -160,6 +190,8 @@ model Admission {
   tenant         Tenant       @relation(fields: [tenantId], references: [id])
   roomId         String       @map("room_id") @db.Uuid
   room           Room         @relation(fields: [roomId], references: [id])
+  bedId          String?      @map("bed_id") @db.Uuid
+  bed            Bed?         @relation(fields: [bedId], references: [id])
   checkinDate    DateTime     @map("checkin_date") @db.Date
   checkoutDate   DateTime?    @map("checkout_date") @db.Date
   monthlyRent    Decimal      @map("monthly_rent") @db.Decimal(10,2)
@@ -208,6 +240,7 @@ model Payment {
   invoiceId      String       @map("invoice_id") @db.Uuid
   invoice        Invoice      @relation(fields: [invoiceId], references: [id])
   amount         Decimal      @db.Decimal(10,2)
+  balanceCarriedForward Decimal? @default(0) @map("balance_carried_forward") @db.Decimal(10,2)
   paymentMode    PaymentMode? @map("payment_mode")
   paymentDate    DateTime     @map("payment_date")
   createdAt      DateTime     @default(now()) @map("created_at")
@@ -266,4 +299,65 @@ model Notification {
   isRead         Boolean          @default(false) @map("is_read")
 
   @@map("notifications")
+}
+
+enum SecurityDepositStatus {
+  HELD
+  REFUNDED
+}
+
+enum VacateNoticeStatus {
+  PENDING
+  CONFIRMED
+}
+
+model SecurityDeposit {
+  id             String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String                @map("organization_id") @db.Uuid
+  organization   Organization          @relation(fields: [organizationId], references: [id])
+  tenantId       String                @map("tenant_id") @db.Uuid
+  tenant         Tenant                @relation(fields: [tenantId], references: [id])
+  amount         Decimal               @db.Decimal(10,2)
+  status         SecurityDepositStatus @default(HELD)
+  refundDate     DateTime?             @map("refund_date") @db.Date
+  createdAt      DateTime              @default(now()) @map("created_at")
+  updatedAt      DateTime              @updatedAt @map("updated_at")
+
+  @@map("security_deposits")
+}
+
+model VacateNotice {
+  id             String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String             @map("organization_id") @db.Uuid
+  organization   Organization       @relation(fields: [organizationId], references: [id])
+  tenantId       String             @map("tenant_id") @db.Uuid
+  tenant         Tenant             @relation(fields: [tenantId], references: [id])
+  noticeDate     DateTime           @map("notice_date") @db.Date
+  vacateDate     DateTime           @map("vacate_date") @db.Date
+  status         VacateNoticeStatus @default(PENDING)
+  createdAt      DateTime           @default(now()) @map("created_at")
+  updatedAt      DateTime           @updatedAt @map("updated_at")
+
+  @@map("vacate_notices")
+}
+
+model SystemLog {
+  id             String    @id @default(uuid()) @db.Uuid
+  adminId        String?   @map("admin_id") @db.Uuid
+  action         String    @db.VarChar(100)
+  details        String    @db.Text
+  targetOrgId    String?   @map("target_org_id") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  @@map("system_logs")
+}
+
+model Broadcast {
+  id             String    @id @default(uuid()) @db.Uuid
+  title          String    @db.VarChar(100)
+  message        String    @db.Text
+  isActive       Boolean   @default(true) @map("is_active")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  @@map("broadcasts")
 }

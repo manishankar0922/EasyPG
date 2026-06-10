@@ -13,33 +13,38 @@ import {
   Settings, 
   LogOut,
   UserPlus,
-  ChevronRight
+  ChevronRight,
+  ShieldCheck
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/auth-store';
+import { useUserRole } from '@/hooks/useUserRole';
 
 const mainMenuItems = [
   { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },
-  { icon: Building2, label: 'Branches', href: '/branches' },
-  { icon: Bed, label: 'Rooms', href: '/rooms' },
+  { icon: Building2, label: 'Branches', href: '/branches', adminOnly: true },
+  { icon: Bed, label: 'Rooms', href: '/rooms' }, // Client gets view only, handled in the page
 ];
 
 const managementItems = [
   { icon: Users, label: 'Tenants', href: '/tenants' },
-  { icon: UserCheck, label: 'Admissions', href: '/admissions' },
-  { icon: UserPlus, label: 'Staff Management', href: '/users' },
+  { icon: UserCheck, label: 'Admissions', href: '/admissions', adminOnly: true },
+  { icon: UserPlus, label: 'Staff Management', href: '/users', adminOnly: true },
 ];
 
 const financialItems = [
-  { icon: FileText, label: 'Invoices', href: '/invoices' },
+  { icon: FileText, label: 'Invoices', href: '/invoices', adminOnly: true },
   { icon: CreditCard, label: 'Payments', href: '/payments' },
 ];
+
+const adminSettingsItem = { icon: ShieldCheck, label: 'Super Admin', href: '/admin', adminOnly: true };
 
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const logout = useAuthStore((state) => state.logout);
   const user = useAuthStore((state) => state.user);
+  const { isAdmin } = useUserRole();
 
   const handleLogout = () => {
     logout();
@@ -68,6 +73,12 @@ export default function Sidebar() {
     );
   };
 
+  const filterItems = (items: any[]) => items.filter(item => isAdmin || !item.adminOnly);
+
+  const visibleMain = filterItems(mainMenuItems);
+  const visibleMgmt = filterItems(managementItems);
+  const visibleFin = filterItems(financialItems);
+
   return (
     <div className="flex h-screen w-72 flex-col bg-white border-r border-slate-100 shadow-[4px_0_24px_rgba(0,0,0,0.02)]">
       <div className="px-8 py-8">
@@ -80,26 +91,41 @@ export default function Sidebar() {
       </div>
 
       <nav className="flex-1 space-y-8 px-4 overflow-y-auto custom-scrollbar">
-        <div>
-          <p className="px-4 text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Core Overview</p>
-          <div className="space-y-1">
-            {mainMenuItems.map((item) => <NavItem key={item.href} item={item} />)}
+        {visibleMain.length > 0 && (
+          <div>
+            <p className="px-4 text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Core Overview</p>
+            <div className="space-y-1">
+              {visibleMain.map((item) => <NavItem key={item.href} item={item} />)}
+            </div>
           </div>
-        </div>
+        )}
 
-        <div>
-          <p className="px-4 text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Operations</p>
-          <div className="space-y-1">
-            {managementItems.map((item) => <NavItem key={item.href} item={item} />)}
+        {visibleMgmt.length > 0 && (
+          <div>
+            <p className="px-4 text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Operations</p>
+            <div className="space-y-1">
+              {visibleMgmt.map((item) => <NavItem key={item.href} item={item} />)}
+            </div>
           </div>
-        </div>
+        )}
 
-        <div>
-          <p className="px-4 text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Financials</p>
-          <div className="space-y-1">
-            {financialItems.map((item) => <NavItem key={item.href} item={item} />)}
+        {visibleFin.length > 0 && (
+          <div>
+            <p className="px-4 text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Financials</p>
+            <div className="space-y-1">
+              {visibleFin.map((item) => <NavItem key={item.href} item={item} />)}
+            </div>
           </div>
-        </div>
+        )}
+
+        {isAdmin && (
+          <div>
+            <p className="px-4 text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">System</p>
+            <div className="space-y-1">
+              <NavItem item={adminSettingsItem} />
+            </div>
+          </div>
+        )}
       </nav>
 
       <div className="p-4 border-t border-slate-50 bg-slate-50/50">

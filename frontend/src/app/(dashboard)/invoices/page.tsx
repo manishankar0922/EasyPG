@@ -300,10 +300,21 @@ export default function InvoicesPage() {
           </div>
         </div>
       )}
-    </div>
-  );
-}
-ssName="p-6 space-y-5">
+      {/* Bulk Generate Modal */}
+      {showBulkModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl animate-in zoom-in duration-200">
+            <div className="flex items-center justify-between border-b border-slate-100 p-6">
+              <div>
+                <h2 className="text-xl font-bold text-slate-900">Generate Monthly Invoices</h2>
+                <p className="text-sm text-slate-500">Create invoices for all active tenants</p>
+              </div>
+              <button onClick={() => setShowBulkModal(false)} className="rounded-full p-2 hover:bg-slate-100 transition">
+                <X className="h-5 w-5 text-slate-400" />
+              </button>
+            </div>
+
+            <form onSubmit={handleBulkGenerate} className="p-6 space-y-5">
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-slate-700">Billing Month</label>
                 <input

@@ -12,10 +12,20 @@ router.use(authMiddleware);
 router.get('/', async (req, res) => {
   const { search, status } = req.query;
   const orgId = req.user!.organizationId;
+  const { role, branchId: userBranchId } = req.user!;
 
   const tenants = await prisma.tenant.findMany({
     where: {
       organizationId: orgId,
+      ...(role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && {
+        admissions: {
+          some: {
+            room: {
+              branchId: userBranchId
+            }
+          }
+        }
+      }),
       ...(status && { status: status as any }),
       ...(search && {
         OR: [
@@ -39,10 +49,20 @@ router.get('/', async (req, res) => {
 router.get('/search', async (req, res) => {
   const { q } = req.query;
   const orgId = req.user!.organizationId;
+  const { role, branchId: userBranchId } = req.user!;
 
   const tenants = await prisma.tenant.findMany({
     where: {
       organizationId: orgId,
+      ...(role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && {
+        admissions: {
+          some: {
+            room: {
+              branchId: userBranchId
+            }
+          }
+        }
+      }),
       OR: [
         { name: { contains: q as string, mode: 'insensitive' } },
         { phone: { contains: q as string } },
@@ -55,8 +75,22 @@ router.get('/search', async (req, res) => {
 // Get single tenant profile and history
 router.get('/:id', validate(z.object({ params: z.object({ id: z.string().uuid() }) })), async (req, res) => {
   const tenantId = req.params.id as string;
+  const { role, branchId: userBranchId, organizationId: orgId } = req.user!;
+
   const tenant = await prisma.tenant.findFirst({
-    where: { id: tenantId, organizationId: req.user!.organizationId },
+    where: { 
+      id: tenantId, 
+      organizationId: orgId,
+      ...(role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && {
+        admissions: {
+          some: {
+            room: {
+              branchId: userBranchId
+            }
+          }
+        }
+      })
+    },
     include: {
       admissions: {
         include: { room: { include: { branch: true } } },
@@ -76,8 +110,18 @@ router.get('/:id', validate(z.object({ params: z.object({ id: z.string().uuid() 
 // GET /tenants/:id/history
 router.get('/:id/history', validate(z.object({ params: z.object({ id: z.string().uuid() }) })), async (req, res) => {
   const tenantId = req.params.id as string;
+  const { role, branchId: userBranchId, organizationId: orgId } = req.user!;
+
   const history = await prisma.admission.findMany({
-    where: { tenantId, organizationId: req.user!.organizationId },
+    where: { 
+      tenantId, 
+      organizationId: orgId,
+      ...(role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && {
+        room: {
+          branchId: userBranchId
+        }
+      })
+    },
     include: { room: { include: { branch: true } } },
     orderBy: { createdAt: 'desc' }
   });
@@ -86,15 +130,64 @@ router.get('/:id/history', validate(z.object({ params: z.object({ id: z.string()
 
 // Create tenant
 router.post('/', validate(createTenantSchema), async (req, res) => {
-  const tenant = await prisma.tenant.create({
-    data: {
-      ...req.body,
-      organizationId: req.user!.organizationId,
-      status: req.body.status || 'ACTIVE'
-    }
-  });
+  const { 
+    name, phone, parentPhone, aadhaarLast4, photoUrl, aadhaarPhotoUrl, collegeName, status,
+    roomId, bedId, monthlyRent, checkinDate, depositAmount 
+  } = req.body;
+  const orgId = req.user!.organizationId;
 
-  res.status(201).json({ success: true, data: tenant });
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Check if bed is already occupied to prevent double booking
+      const bed = await tx.bed.findUnique({ where: { id: bedId } });
+      if (!bed) throw new Error("Bed not found");
+      if (bed.isOccupied) throw new Error("Bed is already occupied");
+
+      // 2. Create Tenant
+      const tenant = await tx.tenant.create({
+        data: {
+          name, phone, parentPhone, aadhaarLast4, photoUrl, aadhaarPhotoUrl, collegeName,
+          status: status || 'ACTIVE',
+          organizationId: orgId,
+        }
+      });
+
+      // 3. Create Admission
+      const admission = await tx.admission.create({
+        data: {
+          organizationId: orgId,
+          tenantId: tenant.id,
+          roomId,
+          bedId,
+          checkinDate: new Date(checkinDate),
+          monthlyRent,
+          depositAmount: depositAmount || 0,
+          status: 'ACTIVE'
+        }
+      });
+
+      // 4. Update Bed and Room Occupancy
+      await tx.bed.update({
+        where: { id: bedId },
+        data: { isOccupied: true }
+      });
+
+      await tx.room.update({
+        where: { id: roomId },
+        data: { occupiedCapacity: { increment: 1 } }
+      });
+
+      return { tenant, admission };
+    });
+
+    res.status(201).json({ success: true, data: result.tenant });
+  } catch (err: any) {
+    if (err.message === "Bed is already occupied") {
+      return res.status(400).json({ success: false, error: err.message });
+    }
+    console.error('Create tenant error:', err);
+    res.status(500).json({ success: false, error: 'Failed to onboard tenant' });
+  }
 });
 
 // Update tenant
@@ -134,6 +227,70 @@ router.delete('/:id', validate(z.object({ params: z.object({ id: z.string().uuid
   if (result.count === 0) return res.status(404).json({ success: false, error: 'Tenant not found' });
 
   res.json({ success: true, message: 'Tenant deleted' });
+});
+
+// Auto-Assign Bed
+router.post('/auto-assign', validate(z.object({
+  body: z.object({
+    branchId: z.string().uuid()
+  })
+})), async (req, res) => {
+  try {
+    const orgId = req.user!.organizationId;
+    const { branchId } = req.body;
+
+    if (req.user!.role === 'WARDEN' && req.user!.branchId !== branchId) {
+      return res.status(403).json({ error: 'Forbidden: Cannot access other branches' });
+    }
+
+    // Atomic transaction ensures no two wardens double-book the same bed simultaneously
+    const assignedBed = await prisma.$transaction(async (tx) => {
+      const availableBed = await tx.bed.findFirst({
+        where: {
+          isOccupied: false,
+          organizationId: orgId,
+          room: { branchId: branchId, status: 'ACTIVE' }
+        },
+        include: { room: true },
+        orderBy: [
+          { room: { floor: 'asc' } },
+          { room: { roomNumber: 'asc' } },
+          { bedNumber: 'asc' }
+        ]
+      });
+
+      if (!availableBed) return null;
+
+      const claimedBed = await tx.bed.update({
+        where: { id: availableBed.id },
+        data: { isOccupied: true },
+        include: { room: true }
+      });
+
+      await tx.room.update({
+        where: { id: claimedBed.roomId },
+        data: { occupiedCapacity: { increment: 1 } }
+      });
+
+      return claimedBed;
+    });
+
+    if (!assignedBed) {
+      return res.status(404).json({ success: false, error: 'No vacant beds available in this branch.' });
+    }
+
+    res.json({ 
+      success: true, 
+      data: {
+        bedId: assignedBed.id,
+        roomId: assignedBed.roomId,
+        roomName: assignedBed.room.roomNumber,
+        floorNumber: assignedBed.room.floor
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Auto-assignment system failed' });
+  }
 });
 
 export default router;

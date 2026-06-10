@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { supabase } from '../config/supabase';
 import prisma from '../config/db';
+import jwt from 'jsonwebtoken';
 
 declare global {
   namespace Express {
@@ -50,16 +51,33 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
       }
     }
     
-    // Verify token with Supabase
-    const { data: { user }, error } = await supabase.auth.getUser(token);
+    // Check for custom JWT (Impersonation)
+    const JWT_SECRET = process.env.JWT_SECRET || 'easypg-super-secret-key-123';
+    
+    let userId = null;
 
-    if (error || !user) {
-      return res.status(401).json({ success: false, error: 'Unauthorized: Invalid token' });
+    try {
+      // If it's our custom JWT, verify it
+      const decoded = jwt.verify(token, JWT_SECRET) as any;
+      if (decoded && decoded.id) {
+        userId = decoded.id;
+      }
+    } catch (e) {
+      // Not a custom JWT, fallback to Supabase
+    }
+
+    if (!userId) {
+      // Verify token with Supabase
+      const { data: { user }, error } = await supabase.auth.getUser(token);
+      if (error || !user) {
+        return res.status(401).json({ success: false, error: 'Unauthorized: Invalid token' });
+      }
+      userId = user.id;
     }
 
     // Fetch user profile from Prisma to get organizationId and role
     const profile = await prisma.profile.findUnique({
-      where: { id: user.id },
+      where: { id: userId },
     });
 
     if (!profile) {

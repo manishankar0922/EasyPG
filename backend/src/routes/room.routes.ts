@@ -10,7 +10,7 @@ router.use(authMiddleware);
 
 // Get all rooms with filtering
 router.get('/', async (req, res) => {
-  const { branchId, status, genderType } = req.query;
+  const { branchId, status, genderType, includeBeds } = req.query;
   const orgId = req.user!.organizationId as string;
   const { role, branchId: userBranchId } = req.user!;
 
@@ -27,7 +27,11 @@ router.get('/', async (req, res) => {
       ...(status && { status: status as any }),
       ...(genderType && { genderType: genderType as any }),
     },
-    include: { branch: true }
+    include: { 
+      branch: true,
+      ...(includeBeds === 'true' && { beds: true })
+    },
+    orderBy: [{ floor: 'asc' }, { roomNumber: 'asc' }]
   });
   
   res.json({ success: true, data: rooms });
@@ -224,6 +228,84 @@ router.delete('/:id', validate(z.object({ params: z.object({ id: z.string().uuid
   if (result.count === 0) return res.status(404).json({ success: false, error: 'Room not found' });
   
   res.json({ success: true, message: 'Room deleted' });
+});
+
+// Room Analytics Panel
+router.get('/:id/analytics', async (req, res) => {
+  try {
+    const orgId = req.user!.organizationId;
+    const roomId = req.params.id as string;
+
+    const room = await prisma.room.findUnique({
+      where: { id: roomId, organizationId: orgId },
+      include: { 
+        beds: true,
+        admissions: {
+          where: { status: 'ACTIVE' },
+          include: { tenant: { include: { invoices: { include: { payments: true } } } } }
+        }
+      }
+    });
+
+    if (!room) return res.status(404).json({ error: 'Room not found' });
+
+    if (req.user!.role === 'WARDEN' && req.user!.branchId !== room.branchId) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    const occupancyRate = room.totalCapacity > 0 ? (room.occupiedCapacity / room.totalCapacity) * 100 : 0;
+    
+    let expectedRent = 0;
+    let collectedRent = 0;
+    
+    const currentMonth = new Date().toISOString().slice(0, 7); 
+
+    (room as any).admissions.forEach((adm: any) => {
+      if (adm.tenant) {
+        expectedRent += Number(room.rentAmount);
+        
+        adm.tenant.invoices.forEach((inv: any) => {
+          if (inv.month === currentMonth) {
+            const paidForInv = (inv as any).payments.reduce((acc: number, p: any) => acc + Number(p.amount), 0);
+            collectedRent += paidForInv;
+          }
+        });
+      }
+    });
+
+    const pendingRent = expectedRent - collectedRent;
+
+    const pastAdmissions = await prisma.admission.findMany({
+      where: { roomId, organizationId: orgId, status: 'COMPLETED', checkoutDate: { not: null } }
+    });
+
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
+    const turnoverLast6Months = pastAdmissions.filter(a => a.checkoutDate! > sixMonthsAgo).length;
+
+    let totalStayMonths = 0;
+    pastAdmissions.forEach(a => {
+      const msDiff = a.checkoutDate!.getTime() - a.checkinDate.getTime();
+      totalStayMonths += msDiff / (1000 * 60 * 60 * 24 * 30);
+    });
+
+    const avgTenancyMonths = pastAdmissions.length > 0 ? (totalStayMonths / pastAdmissions.length) : 0;
+
+    res.json({
+      success: true,
+      data: {
+        occupancyRate: Math.round(occupancyRate),
+        expectedRent,
+        collectedRent,
+        pendingRent: pendingRent > 0 ? pendingRent : 0,
+        avgTenancyMonths: Number(avgTenancyMonths.toFixed(1)),
+        turnoverLast6Months
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Analytics calculation failed' });
+  }
 });
 
 export default router;

@@ -4,8 +4,8 @@ import { persist } from 'zustand/middleware';
 interface User {
   id: string;
   name: string;
-  role: 'OWNER' | 'WARDEN' | 'STAFF';
-  organizationId: string;
+  role: 'SUPER_ADMIN' | 'OWNER' | 'WARDEN' | 'STAFF';
+  organizationId: string | null;
   branchId: string | null;
   status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
 }

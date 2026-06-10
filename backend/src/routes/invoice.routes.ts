@@ -112,4 +112,56 @@ router.delete('/:id', validate(z.object({ params: z.object({ id: z.string().uuid
   res.json({ success: true, message: 'Invoice deleted successfully' });
 });
 
+// GET /invoices/tenant/:tenantId/pending - Get pending invoices for a tenant (for payment recording)
+router.get('/tenant/:tenantId/pending', validate(z.object({ params: z.object({ tenantId: z.string().uuid() }) })), async (req, res) => {
+  const tenantId = req.params.tenantId as string;
+  const orgId = req.user!.organizationId;
+  const { role, branchId: userBranchId } = req.user!;
+
+  // Verify tenant belongs to org and branch (for warden/staff)
+  const tenant = await prisma.tenant.findFirst({
+    where: {
+      id: tenantId,
+      organizationId: orgId,
+      ...(role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && {
+        admissions: {
+          some: {
+            room: { branchId: userBranchId },
+            status: 'ACTIVE'
+          }
+        }
+      })
+    }
+  });
+
+  if (!tenant) {
+    return res.status(404).json({ success: false, error: 'Tenant not found' });
+  }
+
+  const pendingInvoices = await prisma.invoice.findMany({
+    where: {
+      organizationId: orgId,
+      tenantId,
+      status: { not: 'PAID' }
+    },
+    include: { payments: true },
+    orderBy: { dueDate: 'asc' }
+  });
+
+  const formattedInvoices = pendingInvoices.map(inv => {
+    const paid = (inv as any).payments?.reduce((acc: number, p: any) => acc + Number(p.amount), 0) || 0;
+    return {
+      id: inv.id,
+      month: inv.month,
+      amount: Number(inv.amount),
+      paid,
+      pending: Number(inv.amount) - paid,
+      dueDate: inv.dueDate,
+      status: inv.status
+    };
+  });
+
+  res.json({ success: true, data: formattedInvoices });
+});
+
 export default router;

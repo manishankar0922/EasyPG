@@ -4,6 +4,11 @@ export const createBranchSchema = z.object({
   body: z.object({
     name: z.string().min(2).max(100),
     address: z.string().optional(),
+    floors: z.array(z.object({
+      floorNumber: z.number(),
+      roomCount: z.number(),
+      bedsPerRoom: z.number(),
+    })).optional(),
   }),
 });
 

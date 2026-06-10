@@ -65,4 +65,68 @@ router.patch('/:id', validate(z.object({ params: z.object({ id: z.string().uuid(
   res.json({ success: true, data: updatedOrg });
 });
 
+// Smart Organisation Setup Wizard (Bulk create branches, rooms, and beds)
+router.post('/setup-wizard', validate(z.object({
+  body: z.object({
+    branches: z.array(z.object({
+      name: z.string().min(2),
+      address: z.string().optional(),
+      floors: z.array(z.object({
+        floorNumber: z.number().int().min(0),
+        roomCount: z.number().int().min(1),
+        bedsPerRoom: z.number().int().min(1)
+      }))
+    })).min(1)
+  })
+})), async (req, res) => {
+  const { organizationId, role } = req.user!;
+  const { branches } = req.body;
+
+  if (role !== 'OWNER' && role !== 'SUPER_ADMIN') {
+    return res.status(403).json({ success: false, error: 'Unauthorized to use setup wizard' });
+  }
+
+  const result = await prisma.$transaction(async (tx) => {
+    const createdBranches = await Promise.all(
+      branches.map(async (branch: any) => {
+        const newBranch = await tx.branch.create({
+          data: {
+            name: branch.name,
+            address: branch.address,
+            floors: branch.floors.length,
+            organizationId
+          }
+        });
+
+        for (const floor of branch.floors) {
+          for (let i = 1; i <= floor.roomCount; i++) {
+            const roomNumber = `${floor.floorNumber}-${i.toString().padStart(2, '0')}`;
+            const newRoom = await tx.room.create({
+              data: {
+                roomNumber,
+                floor: floor.floorNumber,
+                totalCapacity: floor.bedsPerRoom,
+                rentAmount: 0, // Default to 0, to be updated later
+                organizationId,
+                branchId: newBranch.id
+              }
+            });
+
+            const bedData = Array.from({ length: floor.bedsPerRoom }).map((_, idx) => ({
+              bedNumber: `${roomNumber}-${String.fromCharCode(65 + idx)}`, // 1-01-A, 1-01-B
+              roomId: newRoom.id,
+              organizationId
+            }));
+            await tx.bed.createMany({ data: bedData });
+          }
+        }
+        return newBranch;
+      })
+    );
+    return createdBranches;
+  });
+
+  res.status(201).json({ success: true, data: result });
+});
+
 export default router;

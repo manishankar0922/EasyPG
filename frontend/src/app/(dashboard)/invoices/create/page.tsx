@@ -63,9 +63,8 @@ export default function CreateInvoicePage() {
       if (data.success) {
         router.push('/invoices');
       }
-    } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to generate invoice';
-      setError(errorMessage);
+    } catch (err: any) {
+      setError(err.response?.data?.error || err.message || 'Failed to generate invoice');
     } finally {
       setLoading(false);
     }

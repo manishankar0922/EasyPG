@@ -25,7 +25,7 @@ router.post('/register', validate(registerSchema), async (req, res) => {
     const userId = authData.user.id;
 
     // 2. Database Transaction (Atomic Organization + Profile creation)
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: any) => {
       const org = await tx.organization.create({
         data: {
           name: organizationName,

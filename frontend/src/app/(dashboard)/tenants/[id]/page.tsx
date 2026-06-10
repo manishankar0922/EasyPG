@@ -33,6 +33,8 @@ interface Tenant {
   parentPhone: string | null;
   collegeName: string | null;
   aadhaarLast4: string | null;
+  photoUrl: string | null;
+  aadhaarPhotoUrl: string | null;
   status: string;
   admissions: Array<{
     id: string;
@@ -226,6 +228,15 @@ export default function TenantDetailsPage() {
               <User className="mr-2 h-5 w-5 text-blue-600" />
               Tenant Profile
             </h2>
+            
+            {tenant.photoUrl && (
+              <div className="flex justify-center mb-6">
+                <div className="relative w-32 h-32 rounded-full overflow-hidden border-2 border-blue-500 shadow-md bg-slate-100">
+                  <img src={tenant.photoUrl} alt={tenant.name} className="w-full h-full object-cover" />
+                </div>
+              </div>
+            )}
+
             <div className="space-y-4">
               <div className="flex items-center justify-between py-2 border-b border-slate-50">
                 <span className="text-sm text-slate-500">Phone</span>
@@ -243,6 +254,15 @@ export default function TenantDetailsPage() {
                 <span className="text-sm text-slate-500">Aadhaar (Last 4)</span>
                 <span className="text-sm font-semibold text-slate-900">{tenant.aadhaarLast4 || 'N/A'}</span>
               </div>
+
+              {tenant.aadhaarPhotoUrl && (
+                <div className="pt-4 border-t border-slate-100">
+                  <span className="text-sm font-semibold text-slate-700 block mb-2">Aadhaar Card Copy</span>
+                  <a href={tenant.aadhaarPhotoUrl} target="_blank" rel="noreferrer" className="block relative h-40 rounded-xl overflow-hidden border border-slate-200 hover:opacity-95 transition">
+                    <img src={tenant.aadhaarPhotoUrl} alt="Aadhaar Card" className="w-full h-full object-cover" />
+                  </a>
+                </div>
+              )}
             </div>
             <button className="w-full mt-6 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition">
               Edit Profile
