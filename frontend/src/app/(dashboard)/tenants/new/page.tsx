@@ -1,0 +1,362 @@
+'use client';
+
+import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import api from '@/lib/api';
+import MobileCameraCapture from '@/components/shared/MobileCameraCapture';
+import { Loader2, UserPlus, Phone, Calendar, Banknote, BedDouble, AlertCircle } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { useAuthStore } from '@/store/auth-store';
+
+type Bed = { id: string; bedNumber: string; isOccupied: boolean };
+type Room = {
+  id: string;
+  roomNumber: string;
+  floor: number;
+  rentAmount: number;
+  beds: Bed[];
+};
+
+export default function AddTenantPage() {
+  const router = useRouter();
+  const user = useAuthStore(state => state.user);
+
+  // Form State
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [photoUrl, setPhotoUrl] = useState('');
+  const [aadhaarPhotoUrl, setAadhaarPhotoUrl] = useState('');
+  const [checkinDate, setCheckinDate] = useState(new Date().toISOString().split('T')[0]);
+  const [monthlyRent, setMonthlyRent] = useState<number | ''>('');
+  
+  // Bed Assignment State
+  const [autoAssign, setAutoAssign] = useState(true);
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [loadingRooms, setLoadingRooms] = useState(true);
+  
+  // Manual Assignment selection
+  const [selectedFloor, setSelectedFloor] = useState<number | null>(null);
+  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
+  const [selectedBedId, setSelectedBedId] = useState<string | null>(null);
+
+  // Submit State
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  // Fetch rooms with beds
+  useEffect(() => {
+    async function fetchRooms() {
+      try {
+        const { data } = await api.get('/rooms?includeBeds=true');
+        if (data.success) {
+          setRooms(data.data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch rooms", err);
+      } finally {
+        setLoadingRooms(false);
+      }
+    }
+    fetchRooms();
+  }, []);
+
+  // Compute best bed for auto-assign
+  const bestBed = React.useMemo(() => {
+    if (!rooms.length) return null;
+    const sortedRooms = [...rooms].sort((a, b) => {
+      if (a.floor !== b.floor) return a.floor - b.floor;
+      return a.roomNumber.localeCompare(b.roomNumber);
+    });
+
+    for (const room of sortedRooms) {
+      const vacantBeds = room.beds.filter(b => !b.isOccupied).sort((a, b) => a.bedNumber.localeCompare(b.bedNumber));
+      if (vacantBeds.length > 0) {
+        return { room, bed: vacantBeds[0] };
+      }
+    }
+    return null;
+  }, [rooms]);
+
+  // Effect to auto-fill rent when a room is selected (either manually or via auto-assign)
+  useEffect(() => {
+    if (autoAssign && bestBed) {
+      setMonthlyRent(Number(bestBed.room.rentAmount));
+    } else if (!autoAssign && selectedRoomId) {
+      const room = rooms.find(r => r.id === selectedRoomId);
+      if (room) setMonthlyRent(Number(room.rentAmount));
+    }
+  }, [autoAssign, bestBed, selectedRoomId, rooms]);
+
+  // Derive final selection
+  const finalRoomId = autoAssign ? bestBed?.room.id : selectedRoomId;
+  const finalBedId = autoAssign ? bestBed?.bed.id : selectedBedId;
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+
+    if (!photoUrl) {
+      setError('Tenant photo is required.');
+      return;
+    }
+    if (phone.length !== 10) {
+      setError('Phone number must be exactly 10 digits.');
+      return;
+    }
+    if (!finalRoomId || !finalBedId) {
+      setError('A bed must be assigned before submitting.');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const res = await api.post('/tenants', {
+        name,
+        phone,
+        photoUrl,
+        aadhaarPhotoUrl,
+        roomId: finalRoomId,
+        bedId: finalBedId,
+        monthlyRent: Number(monthlyRent),
+        checkinDate,
+        status: 'ACTIVE'
+      });
+
+      if (res.data.success) {
+        router.push('/tenants');
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to add tenant');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Group rooms for manual selection
+  const floors = Array.from(new Set(rooms.map(r => r.floor))).sort((a, b) => a - b);
+  const roomsOnSelectedFloor = rooms.filter(r => r.floor === selectedFloor);
+  const selectedRoom = rooms.find(r => r.id === selectedRoomId);
+
+  return (
+    <div className="min-h-screen bg-slate-50 pb-20">
+      <header className="bg-white border-b border-slate-200 sticky top-0 z-40 px-4 py-4 flex items-center justify-between shadow-sm">
+        <h1 className="text-xl font-bold text-slate-800 tracking-tight">Add New Tenant</h1>
+        <button onClick={() => router.back()} className="text-sm font-semibold text-slate-500 hover:text-slate-800">
+          Cancel
+        </button>
+      </header>
+
+      <main className="max-w-xl mx-auto px-4 py-6">
+        <form onSubmit={handleSubmit} className="space-y-8">
+          
+          {/* Photos */}
+          <section className="grid grid-cols-2 gap-4">
+            <MobileCameraCapture 
+              label="Tenant Photo *" 
+              onUploadComplete={setPhotoUrl} 
+            />
+            <MobileCameraCapture 
+              label="Aadhaar ID" 
+              onUploadComplete={setAadhaarPhotoUrl} 
+            />
+          </section>
+
+          {/* Basic Info */}
+          <section className="space-y-4 bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-2">Personal Info</h2>
+            
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-600">Full Name</label>
+              <div className="relative">
+                <UserPlus className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
+                <input 
+                  type="text" required 
+                  placeholder="Rahul Kumar"
+                  className="w-full rounded-xl border border-slate-200 py-3 pl-10 pr-4 text-slate-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition shadow-sm text-sm"
+                  value={name} onChange={e => setName(e.target.value)} 
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-600">Phone Number</label>
+              <div className="relative">
+                <Phone className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
+                <input 
+                  type="number" required 
+                  placeholder="9876543210"
+                  className="w-full rounded-xl border border-slate-200 py-3 pl-10 pr-4 text-slate-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition shadow-sm text-sm"
+                  value={phone} onChange={e => setPhone(e.target.value)} 
+                />
+              </div>
+            </div>
+          </section>
+
+          {/* Bed Assignment */}
+          <section className="space-y-4 bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-sm font-bold uppercase tracking-wider text-slate-400">Bed Assignment</h2>
+              <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 cursor-pointer">
+                <input 
+                  type="checkbox" 
+                  checked={autoAssign} 
+                  onChange={(e) => setAutoAssign(e.target.checked)}
+                  className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                />
+                Auto Assign
+              </label>
+            </div>
+
+            {loadingRooms ? (
+              <div className="flex items-center justify-center p-4">
+                <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+              </div>
+            ) : autoAssign ? (
+              <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-4">
+                {bestBed ? (
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center shrink-0">
+                      <BedDouble className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-blue-600 uppercase tracking-wider">Assigned Bed</p>
+                      <p className="text-sm font-bold text-slate-900">Room {bestBed.room.roomNumber} · {bestBed.bed.bedNumber}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-red-600 font-semibold text-center">No vacant beds available.</p>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-5 animate-in fade-in slide-in-from-top-2 duration-200">
+                {/* Floor Selection */}
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold text-slate-500">Select Floor</label>
+                  <div className="flex flex-wrap gap-2">
+                    {floors.map(floor => (
+                      <button
+                        key={floor} type="button"
+                        onClick={() => { setSelectedFloor(floor); setSelectedRoomId(null); setSelectedBedId(null); }}
+                        className={cn(
+                          "px-4 py-2 rounded-xl text-sm font-bold border transition-all",
+                          selectedFloor === floor 
+                            ? "bg-slate-800 text-white border-slate-800" 
+                            : "bg-white text-slate-600 border-slate-200 hover:border-slate-400"
+                        )}
+                      >
+                        Floor {floor}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Room Selection */}
+                {selectedFloor !== null && (
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold text-slate-500">Select Room</label>
+                    <div className="flex flex-wrap gap-2">
+                      {roomsOnSelectedFloor.map(room => {
+                        const vacant = room.beds.filter(b => !b.isOccupied).length;
+                        return (
+                          <button
+                            key={room.id} type="button"
+                            disabled={vacant === 0}
+                            onClick={() => { setSelectedRoomId(room.id); setSelectedBedId(null); }}
+                            className={cn(
+                              "px-4 py-2 rounded-xl text-sm font-bold border transition-all",
+                              selectedRoomId === room.id 
+                                ? "bg-slate-800 text-white border-slate-800" 
+                                : vacant === 0
+                                  ? "bg-slate-50 text-slate-400 border-slate-100 cursor-not-allowed"
+                                  : "bg-white text-slate-600 border-slate-200 hover:border-slate-400"
+                            )}
+                          >
+                            {room.roomNumber} <span className="opacity-70 font-normal text-xs ml-1">({vacant})</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Bed Selection */}
+                {selectedRoomId && selectedRoom && (
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold text-slate-500">Select Bed</label>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedRoom.beds.map(bed => (
+                        <button
+                          key={bed.id} type="button"
+                          disabled={bed.isOccupied}
+                          onClick={() => setSelectedBedId(bed.id)}
+                          className={cn(
+                            "px-4 py-2 rounded-xl text-sm font-bold border transition-all",
+                            selectedBedId === bed.id 
+                              ? "bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-500/20" 
+                              : bed.isOccupied
+                                ? "bg-red-50 text-red-400 border-red-100 cursor-not-allowed"
+                                : "bg-white text-slate-600 border-slate-200 hover:border-blue-400"
+                          )}
+                        >
+                          {bed.bedNumber}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+
+          {/* Admission Details */}
+          <section className="space-y-4 bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-2">Admission Info</h2>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-600">Move-in Date</label>
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
+                  <input 
+                    type="date" required 
+                    className="w-full rounded-xl border border-slate-200 py-3 pl-10 pr-4 text-slate-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition shadow-sm text-sm"
+                    value={checkinDate} onChange={e => setCheckinDate(e.target.value)} 
+                  />
+                </div>
+              </div>
+              
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-600">Monthly Rent (₹)</label>
+                <div className="relative">
+                  <Banknote className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
+                  <input 
+                    type="number" required min="0"
+                    className="w-full rounded-xl border border-slate-200 py-3 pl-10 pr-4 text-slate-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition shadow-sm text-sm font-bold"
+                    value={monthlyRent} onChange={e => setMonthlyRent(Number(e.target.value))} 
+                  />
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* Error & Submit */}
+          {error && (
+            <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 p-3 rounded-xl border border-red-100">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              {error}
+            </div>
+          )}
+
+          <button 
+            type="submit" 
+            disabled={submitting || (!autoAssign && !selectedBedId) || (autoAssign && !bestBed)}
+            className="w-full h-14 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-bold text-lg rounded-2xl transition-all shadow-xl shadow-blue-600/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          >
+            {submitting && <Loader2 className="h-5 w-5 animate-spin" />}
+            {submitting ? 'Adding Tenant...' : 'Add Tenant'}
+          </button>
+        </form>
+      </main>
+    </div>
+  );
+}

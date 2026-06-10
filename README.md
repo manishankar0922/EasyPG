@@ -107,4 +107,4 @@ For local development, use the `dev-bypass` token (if enabled) to log in as the 
 - [ ] OCR-based Tenant ID Verification
 - [ ] WhatsApp/SMS Notification Engine
 
-*Built with ❤️ by Urbun9Solutions*
+*Built with ❤️ by Urban9Solutions*

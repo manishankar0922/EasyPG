@@ -47,7 +47,8 @@ export default function LoginPage() {
             email: cleanEmail,
             password: cleanPassword,
           });
-          if (authError) throw authError;
+          // Fix: Throw a standard JS error so Turbopack doesn't crash parsing external SDK errors
+          if (authError) throw new Error(authError.message || 'Invalid login credentials');
           token = authData.session.access_token;
         }
       }
@@ -68,7 +69,8 @@ export default function LoginPage() {
         throw new Error('Profile not found');
       }
     } catch (err: any) {
-      console.error('Login error details:', err);
+      // Fix: Only use console.warn to avoid aggressive Turbopack error overlays
+      console.warn('Login issue:', err.message);
       setError(err.response?.data?.error || err.message || 'Login failed');
     } finally {
       setLoading(false);

@@ -5,6 +5,7 @@ import api from '@/lib/api';
 import { useRouter } from 'next/navigation';
 import { Bed, Building, Users, Loader2, ArrowLeft, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
+import { cn } from '@/lib/utils';
 
 interface Branch {
   id: string;
@@ -61,9 +62,8 @@ export default function CreateRoomPage() {
       if (data.success) {
         router.push('/rooms');
       }
-    } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to create room';
-      setError(errorMessage);
+    } catch (err: any) {
+      setError(err.response?.data?.error || err.message || 'Failed to create room');
     } finally {
       setLoading(false);
     }
@@ -144,7 +144,15 @@ export default function CreateRoomPage() {
                 <select
                   className="w-full rounded-xl border border-slate-200 bg-slate-50/30 py-3 px-4 text-sm outline-none focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
                   value={formData.roomType}
-                  onChange={(e) => setFormData({ ...formData, roomType: e.target.value })}
+                  onChange={(e) => {
+                    const newType = e.target.value;
+                    let capacity = formData.totalCapacity;
+                    if (newType === 'SINGLE') capacity = 1;
+                    if (newType === 'DOUBLE') capacity = 2;
+                    if (newType === 'TRIPLE') capacity = 3;
+                    if (newType === 'FOUR_SHARE') capacity = 4;
+                    setFormData({ ...formData, roomType: newType, totalCapacity: capacity });
+                  }}
                 >
                   <option value="SINGLE">Single Sharing</option>
                   <option value="DOUBLE">Double Sharing</option>
@@ -162,7 +170,13 @@ export default function CreateRoomPage() {
                     type="number"
                     min="1"
                     required
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50/30 py-3 pl-11 pr-4 text-sm outline-none focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
+                    disabled={formData.roomType !== 'CUSTOM'}
+                    className={cn(
+                      "w-full rounded-xl border py-3 pl-11 pr-4 text-sm outline-none transition-all",
+                      formData.roomType !== 'CUSTOM' 
+                        ? "bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed opacity-80" 
+                        : "bg-slate-50/30 border-slate-200 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                    )}
                     value={formData.totalCapacity}
                     onChange={(e) => setFormData({ ...formData, totalCapacity: Number(e.target.value) })}
                   />

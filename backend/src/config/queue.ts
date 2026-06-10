@@ -11,6 +11,10 @@ const connection = new IORedis(process.env.REDIS_URL || 'redis://localhost:6379'
   maxRetriesPerRequest: null,
 });
 
+connection.on('error', (err: any) => {
+  console.warn('⚠️ Redis Connection Error:', err.message);
+});
+
 // 1. Define Queues
 export const invoiceQueue = new Queue('invoice-generation', { connection: connection as any });
 export const notificationQueue = new Queue('notifications', { connection: connection as any });
@@ -28,6 +32,7 @@ createBullBoard({
   ],
   serverAdapter: serverAdapter,
 });
+
 
 // 2. Queue Service to add jobs
 export const QueueService = {
