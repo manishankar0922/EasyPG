@@ -8,6 +8,9 @@ interface User {
   organizationId: string | null;
   branchId: string | null;
   status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
+  avatar?: string;
+  branchName?: string;
+  phone?: string;
 }
 
 interface AuthState {

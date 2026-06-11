@@ -286,7 +286,7 @@ router.get('/:id/heatmap', async (req, res) => {
 
     const rooms = await prisma.room.findMany({
       where: { organizationId: orgId, branchId: branchId },
-      include: { beds: true, admissions: { where: { status: 'ACTIVE' }, include: { tenant: true } } },
+      include: { beds: true, admissions: { where: { status: 'ACTIVE' }, include: { tenant: true, bed: true } } },
       orderBy: [{ floor: 'asc' }, { roomNumber: 'asc' }]
     });
 
@@ -307,7 +307,10 @@ router.get('/:id/heatmap', async (req, res) => {
         occupiedBeds: room.occupiedCapacity,
         status,
         hasAC: room.hasAC,
-        tenants: (room as any).admissions.map((a: any) => a.tenant)
+        tenants: (room as any).admissions.map((a: any) => ({
+          ...a.tenant,
+          bedName: a.bed?.name || a.bed?.bedNumber || ''
+        }))
       });
       return acc;
     }, {});

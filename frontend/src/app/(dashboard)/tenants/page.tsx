@@ -1,319 +1,180 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import api from '@/lib/api';
-import { 
-  Search, 
-  Plus, 
-  Phone, 
-  School, 
-  ChevronRight,
-  ArrowLeftRight,
-  X,
-  CheckCircle2,
-  AlertCircle,
-  Loader2
-} from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
+import { Search, Plus, ChevronRight, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAuthStore } from '@/store/auth-store';
 
-interface Tenant {
-  id: string;
-  name: string;
-  phone: string;
-  collegeName: string;
-  status: string;
-  admissions: Array<{
-    id: string;
-    roomId: string;
-    room: {
-      roomNumber: string;
-      branch: { name: string };
-    };
-  }>;
-}
+type FilterType = 'ALL' | 'PAID' | 'UNPAID' | 'NEW';
 
-interface Room {
-  id: string;
-  roomNumber: string;
-  branch: { name: string };
-  occupiedCapacity: number;
-  totalCapacity: number;
-  rentAmount: string;
-}
-
-export default function TenantsPage() {
-  const [tenants, setTenants] = useState<Tenant[]>([]);
-  const [search, setSearch] = useState('');
+export default function TenantsMobilePage() {
+  const [tenants, setTenants] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-
-  // Transfer State
-  const [showTransferModal, setShowTransferModal] = useState(false);
-  const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
-  const [availableRooms, setAvailableRooms] = useState<Room[]>([]);
-  const [newRoomId, setNewRoomId] = useState('');
-  const [transferring, setTransferring] = useState(false);
-  const [transferError, setTransferError] = useState('');
-
-  const fetchTenants = useCallback(async () => {
-    try {
-      setLoading(true);
-      const { data } = await api.get(`/tenants?search=${search}`);
-      if (data.success) {
-        setTenants(data.data);
-      }
-    } catch (err) {
-      console.error('Failed to fetch tenants', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [search]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeFilter, setActiveFilter] = useState<FilterType>('ALL');
+  const { user } = useAuthStore();
 
   useEffect(() => {
-    const timer = setTimeout(fetchTenants, 300);
+    async function fetchTenants() {
+      try {
+        setLoading(true);
+        // Map our simple UI filters to API params
+        let statusParam = '';
+        let newParam = '';
+        if (activeFilter === 'PAID') statusParam = 'PAID';
+        if (activeFilter === 'UNPAID') statusParam = 'UNPAID';
+        if (activeFilter === 'NEW') newParam = 'true';
+
+        const res = await api.get('/tenants', {
+          params: {
+            search: searchQuery,
+            paymentStatus: statusParam,
+            newThisMonth: newParam,
+            branchId: user?.branchId || ''
+          }
+        });
+
+        if (res.data.success) {
+          setTenants(res.data.data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch tenants', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    // Debounce search slightly
+    const timer = setTimeout(() => {
+      fetchTenants();
+    }, 300);
     return () => clearTimeout(timer);
-  }, [fetchTenants]);
-
-  const openTransferModal = async (tenant: Tenant) => {
-    setSelectedTenant(tenant);
-    setNewRoomId('');
-    setTransferError('');
-    try {
-      const { data } = await api.get('/rooms/availability');
-      if (data.success) {
-        setAvailableRooms(data.data);
-        setShowTransferModal(true);
-      }
-    } catch (err) {
-      console.error('Failed to fetch available rooms', err);
-    }
-  };
-
-  const handleTransfer = async () => {
-    if (!selectedTenant || !newRoomId) return;
-    const admissionId = selectedTenant.admissions[0]?.id;
-    if (!admissionId) return;
-
-    try {
-      setTransferring(true);
-      setTransferError('');
-      const { data } = await api.post(`/admissions/transfer/${admissionId}`, {
-        newRoomId,
-        transferDate: new Date().toISOString()
-      });
-      if (data.success) {
-        setShowTransferModal(false);
-        fetchTenants();
-      }
-    } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Transfer failed';
-      setTransferError(errorMessage);
-    } finally {
-      setTransferring(false);
-    }
-  };
-
-  if (loading && tenants.length === 0) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-      </div>
-    );
-  }
+  }, [searchQuery, activeFilter, user]);
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-slate-900">Tenants</h1>
-        <Link 
-          href="/tenants/create" 
-          className="flex items-center space-x-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition"
-        >
-          <Plus className="h-4 w-4" />
-          <span>Add Tenant</span>
-        </Link>
+    <div className="min-h-screen bg-slate-50 relative pb-20">
+      {/* Header */}
+      <div className="bg-white px-5 pt-6 pb-4 sticky top-0 z-10 shadow-sm space-y-4">
+        <h1 className="text-3xl font-black text-slate-900 tracking-tight">My Tenants</h1>
+        
+        {/* Search Bar */}
+        <div className="relative">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Search by name or room..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full h-12 bg-slate-100 border-none rounded-2xl pl-11 pr-4 text-base font-medium placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500 transition-all"
+          />
+        </div>
+
+        {/* Filter Chips */}
+        <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-1">
+          {[
+            { id: 'ALL', label: 'All' },
+            { id: 'PAID', label: 'Paid ✅' },
+            { id: 'UNPAID', label: 'Not Paid ❌' },
+            { id: 'NEW', label: 'New This Month' }
+          ].map(chip => (
+            <button
+              key={chip.id}
+              onClick={() => setActiveFilter(chip.id as FilterType)}
+              className={cn(
+                "h-10 px-4 rounded-xl text-sm font-bold whitespace-nowrap transition-all flex-shrink-0 border",
+                activeFilter === chip.id
+                  ? "bg-slate-900 text-white border-slate-900"
+                  : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+              )}
+            >
+              {chip.label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-        <input
-          type="text"
-          placeholder="Search by name or phone..."
-          className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-      </div>
-
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-        <table className="w-full text-left text-sm">
-          <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
-            <tr>
-              <th className="px-6 py-4">Tenant Name</th>
-              <th className="px-6 py-4">College / Organization</th>
-              <th className="px-6 py-4">Current Room</th>
-              <th className="px-6 py-4">Status</th>
-              <th className="px-6 py-4 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {tenants.map((tenant) => (
-              <tr key={tenant.id} className="hover:bg-slate-50 transition">
-                <td className="px-6 py-4">
-                  <div>
-                    <p className="font-semibold text-slate-900">{tenant.name}</p>
-                    <p className="flex items-center text-xs text-slate-500">
-                      <Phone className="mr-1 h-3 w-3" />
-                      {tenant.phone}
+      {/* Main List */}
+      <div className="p-4">
+        {loading ? (
+          <div className="flex justify-center py-20">
+            <div className="h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-blue-600"></div>
+          </div>
+        ) : tenants.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 px-4 text-center">
+            <div className="h-24 w-24 bg-blue-50 rounded-full flex items-center justify-center mb-4">
+              <User className="h-12 w-12 text-blue-200" />
+            </div>
+            <h3 className="text-xl font-bold text-slate-900 mb-2">No tenants yet</h3>
+            <p className="text-slate-500 mb-8">
+              {searchQuery ? "Try searching for a different name." : "Add your first tenant to get started!"}
+            </p>
+            {!searchQuery && (
+              <Link 
+                href="/tenants/new"
+                className="bg-blue-600 text-white px-8 py-3 rounded-2xl font-bold shadow-lg shadow-blue-600/20 active:scale-95 transition-transform"
+              >
+                Add First Tenant
+              </Link>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {tenants.map(tenant => (
+              <Link 
+                href={`/tenants/${tenant.id}`} 
+                key={tenant.id}
+                className="block bg-white rounded-2xl p-4 shadow-sm border border-slate-100 active:scale-95 transition-transform"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="h-12 w-12 rounded-full bg-slate-100 flex-shrink-0 overflow-hidden relative">
+                    {tenant.photoUrl ? (
+                      <Image src={tenant.photoUrl} alt={tenant.name} fill className="object-cover" />
+                    ) : (
+                      <div className="flex h-full items-center justify-center text-slate-400 font-bold text-lg">
+                        {tenant.name.substring(0, 1)}
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-slate-900 text-base truncate">{tenant.name}</p>
+                    <p className="text-sm font-semibold text-slate-500">
+                      Room {tenant.roomNumber} {tenant.bedName ? `· Bed ${tenant.bedName}` : ''}
+                    </p>
+                    <p className="text-xs font-medium text-slate-400 mt-0.5">
+                      Since {new Date(tenant.moveInDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
                     </p>
                   </div>
-                </td>
-                <td className="px-6 py-4">
-                  <div className="flex items-center text-slate-600">
-                    <School className="mr-2 h-4 w-4 text-slate-400" />
-                    {tenant.collegeName || 'N/A'}
+                  
+                  <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                    {tenant.paymentStatus === 'PAID' ? (
+                      <div className="bg-emerald-50 text-emerald-600 px-2.5 py-1 rounded-lg text-xs font-bold border border-emerald-100/50">
+                        Paid ✅
+                      </div>
+                    ) : (
+                      <div className="bg-rose-50 text-rose-600 px-2.5 py-1 rounded-lg text-xs font-bold border border-rose-100/50">
+                        ₹{tenant.rentPending} due
+                      </div>
+                    )}
+                    <ChevronRight className="h-5 w-5 text-slate-300" />
                   </div>
-                </td>
-                <td className="px-6 py-4 text-slate-600">
-                  {tenant.admissions?.[0]?.room 
-                    ? `Room ${tenant.admissions[0].room.roomNumber} (${tenant.admissions[0].room.branch.name})`
-                    : 'Unassigned'}
-                </td>
-                <td className="px-6 py-4">
-                  <span className={cn(
-                    "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium",
-                    tenant.status === 'ACTIVE' ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-700"
-                  )}>
-                    {tenant.status}
-                  </span>
-                </td>
-                <td className="px-6 py-4 text-right space-x-2">
-                  {tenant.status === 'ACTIVE' && (
-                    <button 
-                      onClick={() => openTransferModal(tenant)}
-                      className="inline-flex items-center p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
-                      title="Room Transfer"
-                    >
-                      <ArrowLeftRight className="h-4 w-4" />
-                    </button>
-                  )}
-                  <Link 
-                    href={`/tenants/${tenant.id}`}
-                    className="inline-flex items-center p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
-                    title="View Profile"
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </Link>
-                </td>
-              </tr>
+                </div>
+              </Link>
             ))}
-          </tbody>
-        </table>
+          </div>
+        )}
       </div>
 
-      {/* Room Transfer Modal */}
-      {showTransferModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl animate-in zoom-in duration-200">
-            <div className="flex items-center justify-between border-b border-slate-100 p-6">
-              <div>
-                <h2 className="text-xl font-bold text-slate-900">Room Transfer</h2>
-                <p className="text-sm text-slate-500">Transferring {selectedTenant?.name}</p>
-              </div>
-              <button onClick={() => setShowTransferModal(false)} className="rounded-full p-2 hover:bg-slate-100 transition">
-                <X className="h-5 w-5 text-slate-400" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-6">
-              {/* Current Room Info */}
-              <div className="rounded-xl bg-blue-50 p-4 border border-blue-100 flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-semibold text-blue-600 uppercase tracking-wider">Current Room</p>
-                  <p className="text-lg font-bold text-blue-900">
-                    Room {selectedTenant?.admissions?.[0]?.room?.roomNumber}
-                  </p>
-                  <p className="text-xs text-blue-700">
-                    {selectedTenant?.admissions?.[0]?.room?.branch?.name}
-                  </p>
-                </div>
-                <ArrowLeftRight className="h-8 w-8 text-blue-200" />
-              </div>
-
-              {/* Room Selection */}
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-3">Select New Room</label>
-                <div className="grid grid-cols-1 gap-3 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
-                  {availableRooms
-                    .filter(r => r.id !== selectedTenant?.admissions?.[0]?.roomId)
-                    .map((room) => (
-                    <button
-                      key={room.id}
-                      onClick={() => setNewRoomId(room.id)}
-                      className={cn(
-                        "flex items-center justify-between p-4 rounded-xl border transition-all text-left",
-                        newRoomId === room.id 
-                          ? "border-blue-500 bg-blue-50 ring-2 ring-blue-500/20" 
-                          : "border-slate-200 hover:border-blue-200 hover:bg-slate-50"
-                      )}
-                    >
-                      <div>
-                        <p className="font-bold text-slate-900">Room {room.roomNumber}</p>
-                        <p className="text-xs text-slate-500">{room.branch.name}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-bold text-slate-900">₹{Number(room.rentAmount).toLocaleString()}</p>
-                        <p className="text-[10px] text-slate-500 uppercase">
-                          {room.totalCapacity - room.occupiedCapacity} Beds left
-                        </p>
-                      </div>
-                    </button>
-                  ))}
-                  {availableRooms.length === 0 && (
-                    <div className="text-center py-8 bg-slate-50 rounded-xl border border-dashed border-slate-300">
-                      <AlertCircle className="h-8 w-8 text-slate-300 mx-auto mb-2" />
-                      <p className="text-sm text-slate-500">No other rooms available</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {transferError && (
-                <div className="flex items-center space-x-2 text-sm text-red-600 bg-red-50 p-3 rounded-lg border border-red-100">
-                  <AlertCircle className="h-4 w-4" />
-                  <span>{transferError}</span>
-                </div>
-              )}
-            </div>
-
-            <div className="border-t border-slate-100 p-6 flex space-x-3 bg-slate-50 rounded-b-2xl">
-              <button
-                onClick={() => setShowTransferModal(false)}
-                className="flex-1 rounded-xl border border-slate-300 bg-white py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition"
-              >
-                Cancel
-              </button>
-              <button
-                disabled={!newRoomId || transferring}
-                onClick={handleTransfer}
-                className="flex-1 rounded-xl bg-blue-600 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-blue-500/30 flex items-center justify-center space-x-2"
-              >
-                {transferring ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <span>Processing...</span>
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle2 className="h-4 w-4" />
-                    <span>Confirm Transfer</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* FAB - Floating Action Button */}
+      <Link
+        href="/tenants/new"
+        className="fixed bottom-24 right-5 h-[60px] w-[60px] bg-blue-600 text-white rounded-full flex items-center justify-center shadow-xl shadow-blue-600/30 active:scale-90 transition-transform z-40"
+      >
+        <Plus className="h-8 w-8" strokeWidth={2.5} />
+      </Link>
     </div>
   );
 }

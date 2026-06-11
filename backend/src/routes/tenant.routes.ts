@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import { secureQuery } from '../lib/secureQuery';
+import { sanitizeResponse } from '../lib/sanitizeResponse';
 import prisma from '../config/db';
 import { authMiddleware } from '../middlewares/auth.middleware';
 import { validate } from '../middlewares/validation.middleware';
@@ -10,39 +12,86 @@ router.use(authMiddleware);
 
 // List tenants with search and filter
 router.get('/', async (req, res) => {
-  const { search, status } = req.query;
+  const { search, paymentStatus, newThisMonth } = req.query;
   const orgId = req.user!.organizationId;
   const { role, branchId: userBranchId } = req.user!;
+  const branchIdQuery = req.query.branchId as string;
+  const branchId = userBranchId || branchIdQuery;
 
-  const tenants = await prisma.tenant.findMany({
-    where: {
-      organizationId: orgId,
-      ...(role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && {
-        admissions: {
-          some: {
-            room: {
-              branchId: userBranchId
+  try {
+    const currentMonthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+
+    const activeAdmissions = await prisma.admission.findMany({
+      where: {
+        organizationId: orgId,
+        status: 'ACTIVE',
+        ...(branchId && { room: { branchId } }),
+        ...(newThisMonth === 'true' && { checkinDate: { gte: currentMonthStart } }),
+        ...(search && {
+          tenant: {
+            OR: [
+              { name: { contains: search as string, mode: 'insensitive' } },
+              { phone: { contains: search as string } }
+            ]
+          }
+        })
+      },
+      include: {
+        tenant: {
+          include: {
+            invoices: {
+              where: {
+                createdAt: { gte: currentMonthStart }
+              }
             }
           }
-        }
-      }),
-      ...(status && { status: status as any }),
-      ...(search && {
-        OR: [
-          { name: { contains: search as string, mode: 'insensitive' } },
-          { phone: { contains: search as string } },
-        ]
-      })
-    },
-    include: {
-      admissions: {
-        where: { status: 'ACTIVE' },
-        include: { room: { include: { branch: true } } }
-      }
-    }
-  });
+        },
+        room: true,
+        bed: true,
+      },
+      orderBy: { checkinDate: 'desc' }
+    });
 
-  res.json({ success: true, data: tenants });
+    let formattedTenants = activeAdmissions.map(admission => {
+      const currentMonthInvoices = admission.tenant.invoices as any[];
+      const fullyPaidInvoice = currentMonthInvoices.find(inv => inv.status === 'PAID');
+      
+      const isPaid = !!fullyPaidInvoice;
+      const rentPending = isPaid ? 0 : Number(admission.monthlyRent);
+
+      return {
+        id: admission.tenant.id,
+        name: admission.tenant.name,
+        photoUrl: admission.tenant.photoUrl,
+        roomNumber: admission.room.roomNumber,
+        bedName: admission.bed?.bedNumber || '',
+        moveInDate: admission.checkinDate,
+        paymentStatus: isPaid ? 'PAID' : 'UNPAID',
+        rentPending: rentPending,
+      };
+    });
+
+    // Apply paymentStatus filter after map
+    if (paymentStatus === 'PAID') {
+      formattedTenants = formattedTenants.filter(t => t.paymentStatus === 'PAID');
+    } else if (paymentStatus === 'UNPAID') {
+      formattedTenants = formattedTenants.filter(t => t.paymentStatus === 'UNPAID');
+    }
+
+    // Apply search fallback (if roomNumber search is needed, which wasn't caught by DB query)
+    if (search) {
+      const searchLower = (search as string).toLowerCase();
+      formattedTenants = formattedTenants.filter(t => 
+        t.name.toLowerCase().includes(searchLower) || 
+        t.roomNumber.toLowerCase().includes(searchLower)
+      );
+    }
+
+    res.json({ success: true, data: formattedTenants });
+  } catch (error: any) {
+    console.error('Failed to fetch mobile tenants:', error);
+    res.status(500).json({ success: false, error: 'Failed to load tenants' });
+  }
 });
 
 // Alias for search
@@ -97,6 +146,7 @@ router.get('/:id', validate(z.object({ params: z.object({ id: z.string().uuid() 
         orderBy: { createdAt: 'desc' }
       },
       invoices: {
+        include: { payments: true },
         orderBy: { createdAt: 'desc' }
       }
     }
@@ -140,7 +190,8 @@ router.post('/', validate(createTenantSchema), async (req, res) => {
     const result = await prisma.$transaction(async (tx) => {
       // 1. Check if bed is already occupied to prevent double booking
       const bed = await tx.bed.findUnique({ where: { id: bedId } });
-      if (!bed) throw new Error("Bed not found");
+      if (!bed || bed.organizationId !== orgId) throw new Error("Bed not found");
+      if (bed.roomId !== roomId) throw new Error("Bed does not belong to the specified room");
       if (bed.isOccupied) throw new Error("Bed is already occupied");
 
       // 2. Create Tenant
@@ -201,6 +252,57 @@ router.patch('/:id', validate(updateTenantSchema), async (req, res) => {
   if (tenant.count === 0) return res.status(404).json({ success: false, error: 'Tenant not found' });
 
   res.json({ success: true, message: 'Tenant updated' });
+});
+
+// Vacate tenant
+router.patch('/:id/vacate', async (req, res) => {
+  const tenantId = req.params.id;
+  const orgId = req.user!.organizationId;
+
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      // Find active admission
+      const admission = await tx.admission.findFirst({
+        where: { tenantId, organizationId: orgId, status: 'ACTIVE' },
+        include: { room: true }
+      });
+
+      if (!admission) throw new Error("No active admission found for this tenant");
+
+      // Mark tenant as CHECKED_OUT
+      await tx.tenant.update({
+        where: { id: tenantId },
+        data: { status: 'CHECKED_OUT' }
+      });
+
+      // Mark admission as COMPLETED
+      await tx.admission.update({
+        where: { id: admission.id },
+        data: { status: 'COMPLETED', checkoutDate: new Date() }
+      });
+
+      // Free up bed
+      if (admission.bedId) {
+        await tx.bed.update({
+          where: { id: admission.bedId },
+          data: { isOccupied: false }
+        });
+      }
+
+      // Decrement room occupied capacity
+      await tx.room.update({
+        where: { id: admission.roomId },
+        data: { occupiedCapacity: { decrement: 1 } }
+      });
+
+      return true;
+    });
+
+    res.json({ success: true, message: 'Tenant marked as vacated.' });
+  } catch (error: any) {
+    console.error('Vacate tenant error:', error);
+    res.status(500).json({ success: false, error: error.message || 'Failed to vacate tenant' });
+  }
 });
 
 // Delete tenant
