@@ -1,660 +1,349 @@
 'use client';
 
-import { useEffect, useState, useCallback, use } from 'react';
-import api from '@/lib/api';
-import { 
-  User, 
-  Phone, 
-  School, 
-  CreditCard, 
-  Calendar, 
-  Bed, 
-  Building, 
-  History, 
-  FileText, 
-  CheckCircle2, 
-  XCircle, 
-  Loader2, 
-  ArrowLeft,
-  ArrowLeftRight,
-  LogOut,
-  Plus,
-  AlertCircle
-} from 'lucide-react';
-import Link from 'next/link';
+import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import api from '@/lib/api';
+import Image from 'next/image';
+import { Phone, MessageCircle, IndianRupee, ArrowLeft, Loader2, CheckCircle2 } from 'lucide-react';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { useAuthStore } from '@/store/auth-store';
 import { cn } from '@/lib/utils';
-import { format } from 'date-fns';
 
-interface Tenant {
-  id: string;
-  name: string;
-  phone: string;
-  parentPhone: string | null;
-  collegeName: string | null;
-  aadhaarLast4: string | null;
-  photoUrl: string | null;
-  aadhaarPhotoUrl: string | null;
-  status: string;
-  admissions: Array<{
-    id: string;
-    roomId: string;
-    room: {
-      roomNumber: string;
-      branch: { name: string };
-    };
-    checkinDate: string;
-    checkoutDate: string | null;
-    monthlyRent: string;
-    depositAmount: string;
-    status: 'ACTIVE' | 'COMPLETED';
-  }>;
-  invoices: Array<{
-    id: string;
-    month: string;
-    amount: string;
-    dueDate: string;
-    status: string;
-  }>;
-}
-
-interface Room {
-  id: string;
-  roomNumber: string;
-  branch: { name: string };
-  occupiedCapacity: number;
-  totalCapacity: number;
-  rentAmount: string;
-}
-
-export default function TenantDetailsPage() {
-  const params = useParams();
+export default function TenantDetailPage() {
+  const { id } = useParams();
   const router = useRouter();
-  const tenantId = params.id as string;
-
-  const [tenant, setTenant] = useState<Tenant | null>(null);
+  const [tenant, setTenant] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
 
-  // Admission Modal State
-  const [showAdmissionModal, setShowAdmissionModal] = useState(false);
-  const [availableRooms, setAvailableRooms] = useState<Room[]>([]);
-  const [admissionData, setAdmissionData] = useState({
-    roomId: '',
-    checkinDate: format(new Date(), 'yyyy-MM-dd'),
-    monthlyRent: '',
-    depositAmount: '0',
-  });
-  const [submittingAdmission, setSubmittingAdmission] = useState(false);
+  // Payment Sheet State
+  const [isPaymentSheetOpen, setIsPaymentSheetOpen] = useState(false);
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentMode, setPaymentMode] = useState('CASH');
+  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
+  const [paymentNote, setPaymentNote] = useState('');
+  const [submittingPayment, setSubmittingPayment] = useState(false);
 
-  // Transfer Modal State
-  const [showTransferModal, setShowTransferModal] = useState(false);
-  const [newRoomId, setNewRoomId] = useState('');
-  const [transferring, setTransferring] = useState(false);
+  // Vacate Dialog State
+  const [isVacateDialogOpen, setIsVacateDialogOpen] = useState(false);
+  const [vacating, setVacating] = useState(false);
 
-  // Checkout Modal State
-  const [showCheckoutModal, setShowCheckoutModal] = useState(false);
-  const [checkoutDate, setCheckoutDate] = useState(format(new Date(), 'yyyy-MM-dd'));
-  const [checkingOut, setCheckingOut] = useState(false);
-
-  const fetchTenant = useCallback(async () => {
+  const fetchTenant = async () => {
     try {
-      setLoading(true);
-      const { data } = await api.get(`/tenants/${tenantId}`);
-      if (data.success) {
-        setTenant(data.data);
+      const res = await api.get(`/tenants/${id}`);
+      if (res.data.success) {
+        setTenant(res.data.data);
       }
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to fetch tenant details');
+    } catch (err) {
+      console.error('Failed to load tenant', err);
     } finally {
       setLoading(false);
     }
-  }, [tenantId]);
+  };
 
   useEffect(() => {
     fetchTenant();
-  }, [fetchTenant]);
+  }, [id]);
 
-  const openAdmissionModal = async () => {
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 pb-20">
+        <Loader2 className="h-10 w-10 animate-spin text-blue-600" />
+      </div>
+    );
+  }
+
+  if (!tenant) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 p-6 text-center">
+        <h2 className="text-xl font-bold text-slate-900 mb-2">Tenant not found</h2>
+        <button onClick={() => router.back()} className="text-blue-600 font-bold p-4">Go Back</button>
+      </div>
+    );
+  }
+
+  const activeAdmission = tenant.admissions?.find((a: any) => a.status === 'ACTIVE') || tenant.admissions?.[0];
+  const roomNumber = activeAdmission?.room?.roomNumber || 'N/A';
+  const bedName = activeAdmission?.bed?.name ? `Bed ${activeAdmission.bed.name}` : '';
+  const checkinDate = activeAdmission?.checkinDate ? new Date(activeAdmission.checkinDate) : null;
+  const rentAmount = activeAdmission?.monthlyRent || 0;
+
+  // Compute current month's invoice
+  const currentMonthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+  const currentMonthInvoice = tenant.invoices?.find((inv: any) => new Date(inv.createdAt) >= currentMonthStart) || null;
+  const isPaidThisMonth = currentMonthInvoice?.status === 'PAID';
+  
+  let paidAmountThisMonth = 0;
+  let paidDateThisMonth = null;
+  
+  if (currentMonthInvoice) {
+    paidAmountThisMonth = currentMonthInvoice.payments?.reduce((acc: number, p: any) => acc + Number(p.amount), 0) || 0;
+    if (currentMonthInvoice.payments?.length > 0) {
+      paidDateThisMonth = new Date(currentMonthInvoice.payments[0].paymentDate);
+    }
+  }
+
+  const rentPending = isPaidThisMonth ? 0 : (Number(rentAmount) - paidAmountThisMonth);
+
+  const handleRecordPayment = async () => {
+    if (!paymentAmount || isNaN(Number(paymentAmount)) || Number(paymentAmount) <= 0) return;
+    
+    setSubmittingPayment(true);
     try {
-      const { data } = await api.get('/rooms/availability');
-      if (data.success) {
-        setAvailableRooms(data.data);
-        setShowAdmissionModal(true);
+      const res = await api.post('/payments', {
+        tenantId: id,
+        amount: Number(paymentAmount),
+        mode: paymentMode,
+        date: paymentDate,
+        note: paymentNote
+      });
+
+      if (res.data.success) {
+        setIsPaymentSheetOpen(false);
+        setPaymentAmount('');
+        await fetchTenant(); // Refresh data
       }
     } catch (err) {
-      console.error('Failed to fetch rooms', err);
-    }
-  };
-
-  const handleAdmission = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmittingAdmission(true);
-    try {
-      const { data } = await api.post('/admissions/checkin', {
-        tenantId,
-        ...admissionData,
-        monthlyRent: Number(admissionData.monthlyRent),
-        depositAmount: Number(admissionData.depositAmount),
-      });
-      if (data.success) {
-        setShowAdmissionModal(false);
-        fetchTenant();
-      }
-    } catch (err: any) {
-      alert(err.response?.data?.error || 'Admission failed');
+      console.error('Payment failed', err);
+      alert('Failed to record payment');
     } finally {
-      setSubmittingAdmission(false);
+      setSubmittingPayment(false);
     }
   };
 
-  const handleTransfer = async () => {
-    const activeAdmission = tenant?.admissions.find(a => a.status === 'ACTIVE');
-    if (!activeAdmission || !newRoomId) return;
-
-    setTransferring(true);
+  const handleVacate = async () => {
+    setVacating(true);
     try {
-      const { data } = await api.post(`/admissions/transfer/${activeAdmission.id}`, {
-        newRoomId,
-        transferDate: new Date().toISOString()
-      });
-      if (data.success) {
-        setShowTransferModal(false);
-        fetchTenant();
+      const res = await api.patch(`/tenants/${id}/vacate`);
+      if (res.data.success) {
+        setIsVacateDialogOpen(false);
+        router.push('/tenants');
       }
-    } catch (err: any) {
-      alert(err.response?.data?.error || 'Transfer failed');
+    } catch (err) {
+      console.error('Vacate failed', err);
+      alert('Failed to mark tenant as vacated');
     } finally {
-      setTransferring(false);
+      setVacating(false);
     }
   };
 
-  const handleCheckout = async () => {
-    const activeAdmission = tenant?.admissions.find(a => a.status === 'ACTIVE');
-    if (!activeAdmission) return;
-
-    setCheckingOut(true);
-    try {
-      const { data } = await api.post(`/admissions/checkout/${activeAdmission.id}`, {
-        checkoutDate
-      });
-      if (data.success) {
-        setShowCheckoutModal(false);
-        fetchTenant();
-      }
-    } catch (err: any) {
-      alert(err.response?.data?.error || 'Checkout failed');
-    } finally {
-      setCheckingOut(false);
-    }
-  };
-
-  if (loading) return (
-    <div className="flex h-64 items-center justify-center">
-      <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-    </div>
-  );
-
-  if (error || !tenant) return (
-    <div className="text-center py-12">
-      <p className="text-red-500">{error || 'Tenant not found'}</p>
-      <Link href="/tenants" className="text-blue-600 hover:underline mt-4 inline-block">Back to Tenants</Link>
-    </div>
-  );
-
-  const activeAdmission = tenant.admissions.find(a => a.status === 'ACTIVE');
-  const admissionHistory = tenant.admissions.filter(a => a.status === 'COMPLETED');
+  const paymentModes = ['Cash', 'PhonePe', 'GPay', 'Bank Transfer'];
 
   return (
-    <div className="space-y-8 pb-12">
-      <div className="flex items-center space-x-4">
-        <button onClick={() => router.back()} className="p-2 hover:bg-slate-100 rounded-full transition">
-          <ArrowLeft className="h-5 w-5 text-slate-600" />
+    <div className="min-h-screen bg-slate-50 pb-20">
+      {/* Header */}
+      <div className="bg-white px-4 py-4 flex items-center gap-3 sticky top-0 z-10 shadow-sm">
+        <button onClick={() => router.back()} className="p-2 -ml-2 active:bg-slate-100 rounded-full transition-colors">
+          <ArrowLeft className="h-6 w-6 text-slate-700" />
         </button>
-        <h1 className="text-2xl font-bold text-slate-900">{tenant.name}</h1>
-        <span className={cn(
-          "rounded-full px-2.5 py-0.5 text-xs font-medium",
-          tenant.status === 'ACTIVE' ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-700"
-        )}>
-          {tenant.status}
-        </span>
+        <h1 className="text-xl font-bold text-slate-900 flex-1">Tenant Profile</h1>
       </div>
 
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+      <div className="p-4 space-y-6">
         {/* Profile Card */}
-        <div className="space-y-6">
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="flex items-center text-lg font-bold text-slate-900 mb-6">
-              <User className="mr-2 h-5 w-5 text-blue-600" />
-              Tenant Profile
-            </h2>
-            
-            {tenant.photoUrl && (
-              <div className="flex justify-center mb-6">
-                <div className="relative w-32 h-32 rounded-full overflow-hidden border-2 border-blue-500 shadow-md bg-slate-100">
-                  <img src={tenant.photoUrl} alt={tenant.name} className="w-full h-full object-cover" />
-                </div>
-              </div>
+        <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 flex flex-col items-center text-center relative">
+          <div className="h-20 w-20 rounded-full bg-slate-100 flex items-center justify-center overflow-hidden mb-4 border-4 border-white shadow-md">
+            {tenant.photoUrl ? (
+              <Image src={tenant.photoUrl} alt={tenant.name} fill className="object-cover" />
+            ) : (
+              <span className="text-2xl font-bold text-slate-400">{tenant.name.substring(0, 1)}</span>
             )}
+          </div>
+          
+          <h2 className="text-2xl font-bold text-slate-900 leading-tight mb-1">{tenant.name}</h2>
+          <p className="text-base font-semibold text-slate-500 mb-2">Room {roomNumber} {bedName ? `· ${bedName}` : ''}</p>
+          {checkinDate && (
+            <p className="text-xs font-medium text-slate-400 bg-slate-50 px-3 py-1 rounded-full">
+              Staying since {checkinDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+            </p>
+          )}
+        </div>
 
-            <div className="space-y-4">
-              <div className="flex items-center justify-between py-2 border-b border-slate-50">
-                <span className="text-sm text-slate-500">Phone</span>
-                <span className="text-sm font-semibold text-slate-900">{tenant.phone}</span>
-              </div>
-              <div className="flex items-center justify-between py-2 border-b border-slate-50">
-                <span className="text-sm text-slate-500">Parent Phone</span>
-                <span className="text-sm font-semibold text-slate-900">{tenant.parentPhone || 'N/A'}</span>
-              </div>
-              <div className="flex items-center justify-between py-2 border-b border-slate-50">
-                <span className="text-sm text-slate-500">College/Company</span>
-                <span className="text-sm font-semibold text-slate-900">{tenant.collegeName || 'N/A'}</span>
-              </div>
-              <div className="flex items-center justify-between py-2">
-                <span className="text-sm text-slate-500">Aadhaar (Last 4)</span>
-                <span className="text-sm font-semibold text-slate-900">{tenant.aadhaarLast4 || 'N/A'}</span>
-              </div>
+        {/* 3 Quick Action Buttons */}
+        <div className="flex items-center gap-3">
+          <a href={`tel:+91${tenant.phone}`} className="flex-1 h-14 bg-white border border-slate-200 rounded-2xl flex flex-col items-center justify-center gap-1 active:bg-slate-50 transition-colors shadow-sm">
+            <Phone className="h-5 w-5 text-blue-600" />
+            <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Call</span>
+          </a>
+          <a href={`https://wa.me/91${tenant.phone}`} target="_blank" rel="noopener noreferrer" className="flex-1 h-14 bg-white border border-slate-200 rounded-2xl flex flex-col items-center justify-center gap-1 active:bg-slate-50 transition-colors shadow-sm">
+            <MessageCircle className="h-5 w-5 text-[#25D366]" />
+            <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">WhatsApp</span>
+          </a>
+          <button 
+            onClick={() => {
+              setPaymentAmount(rentPending > 0 ? rentPending.toString() : rentAmount.toString());
+              setIsPaymentSheetOpen(true);
+            }} 
+            className="flex-1 h-14 bg-blue-50 border border-blue-100 rounded-2xl flex flex-col items-center justify-center gap-1 active:bg-blue-100 transition-colors shadow-sm"
+          >
+            <IndianRupee className="h-5 w-5 text-blue-600" />
+            <span className="text-[11px] font-bold text-blue-700 uppercase tracking-wider">Payment</span>
+          </button>
+        </div>
 
-              {tenant.aadhaarPhotoUrl && (
-                <div className="pt-4 border-t border-slate-100">
-                  <span className="text-sm font-semibold text-slate-700 block mb-2">Aadhaar Card Copy</span>
-                  <a href={tenant.aadhaarPhotoUrl} target="_blank" rel="noreferrer" className="block relative h-40 rounded-xl overflow-hidden border border-slate-200 hover:opacity-95 transition">
-                    <img src={tenant.aadhaarPhotoUrl} alt="Aadhaar Card" className="w-full h-full object-cover" />
-                  </a>
+        {/* Payment Status Card */}
+        <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100">
+          <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">This Month's Rent</h3>
+          
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-3xl font-black text-slate-900 mb-1">
+                ₹{Number(rentAmount).toLocaleString()}
+              </div>
+              {isPaidThisMonth ? (
+                <div className="flex items-center gap-1.5 text-emerald-600 font-bold text-sm">
+                  <CheckCircle2 className="h-4 w-4" />
+                  <span>Paid on {paidDateThisMonth ? paidDateThisMonth.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : 'recently'}</span>
+                </div>
+              ) : (
+                <div className="text-rose-600 font-bold text-sm">
+                  ₹{rentPending.toLocaleString()} due
                 </div>
               )}
             </div>
-            <button className="w-full mt-6 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition">
-              Edit Profile
+
+            {!isPaidThisMonth && (
+              <button 
+                onClick={() => {
+                  setPaymentAmount(rentPending.toString());
+                  setIsPaymentSheetOpen(true);
+                }}
+                className="bg-slate-900 text-white px-5 py-3 rounded-xl font-bold text-sm active:scale-95 transition-transform"
+              >
+                Record
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Payment History */}
+        <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100">
+          <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">Past Payments</h3>
+          
+          <div className="space-y-4">
+            {tenant.invoices && tenant.invoices.slice(0, 6).map((inv: any) => {
+              const invMonth = new Date(inv.createdAt);
+              const isInvPaid = inv.status === 'PAID';
+              return (
+                <div key={inv.id} className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className={cn(
+                      "h-10 w-10 rounded-full flex items-center justify-center font-bold text-xs",
+                      isInvPaid ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600"
+                    )}>
+                      {invMonth.toLocaleString('en-IN', { month: 'short' })}
+                    </div>
+                    <div>
+                      <p className="font-bold text-slate-900">₹{Number(inv.amount).toLocaleString()}</p>
+                      <p className="text-xs font-semibold text-slate-400">{invMonth.getFullYear()}</p>
+                    </div>
+                  </div>
+                  <div className={cn(
+                    "text-sm font-bold px-2.5 py-1 rounded-lg",
+                    isInvPaid ? "text-emerald-600 bg-emerald-50" : "text-rose-600 bg-rose-50"
+                  )}>
+                    {isInvPaid ? 'Paid ✅' : 'Pending'}
+                  </div>
+                </div>
+              );
+            })}
+
+            {(!tenant.invoices || tenant.invoices.length === 0) && (
+              <p className="text-slate-500 font-medium text-center py-4">No payment history found.</p>
+            )}
+          </div>
+        </div>
+
+        {/* Vacate Button */}
+        <div className="pt-6 pb-4">
+          <button 
+            onClick={() => setIsVacateDialogOpen(true)}
+            className="w-full h-14 bg-white border-2 border-rose-100 text-rose-600 rounded-2xl font-bold text-base active:bg-rose-50 transition-colors"
+          >
+            Mark as Vacated
+          </button>
+        </div>
+      </div>
+
+      {/* Record Payment Bottom Sheet */}
+      <Sheet open={isPaymentSheetOpen} onOpenChange={setIsPaymentSheetOpen}>
+        <SheetContent side="bottom" className="rounded-t-3xl pb-safe">
+          <SheetHeader className="mb-6">
+            <SheetTitle className="text-2xl font-black text-slate-900">Record Payment</SheetTitle>
+          </SheetHeader>
+          
+          <div className="space-y-6 pb-6">
+            <div>
+              <label className="block text-sm font-bold text-slate-500 mb-2 uppercase tracking-wider">Amount Received (₹)</label>
+              <input 
+                type="number" 
+                value={paymentAmount}
+                onChange={(e) => setPaymentAmount(e.target.value)}
+                className="w-full h-16 bg-slate-50 border-none rounded-2xl text-center text-3xl font-black text-slate-900 focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-bold text-slate-500 mb-2 uppercase tracking-wider">Payment Mode</label>
+              <div className="flex flex-wrap gap-2">
+                {paymentModes.map(mode => (
+                  <button
+                    key={mode}
+                    onClick={() => setPaymentMode(mode.toUpperCase().replace(' ', '_'))}
+                    className={cn(
+                      "px-4 py-3 rounded-xl text-sm font-bold border transition-colors",
+                      paymentMode === mode.toUpperCase().replace(' ', '_') 
+                        ? "bg-slate-900 text-white border-slate-900" 
+                        : "bg-white text-slate-600 border-slate-200"
+                    )}
+                  >
+                    {mode}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-bold text-slate-500 mb-2 uppercase tracking-wider">Date</label>
+              <input 
+                type="date" 
+                value={paymentDate}
+                onChange={(e) => setPaymentDate(e.target.value)}
+                className="w-full h-14 bg-slate-50 border-none rounded-2xl px-4 text-base font-bold text-slate-900 focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <button 
+              onClick={handleRecordPayment}
+              disabled={submittingPayment}
+              className="w-full h-14 bg-emerald-600 text-white rounded-2xl font-black text-lg active:scale-95 transition-transform flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20"
+            >
+              {submittingPayment ? <Loader2 className="h-6 w-6 animate-spin" /> : 'Save Payment'}
             </button>
           </div>
+        </SheetContent>
+      </Sheet>
 
-          {/* Quick Actions */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-bold text-slate-900 mb-4 text-center">Lifecycle Actions</h2>
-            <div className="space-y-3">
-              {activeAdmission ? (
-                <>
-                  <button 
-                    onClick={async () => {
-                      const { data } = await api.get('/rooms/availability');
-                      setAvailableRooms(data.data);
-                      setShowTransferModal(true);
-                    }}
-                    className="flex w-full items-center justify-center space-x-2 rounded-xl bg-blue-50 py-3 text-sm font-bold text-blue-600 hover:bg-blue-100 transition"
-                  >
-                    <ArrowLeftRight className="h-4 w-4" />
-                    <span>Room Transfer</span>
-                  </button>
-                  <button 
-                    onClick={() => setShowCheckoutModal(true)}
-                    className="flex w-full items-center justify-center space-x-2 rounded-xl bg-rose-50 py-3 text-sm font-bold text-rose-600 hover:bg-rose-100 transition"
-                  >
-                    <LogOut className="h-4 w-4" />
-                    <span>Checkout Tenant</span>
-                  </button>
-                </>
-              ) : (
-                <button 
-                  onClick={openAdmissionModal}
-                  className="flex w-full items-center justify-center space-x-2 rounded-xl bg-emerald-600 py-3 text-sm font-bold text-white hover:bg-emerald-700 transition shadow-lg shadow-emerald-500/20"
-                >
-                  <Plus className="h-4 w-4" />
-                  <span>New Admission</span>
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Center Content */}
-        <div className="lg:col-span-2 space-y-8">
-          {/* Active Admission Status */}
-          <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-sm">
-            <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex items-center justify-between">
-              <h2 className="flex items-center font-bold text-slate-900 uppercase tracking-wider text-xs">
-                <Bed className="mr-2 h-4 w-4 text-blue-600" />
-                Current Assignment
-              </h2>
-              {activeAdmission && (
-                <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-black text-emerald-700 uppercase tracking-widest">
-                  Active Stay
-                </span>
-              )}
-            </div>
+      {/* Custom Simple Vacate Dialog */}
+      {isVacateDialogOpen && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-xl animate-in zoom-in-95">
+            <h3 className="text-2xl font-black text-slate-900 mb-2">Vacate Tenant?</h3>
+            <p className="text-slate-600 font-medium mb-8">Are you sure {tenant.name} is leaving? This will mark their bed as empty and complete their stay.</p>
             
-            <div className="p-6">
-              {activeAdmission ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <div className="space-y-6">
-                    <div>
-                      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Room Details</p>
-                      <p className="text-2xl font-black text-slate-900">Room {activeAdmission.room.roomNumber}</p>
-                      <p className="text-sm font-medium text-slate-500 flex items-center mt-1">
-                        <Building className="h-3 w-3 mr-1" />
-                        {activeAdmission.room.branch.name}
-                      </p>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Rent</p>
-                        <p className="text-lg font-bold text-slate-900">₹{Number(activeAdmission.monthlyRent).toLocaleString()}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Deposit</p>
-                        <p className="text-lg font-bold text-slate-900">₹{Number(activeAdmission.depositAmount).toLocaleString()}</p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex flex-col justify-center rounded-2xl bg-blue-50/50 p-6 border border-blue-100/50">
-                    <div className="flex items-center space-x-3 mb-4">
-                      <div className="rounded-full bg-blue-600 p-2 text-white">
-                        <Calendar className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <p className="text-xs font-bold text-blue-600 uppercase tracking-wider">Checked In On</p>
-                        <p className="text-lg font-bold text-blue-900">{format(new Date(activeAdmission.checkinDate), 'dd MMMM yyyy')}</p>
-                      </div>
-                    </div>
-                    <p className="text-xs text-blue-600/70 font-medium">
-                      Duration of stay: {Math.floor((new Date().getTime() - new Date(activeAdmission.checkinDate).getTime()) / (1000 * 60 * 60 * 24))} Days
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center py-10 space-y-4">
-                  <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-slate-50 text-slate-300">
-                    <Bed className="h-8 w-8" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-slate-900">No Active Admission</h3>
-                    <p className="text-sm text-slate-500 max-w-xs mx-auto mt-1">
-                      This tenant is currently not assigned to any room.
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Invoices */}
-          <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-sm">
-            <div className="bg-slate-50 px-6 py-4 border-b border-slate-200">
-              <h2 className="flex items-center font-bold text-slate-900 uppercase tracking-wider text-xs">
-                <FileText className="mr-2 h-4 w-4 text-blue-600" />
-                Financial Records
-              </h2>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-slate-50/50 text-[10px] font-bold uppercase text-slate-400 tracking-widest">
-                  <tr>
-                    <th className="px-6 py-3">Month</th>
-                    <th className="px-6 py-3">Amount</th>
-                    <th className="px-6 py-3">Due Date</th>
-                    <th className="px-6 py-3">Status</th>
-                    <th className="px-6 py-3 text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {tenant.invoices.map((inv) => (
-                    <tr key={inv.id} className="hover:bg-slate-50 transition">
-                      <td className="px-6 py-4 font-semibold text-slate-900">{inv.month}</td>
-                      <td className="px-6 py-4 font-bold text-slate-900">₹{Number(inv.amount).toLocaleString()}</td>
-                      <td className="px-6 py-4 text-slate-500">{format(new Date(inv.dueDate), 'dd MMM yyyy')}</td>
-                      <td className="px-6 py-4">
-                        <span className={cn(
-                          "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-tighter",
-                          inv.status === 'PAID' ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"
-                        )}>
-                          {inv.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        {inv.status !== 'PAID' ? (
-                          <button className="text-xs font-bold text-blue-600 hover:text-blue-700">Pay Now</button>
-                        ) : (
-                          <button className="text-xs font-bold text-slate-400">Receipt</button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                  {tenant.invoices.length === 0 && (
-                    <tr>
-                      <td colSpan={5} className="px-6 py-10 text-center text-slate-400 italic">No invoices generated yet.</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* History */}
-          <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-sm">
-            <div className="bg-slate-50 px-6 py-4 border-b border-slate-200">
-              <h2 className="flex items-center font-bold text-slate-900 uppercase tracking-wider text-xs">
-                <History className="mr-2 h-4 w-4 text-blue-600" />
-                Stay History
-              </h2>
-            </div>
-            <div className="p-6">
-              <div className="space-y-6">
-                {admissionHistory.length > 0 ? (
-                  admissionHistory.map((adm) => (
-                    <div key={adm.id} className="flex items-start space-x-4">
-                      <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100">
-                        <CheckCircle2 className="h-4 w-4 text-slate-400" />
-                      </div>
-                      <div className="flex-1 border-b border-slate-100 pb-4">
-                        <div className="flex items-center justify-between">
-                          <p className="font-bold text-slate-900">Room {adm.room.roomNumber}</p>
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                            {format(new Date(adm.checkinDate), 'MMM yyyy')} - {adm.checkoutDate ? format(new Date(adm.checkoutDate), 'MMM yyyy') : 'Now'}
-                          </span>
-                        </div>
-                        <p className="text-xs text-slate-500 mt-0.5">{adm.room.branch.name}</p>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-center py-4 text-sm text-slate-400 italic">No historical records.</p>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Admission Modal */}
-      {showAdmissionModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl animate-in zoom-in duration-200">
-            <div className="p-6 border-b border-slate-100">
-              <h2 className="text-xl font-bold text-slate-900">Assign Room</h2>
-              <p className="text-sm text-slate-500">Admitting {tenant.name} to a new room.</p>
-            </div>
-            <form onSubmit={handleAdmission} className="p-6 space-y-5">
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-700">Select Room</label>
-                <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
-                  {availableRooms.map(room => (
-                    <button
-                      key={room.id}
-                      type="button"
-                      onClick={() => setAdmissionData({ 
-                        ...admissionData, 
-                        roomId: room.id,
-                        monthlyRent: room.rentAmount
-                      })}
-                      className={cn(
-                        "flex items-center justify-between p-3 rounded-xl border text-left transition-all",
-                        admissionData.roomId === room.id ? "border-blue-500 bg-blue-50 ring-2 ring-blue-500/20" : "border-slate-200 hover:bg-slate-50"
-                      )}
-                    >
-                      <div>
-                        <p className="font-bold text-slate-900 text-sm">Room {room.roomNumber}</p>
-                        <p className="text-[10px] text-slate-500">{room.branch.name}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-bold text-slate-900">₹{Number(room.rentAmount).toLocaleString()}</p>
-                        <p className="text-[10px] text-slate-500 uppercase">{room.totalCapacity - room.occupiedCapacity} left</p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-700">Check-in Date</label>
-                  <input
-                    type="date"
-                    required
-                    className="w-full rounded-xl border border-slate-200 py-2.5 px-4 text-sm focus:border-blue-500 outline-none"
-                    value={admissionData.checkinDate}
-                    onChange={(e) => setAdmissionData({ ...admissionData, checkinDate: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-700">Monthly Rent</label>
-                  <input
-                    type="number"
-                    required
-                    className="w-full rounded-xl border border-slate-200 py-2.5 px-4 text-sm focus:border-blue-500 outline-none"
-                    value={admissionData.monthlyRent}
-                    onChange={(e) => setAdmissionData({ ...admissionData, monthlyRent: e.target.value })}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-700">Security Deposit</label>
-                <input
-                  type="number"
-                  className="w-full rounded-xl border border-slate-200 py-2.5 px-4 text-sm focus:border-blue-500 outline-none"
-                  value={admissionData.depositAmount}
-                  onChange={(e) => setAdmissionData({ ...admissionData, depositAmount: e.target.value })}
-                />
-              </div>
-
-              <div className="flex space-x-3 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setShowAdmissionModal(false)}
-                  className="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-bold text-slate-600"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={submittingAdmission || !admissionData.roomId}
-                  className="flex-[2] rounded-xl bg-blue-600 py-2.5 text-sm font-bold text-white hover:bg-blue-700 transition disabled:opacity-50"
-                >
-                  {submittingAdmission ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : 'Confirm Admission'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Transfer Modal */}
-      {showTransferModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl animate-in zoom-in duration-200">
-            <div className="p-6 border-b border-slate-100">
-              <h2 className="text-xl font-bold text-slate-900">Room Transfer</h2>
-              <p className="text-sm text-slate-500">Moving {tenant.name} to a different room.</p>
-            </div>
-            <div className="p-6 space-y-6">
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-700">Select New Room</label>
-                <div className="grid grid-cols-1 gap-2 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
-                  {availableRooms
-                    .filter(r => r.id !== activeAdmission?.roomId)
-                    .map(room => (
-                    <button
-                      key={room.id}
-                      onClick={() => setNewRoomId(room.id)}
-                      className={cn(
-                        "flex items-center justify-between p-4 rounded-xl border text-left transition-all",
-                        newRoomId === room.id ? "border-blue-500 bg-blue-50 ring-2 ring-blue-500/20" : "border-slate-200 hover:bg-slate-50"
-                      )}
-                    >
-                      <div>
-                        <p className="font-bold text-slate-900 text-sm">Room {room.roomNumber}</p>
-                        <p className="text-[10px] text-slate-500">{room.branch.name}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-bold text-slate-900">₹{Number(room.rentAmount).toLocaleString()}</p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex space-x-3">
-                <button
-                  onClick={() => setShowTransferModal(false)}
-                  className="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-bold text-slate-600"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleTransfer}
-                  disabled={transferring || !newRoomId}
-                  className="flex-[2] rounded-xl bg-blue-600 py-2.5 text-sm font-bold text-white hover:bg-blue-700 transition disabled:opacity-50"
-                >
-                  {transferring ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : 'Confirm Transfer'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Checkout Modal */}
-      {showCheckoutModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl animate-in zoom-in duration-200">
-            <div className="p-6 border-b border-slate-100">
-              <h2 className="text-xl font-bold text-slate-900">Confirm Checkout</h2>
-              <p className="text-sm text-slate-500">End admission for {tenant.name}.</p>
-            </div>
-            <div className="p-6 space-y-6">
-              <div className="rounded-xl bg-amber-50 p-4 border border-amber-100 flex items-start space-x-3">
-                <AlertCircle className="h-5 w-5 text-amber-500 mt-0.5" />
-                <p className="text-xs text-amber-700 leading-relaxed">
-                  Checkout will mark the room as vacant and complete this admission period. Ensure all pending dues are cleared.
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-700">Checkout Date</label>
-                <input
-                  type="date"
-                  required
-                  className="w-full rounded-xl border border-slate-200 py-2.5 px-4 text-sm focus:border-blue-500 outline-none"
-                  value={checkoutDate}
-                  onChange={(e) => setCheckoutDate(e.target.value)}
-                />
-              </div>
-
-              <div className="flex space-x-3">
-                <button
-                  onClick={() => setShowCheckoutModal(false)}
-                  className="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-bold text-slate-600"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleCheckout}
-                  disabled={checkingOut}
-                  className="flex-[2] rounded-xl bg-rose-600 py-2.5 text-sm font-bold text-white hover:bg-rose-700 transition disabled:opacity-50"
-                >
-                  {checkingOut ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : 'Finalize Checkout'}
-                </button>
-              </div>
+            <div className="flex gap-3">
+              <button 
+                onClick={() => setIsVacateDialogOpen(false)}
+                className="flex-1 h-12 bg-slate-100 text-slate-700 rounded-xl font-bold active:bg-slate-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleVacate}
+                disabled={vacating}
+                className="flex-1 h-12 bg-rose-600 text-white rounded-xl font-bold active:bg-rose-700 transition-colors flex items-center justify-center"
+              >
+                {vacating ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Yes, Vacate'}
+              </button>
             </div>
           </div>
         </div>

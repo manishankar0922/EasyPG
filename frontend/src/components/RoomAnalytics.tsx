@@ -62,7 +62,6 @@ export default function RoomAnalytics({ roomId }: { roomId: string }) {
         <Progress 
           value={data.occupancyRate} 
           className="h-4 bg-slate-100" 
-          indicatorColor={data.occupancyRate >= 80 ? 'bg-emerald-500' : data.occupancyRate >= 50 ? 'bg-amber-400' : 'bg-rose-500'}
         />
       </div>
 

@@ -1,0 +1,53 @@
+export const en = {
+  home: "Home",
+  tenants: "Tenants",
+  payments: "Payments",
+  rooms: "Rooms",
+  profile: "Profile",
+  pendingRent: "Rent Pending",
+  collectedThisMonth: "Paid This Month",
+  emptyBeds: "Empty Beds",
+  totalTenants: "Total Tenants",
+  addTenant: "Add Tenant",
+  recordPayment: "Record Payment",
+  paid: "Paid",
+  notPaid: "Not Paid",
+  vacate: "Mark as Vacated",
+  save: "Save",
+  cancel: "Cancel",
+  search: "Search...",
+  noTenants: "No tenants yet",
+  paymentRecorded: "Payment Recorded!",
+  tenantsNotPaid: "tenants not paid",
+  tenantsPaid: "tenants paid",
+  roomsVacancy: "rooms have vacancy",
+  checkedInMonth: "checked in this month"
+};
+
+export const te = {
+  home: "హోమ్",
+  tenants: "అద్దెదారులు",
+  payments: "చెల్లింపులు",
+  rooms: "గదులు",
+  profile: "ప్రొఫైల్",
+  pendingRent: "పెండింగ్ అద్దె",
+  collectedThisMonth: "ఈ నెల వసూలు",
+  emptyBeds: "ఖాళీ మంచాలు",
+  totalTenants: "మొత్తం అద్దెదారులు",
+  addTenant: "అద్దెదారుని జోడించు",
+  recordPayment: "చెల్లింపు నమోదు చేయి",
+  paid: "చెల్లించారు",
+  notPaid: "చెల్లించలేదు",
+  vacate: "ఖాళీ చేయడం నమోదు చేయి",
+  save: "సేవ్ చేయి",
+  cancel: "రద్దు చేయి",
+  search: "వెతకండి...",
+  noTenants: "అద్దెదారులు లేరు",
+  paymentRecorded: "చెల్లింపు నమోదు అయింది!",
+  tenantsNotPaid: "అద్దెదారులు చెల్లించలేదు",
+  tenantsPaid: "అద్దెదారులు చెల్లించారు",
+  roomsVacancy: "గదులు ఖాళీగా ఉన్నాయి",
+  checkedInMonth: "ఈ నెల చేరారు"
+};
+
+export type TranslationKey = keyof typeof en;

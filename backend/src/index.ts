@@ -21,6 +21,12 @@ import invoiceRoutes from './routes/invoice.routes';
 import paymentRoutes from './routes/payment.routes';
 import dashboardRoutes from './routes/dashboard.routes';
 import adminRoutes from './routes/admin.routes';
+import uploadRoutes from './routes/upload.routes';
+
+import hpp from 'hpp';
+import mongoSanitize from 'express-mongo-sanitize';
+import { generalLimiter, authLimiter, paymentLimiter } from './middlewares/rateLimiter';
+import { requestLogger } from './middlewares/requestLogger';
 
 dotenv.config();
 
@@ -28,24 +34,56 @@ const app = express();
 const PORT = process.env.PORT || 4000;
 
 // Security & Optimization Middleware
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "res.cloudinary.com"],
+    }
+  },
+  hsts: { maxAge: 31536000, includeSubDomains: true },
+  noSniff: true,
+  xssFilter: true,
+  frameguard: { action: 'deny' }
+}));
+
 app.use(compression());
-app.use(cors());
-app.use(express.json());
+
+const allowedOrigins = [
+  process.env.FRONTEND_URL || 'http://localhost:3000',
+  'https://easypg.in'
+];
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
+// Input sanitization and payload limits
+app.use(express.json({ limit: '10kb' }));
+app.use(express.urlencoded({ extended: true, limit: '10kb' }));
+app.use(mongoSanitize()); // Prevent NoSQL injection attacks (even on Postgres, guards against certain object injections)
+app.use(hpp()); // Prevent HTTP Parameter Pollution
+
 app.use(morgan('dev'));
+app.use(requestLogger);
 
 // Mount Bull Board (Queue Monitor) - Needs to be before any body parsers if it conflicts, but standard express is fine.
 app.use('/api/admin/queues', serverAdapter.getRouter());
 
 // Rate Limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
-  message: { success: false, error: 'Too many requests from this IP, please try again later' },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-app.use('/api/', limiter);
+app.use('/api/', generalLimiter);
+app.use('/api/auth/', authLimiter);
+app.use('/api/payments/', paymentLimiter);
 
 // Initialize Background Workers
 if (process.env.NODE_ENV !== 'test') {
@@ -69,6 +107,7 @@ app.use('/api/invoices', invoiceRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/upload', uploadRoutes);
 
 // Error Middleware
 app.use(errorHandler);

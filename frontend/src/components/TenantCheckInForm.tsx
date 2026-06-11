@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Loader2, Wand2, Bed, AlertTriangle } from 'lucide-react';
@@ -26,7 +26,6 @@ export default function TenantCheckInForm({ branchId }: { branchId: string }) {
   const [selectedBed, setSelectedBed] = useState<any | null>(null);
 
   // Fetch rooms when switching to manual mode
-  import { useEffect } from 'react';
   useEffect(() => {
     if (!autoAssign && rooms.length === 0) {
       api.get(`/branches/${branchId}/rooms`).then(res => {

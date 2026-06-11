@@ -1,104 +1,175 @@
+import { ClerkExpressRequireAuth, StrictAuthProp } from '@clerk/clerk-sdk-node';
 import { Request, Response, NextFunction } from 'express';
-import { supabase } from '../config/supabase';
 import prisma from '../config/db';
-import jwt from 'jsonwebtoken';
 
 declare global {
   namespace Express {
     interface Request {
-      user?: {
+      user: {
         id: string;
+        role: string;
         organizationId: string;
-        branchId?: string | null;
-        role: 'SUPER_ADMIN' | 'OWNER' | 'WARDEN' | 'STAFF';
+        branchId: string | null;
       };
+      auth: StrictAuthProp['auth'];
     }
   }
 }
 
-export const authMiddleware = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const authHeader = req.headers.authorization;
-
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ success: false, error: 'Unauthorized: Missing token' });
+// Step 1: Verify Clerk token (with Developer Bypass & Supabase Fallback)
+export const requireAuth = (req: Request, res: Response, next: NextFunction) => {
+  const authHeader = req.headers.authorization;
+  
+  // Developer bypass for local testing
+  if (process.env.NODE_ENV === 'development' && process.env.ENABLE_MOCK_AUTH === 'true') {
+    if (authHeader && authHeader.startsWith('Bearer mock-')) {
+      // Mock auth bypasses Clerk verification
+      (req as any).auth = { userId: authHeader.split('Bearer ')[1] };
+      return next();
     }
-
-    const token = authHeader.split(' ')[1];
-    
-    // Developer bypass for local testing
-    if (process.env.NODE_ENV === 'development' && 
-        process.env.ENABLE_MOCK_AUTH === 'true') {
-      if (token === 'mock-dev-token' || token === 'mock-admin-token' || token.startsWith('mock-user-token-')) {
-        let userId = '';
-        if (token === 'mock-dev-token') userId = '00000000-0000-0000-0000-000000000001';
-        else if (token === 'mock-admin-token') userId = '00000000-0000-0000-0000-000000000000';
-        else userId = token.replace('mock-user-token-', '');
-
-        const profile = await prisma.profile.findUnique({
-          where: { id: userId },
-        });
-
-        if (profile) {
-          req.user = {
-            id: profile.id,
-            organizationId: profile.organizationId || '00000000-0000-0000-0000-000000000000',
-            branchId: profile.branchId,
-            role: profile.role,
-          };
-          return next();
-        }
-      }
-    }
-    
-    // Check for custom JWT (Impersonation)
-    const JWT_SECRET = process.env.JWT_SECRET || 'easypg-super-secret-key-123';
-    
-    let userId = null;
-
+  }
+  
+  // JWT Fallback for Supabase & Admin Impersonation
+  if (authHeader && authHeader.split('.').length === 3) {
     try {
-      // If it's our custom JWT, verify it
-      const decoded = jwt.verify(token, JWT_SECRET) as any;
-      if (decoded && decoded.id) {
-        userId = decoded.id;
+      const token = authHeader.replace('Bearer ', '');
+      const jwt = require('jsonwebtoken');
+      
+      // Try verifying with Supabase secret or Custom JWT secret
+      const secret = process.env.SUPABASE_JWT_SECRET || process.env.JWT_SECRET || 'easypg-super-secret-key-123';
+      
+      const decoded = jwt.verify(token, secret);
+      const userId = decoded.sub || decoded.id;
+      
+      if (userId) {
+        (req as any).auth = { userId };
+        return next();
       }
     } catch (e) {
-      // Not a custom JWT, fallback to Supabase
+      // Ignore and fall through to Clerk
     }
+  }
+  
+  // Normal Clerk Verification
+  if (!process.env.CLERK_PUBLISHABLE_KEY || !process.env.CLERK_SECRET_KEY) {
+    return res.status(500).json({ error: 'Clerk API keys are missing in backend .env, and token is not a valid Supabase JWT.' });
+  }
+  
+  return ClerkExpressRequireAuth()(req, res, next);
+};
 
-    if (!userId) {
-      // Verify token with Supabase
-      const { data: { user }, error } = await supabase.auth.getUser(token);
-      if (error || !user) {
-        return res.status(401).json({ success: false, error: 'Unauthorized: Invalid token' });
+// Step 2: Attach user + org context
+export const attachUserContext = async (
+  req: Request, res: Response, next: NextFunction
+) => {
+  try {
+    let clerkUserId = req.auth?.userId;
+    
+    // For mock auth
+    if (process.env.NODE_ENV === 'development' && process.env.ENABLE_MOCK_AUTH === 'true' && clerkUserId?.startsWith('mock-')) {
+      let profile;
+      
+      if (clerkUserId === 'mock-dev-token' || clerkUserId === 'mock-admin-token') {
+        // Just fetch the first available owner profile to mock the session
+        profile = await prisma.profile.findFirst({ where: { role: 'OWNER' } }) || await prisma.profile.findFirst();
+      } else {
+        const mockProfileId = clerkUserId.replace('mock-user-token-', '');
+        // Only query if it's a valid UUID length to avoid Prisma crash
+        if (mockProfileId.length === 36) {
+          profile = await prisma.profile.findUnique({
+            where: { id: mockProfileId },
+          });
+        }
       }
-      userId = user.id;
+      
+      if (profile) {
+        req.user = {
+          id: profile.id,
+          role: profile.role,
+          organizationId: profile.organizationId || '00000000-0000-0000-0000-000000000000',
+          branchId: profile.branchId,
+        };
+        return next();
+      } else {
+        return res.status(401).json({ error: 'Mock profile not found in database' });
+      }
     }
 
-    // Fetch user profile from Prisma to get organizationId and role
-    const profile = await prisma.profile.findUnique({
-      where: { id: userId },
+    if (!clerkUserId) {
+      return res.status(401).json({ error: 'Unauthorized: No user ID found' });
+    }
+    
+    // Assuming 'Profile' model handles users. If clerkId isn't on profile, we match by id.
+    // In many Clerk migrations, id is mapped directly, or a clerkId column is added.
+    const user = await prisma.profile.findFirst({
+      where: { 
+        // If you added clerkId: clerkId: clerkUserId
+        // But for safety, fallback to id if clerkId doesn't exist yet
+        OR: [
+          { id: clerkUserId },
+          // { clerkId: clerkUserId } // Add this once clerkId exists in prisma schema
+        ]
+      } as any,
+      include: { organization: true, branch: true } 
     });
-
-    if (!profile) {
-      return res.status(403).json({ success: false, error: 'Forbidden: Profile not found' });
+    
+    if (!user) {
+      return res.status(401).json({ error: 'User profile not found in database' });
     }
-
-    // Check if account is active
-    if (profile.status !== 'ACTIVE') {
-      return res.status(403).json({ success: false, error: `Your account is ${profile.status.toLowerCase()}. Please contact your administrator.` });
-    }
-
+    
+    // Attach to request — available in all route handlers
     req.user = {
-      id: profile.id,
-      organizationId: profile.organizationId || '00000000-0000-0000-0000-000000000000',
-      branchId: profile.branchId,
-      role: profile.role,
+      id: user.id,
+      role: user.role,
+      organizationId: user.organizationId as string,
+      branchId: user.branchId
     };
-
+    
     next();
-  } catch (err) {
-    console.error('Auth Middleware Error:', err);
-    res.status(500).json({ success: false, error: 'Internal Server Error' });
+  } catch (error) {
+    next(error);
   }
 };
+
+// Step 3: Role guard middleware
+export const requireRole = (...roles: string[]) =>
+  (req: Request, res: Response, next: NextFunction) => {
+    if (!roles.includes(req.user.role)) {
+      return res.status(403).json({ 
+        error: 'Access denied. Insufficient permissions.' 
+      });
+    }
+    next();
+  };
+
+// Step 4: Branch isolation guard
+export const requireBranchAccess = async (
+  req: Request, res: Response, next: NextFunction
+) => {
+  const branchId = req.params.branchId || req.body.branchId || req.query.branchId;
+  
+  if (!branchId) return next();
+  
+  // Admin can access any branch
+  if (req.user.role === 'admin' || req.user.role === 'SUPER_ADMIN') return next();
+  
+  // Owner can access their own branches only
+  if (req.user.role === 'owner' || req.user.role === 'OWNER') {
+    const branch = await prisma.branch.findFirst({
+      where: { id: branchId, organizationId: req.user.organizationId as string }
+    });
+    if (!branch) {
+      return res.status(403).json({ error: 'Branch access denied.' });
+    }
+    return next();
+  }
+  
+  // Warden can only access assigned branch
+  if (req.user.branchId !== branchId) {
+    return res.status(403).json({ error: 'Branch access denied.' });
+  }
+  
+  next();
+};
+
+export const authMiddleware = [requireAuth, attachUserContext, requireBranchAccess];
