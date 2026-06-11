@@ -169,21 +169,20 @@ router.post('/organizations', validate(createOrgSchema), async (req, res) => {
         }
       });
 
-      // 3. If floors provided, create one default Branch + Rooms + Beds
-      let branch = null;
+      // 3. Create one default Branch to hold the address
+      let branch = await tx.branch.create({
+        data: {
+          name: `${name} - Main Branch`,
+          address: address || '',
+          organizationId: org.id,
+          floors: floors && Array.isArray(floors) ? floors.length : 1,
+        }
+      });
+
       let roomsCreated = 0;
       let bedsCreated = 0;
 
       if (floors && Array.isArray(floors) && floors.length > 0) {
-        branch = await tx.branch.create({
-          data: {
-            name: `${name} - Main Branch`,
-            address: address || '',
-            organizationId: org.id,
-            floors: floors.length,
-          }
-        });
-
         const BEDS_PER_ROOM = 3; // Default: 3 beds per room
         const BED_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'];
 

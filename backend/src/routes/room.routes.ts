@@ -8,9 +8,9 @@ import { z } from 'zod';
 const router = Router();
 router.use(authMiddleware);
 
-// Get all rooms with filtering
+// Get all rooms with filtering and pagination
 router.get('/', async (req, res) => {
-  const { branchId, status, genderType, includeBeds } = req.query;
+  const { branchId, status, genderType, page = '1', limit = '50' } = req.query;
   const orgId = req.user!.organizationId as string;
   const { role, branchId: userBranchId } = req.user!;
 
@@ -20,21 +20,46 @@ router.get('/', async (req, res) => {
     effectiveBranchId = userBranchId;
   }
 
-  const rooms = await prisma.room.findMany({
-    where: {
-      organizationId: orgId,
-      ...(effectiveBranchId && { branchId: effectiveBranchId }),
-      ...(status && { status: status as any }),
-      ...(genderType && { genderType: genderType as any }),
-    },
-    include: { 
-      branch: true,
-      ...(includeBeds === 'true' && { beds: true })
-    },
-    orderBy: [{ floor: 'asc' }, { roomNumber: 'asc' }]
-  });
+  const pageNum = parseInt(page as string);
+  const limitNum = parseInt(limit as string);
+
+  const whereClause = {
+    organizationId: orgId,
+    ...(effectiveBranchId && { branchId: effectiveBranchId }),
+    ...(status && { status: status as any }),
+    ...(genderType && { genderType: genderType as any }),
+  };
+
+  const [total, rooms] = await prisma.$transaction([
+    prisma.room.count({ where: whereClause }),
+    prisma.room.findMany({
+      where: whereClause,
+      include: { 
+        branch: true,
+        beds: {
+          include: {
+            admissions: {
+              where: { status: 'ACTIVE' },
+              include: { tenant: { select: { id: true, name: true, photoUrl: true } } }
+            }
+          }
+        }
+      },
+      orderBy: [{ floor: 'asc' }, { roomNumber: 'asc' }],
+      skip: (pageNum - 1) * limitNum,
+      take: limitNum
+    })
+  ]);
   
-  res.json({ success: true, data: rooms });
+  res.json({ 
+    success: true, 
+    data: {
+      rooms,
+      total,
+      page: pageNum,
+      totalPages: Math.ceil(total / limitNum)
+    } 
+  });
 });
 
 // GET /rooms/availability

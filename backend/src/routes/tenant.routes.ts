@@ -232,12 +232,27 @@ router.post('/', validate(createTenantSchema), async (req, res) => {
     });
 
     res.status(201).json({ success: true, data: result.tenant });
-  } catch (err: any) {
-    if (err.message === "Bed is already occupied") {
-      return res.status(400).json({ success: false, error: err.message });
+  } catch (error: any) {
+    console.error('Tenant creation error:', error);
+    
+    // Check for specific Prisma errors
+    if (error.code === 'P2002') {
+      return res.status(400).json({ 
+        success: false,
+        error: 'This bed is already assigned to another tenant.' 
+      });
     }
-    console.error('Create tenant error:', err);
-    res.status(500).json({ success: false, error: 'Failed to onboard tenant' });
+    if (error.code === 'P2025') {
+      return res.status(404).json({ 
+        success: false,
+        error: 'Bed or branch not found.' 
+      });
+    }
+    
+    return res.status(500).json({ 
+      success: false,
+      error: error.message || 'Failed to onboard tenant'
+    });
   }
 });
 

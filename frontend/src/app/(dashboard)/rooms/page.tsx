@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -9,11 +10,23 @@ import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/auth-store';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 
+import LoadingScreen from '@/components/shared/LoadingScreen';
+
 export default function MobileRoomsPage() {
   const { user } = useAuthStore();
-  const [floors, setFloors] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   
+  const { data: floors = [], isLoading: loading } = useQuery<any[]>({
+    queryKey: ['rooms', user?.branchId],
+    queryFn: async () => {
+      if (!user?.branchId) return [];
+      const res = await api.get(`/branches/${user.branchId}/heatmap`);
+      return res.data.success ? res.data.data : [];
+    },
+    enabled: !!user?.branchId,
+    staleTime: 30 * 1000,
+    gcTime: 5 * 60 * 1000,
+  });
+
   // View controls
   const [viewMode, setViewMode] = useState<'heatmap' | 'list'>('heatmap');
   const [activeFilter, setActiveFilter] = useState<string>('ALL'); // ALL, EMPTY, FULL, PARTIAL, FLOOR_1 etc.
@@ -21,29 +34,11 @@ export default function MobileRoomsPage() {
   // Sheet state
   const [selectedRoom, setSelectedRoom] = useState<any>(null);
 
-  useEffect(() => {
-    async function fetchRooms() {
-      if (!user?.branchId) return;
-      try {
-        setLoading(true);
-        const res = await api.get(`/branches/${user.branchId}/heatmap`);
-        if (res.data.success) {
-          setFloors(res.data.data);
-        }
-      } catch (err) {
-        console.error('Failed to fetch rooms', err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchRooms();
-  }, [user]);
-
   // Derived arrays
-  const allRooms = floors.flatMap(f => f.rooms);
+  const allRooms = floors.flatMap((f: any) => f.rooms);
   
   // Dynamic filter chips based on available floors
-  const floorChips = floors.map(f => ({ id: `FLOOR_${f.floor}`, label: `Floor ${f.floor}` }));
+  const floorChips = floors.map((f: any) => ({ id: `FLOOR_${f.floor}`, label: `Floor ${f.floor}` }));
   const filterChips = [
     { id: 'ALL', label: 'All' },
     { id: 'EMPTY', label: 'Empty 🔴' },
@@ -67,6 +62,10 @@ export default function MobileRoomsPage() {
     ...f,
     rooms: f.rooms.filter((r: any) => filteredRooms.includes(r))
   })).filter(f => f.rooms.length > 0);
+
+  if (loading) {
+    return <LoadingScreen message="Loading rooms..." />;
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 pb-20 relative">
@@ -111,11 +110,7 @@ export default function MobileRoomsPage() {
       </div>
 
       <div className="p-4">
-        {loading ? (
-          <div className="flex justify-center py-20">
-            <div className="h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-blue-600"></div>
-          </div>
-        ) : filteredRooms.length === 0 ? (
+        {filteredRooms.length === 0 ? (
           <div className="text-center py-20 px-4">
             <div className="h-20 w-20 bg-slate-200 rounded-full mx-auto mb-4 flex items-center justify-center">
               <span className="text-2xl">🛏️</span>

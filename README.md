@@ -125,8 +125,15 @@ This automatically authenticates you as the first Owner profile available in the
 - [x] Atomic Room Transfers & Protected Transactions
 - [x] Enterprise Security Hardening & Logging
 - [x] Cloudinary Signed Upload Integration
+- [x] **Mobile-First Warden UI**: Intuitive UI patterns (like WhatsApp) replacing complex ERP tables.
+- [x] **Robust Error Handling**: Fixed frontend state management for paginated APIs and stabilized Cloudinary upload failure scenarios.
 - [ ] Automated Monthly Billing Service (BullMQ)
 - [ ] OCR-based Tenant ID Verification
 - [ ] WhatsApp/SMS Notification Engine
+
+## 📝 Recent Architectural Updates (for the Team)
+1. **Granular Room Setup:** The setup wizard and frontend flows have been refactored away from rigid "Bed per Room" assumptions. The UI now supports completely dynamic floor-by-floor and room-by-room configurations.
+2. **UI Stabilization:** The global Dark Mode CSS has been explicitly scoped to avoid interfering with the pristine Admin Panel. Input fields across the tenant onboarding and login flows have been stabilized.
+3. **Cloudinary Uploads:** `MobileCameraCapture` now explicitly tracks `pendingFile` upload states and completely blocks form submission until images are fully uploaded to Cloudinary, preventing broken `blob:` URLs from entering the database.
 
 *Built with ❤️ by Urban9Solutions*
