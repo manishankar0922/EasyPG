@@ -6,6 +6,7 @@ import { useAuthStore } from '@/store/auth-store';
 import { useTranslation } from '@/hooks/useTranslation';
 import { Bed, Users, IndianRupee, MessageCircle, Wallet } from 'lucide-react';
 import Image from 'next/image';
+import LoadingScreen from '@/components/shared/LoadingScreen';
 
 export default function MobileDashboard() {
   const { user } = useAuthStore();
@@ -30,11 +31,7 @@ export default function MobileDashboard() {
   }, []);
 
   if (loading) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-slate-50">
-        <div className="h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-blue-600"></div>
-      </div>
-    );
+    return <LoadingScreen message="Loading your dashboard..." />;
   }
 
   // Fallback defaults if data is missing
@@ -102,7 +99,7 @@ export default function MobileDashboard() {
               {d.emptyBeds.count}
             </div>
             <div className="text-xs font-medium text-slate-500">
-              {d.emptyBeds.roomCount} {t.roomsVacancy}
+              {d.emptyBeds.roomCount} {t.roomsHaveVacancy}
             </div>
           </div>
 
@@ -116,7 +113,7 @@ export default function MobileDashboard() {
               {d.totalTenants.count}
             </div>
             <div className="text-xs font-medium text-slate-500">
-              {d.totalTenants.checkedInThisMonth} {t.checkedInMonth}
+              {d.totalTenants.checkedInThisMonth} {t.checkedInThisMonth}
             </div>
           </div>
         </div>
@@ -128,7 +125,7 @@ export default function MobileDashboard() {
           <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
             {d.pendingTenants.length === 0 ? (
               <div className="p-8 text-center text-slate-500 font-medium">
-                {t.noTenants}
+                {t.noTenantsFound}
               </div>
             ) : (
               <div className="divide-y divide-slate-100">

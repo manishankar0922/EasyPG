@@ -6,7 +6,25 @@ import { validate } from '../middlewares/validation.middleware';
 import { registerSchema, loginSchema } from '../schemas/auth.schema';
 
 const router = Router();
+
+// POST /auth/login (mock endpoint for the frontend bypass to avoid 404)
+router.post('/login', async (req, res) => {
+  const { email, password } = req.body;
+  if (email === 'admin@gmail.com' && password === 'admin123') {
+    return res.json({ success: true, data: { session: { access_token: 'mock-admin-token' } } });
+  }
+  if (email === 'dev@gmail.com' && password === 'dev123') {
+    return res.json({ success: true, data: { session: { access_token: 'mock-dev-token' } } });
+  }
+  res.status(401).json({ success: false, error: 'Invalid mock credentials' });
+});
+
 router.use(authMiddleware);
+
+// GET /auth/me
+router.get('/me', async (req, res) => {
+  res.json({ success: true, data: req.user });
+});
 
 // POST /auth/change-password
 router.post('/change-password', async (req, res) => {

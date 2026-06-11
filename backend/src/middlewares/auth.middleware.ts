@@ -72,6 +72,19 @@ export const attachUserContext = async (
       if (clerkUserId === 'mock-dev-token' || clerkUserId === 'mock-admin-token') {
         // Just fetch the first available owner profile to mock the session
         profile = await prisma.profile.findFirst({ where: { role: 'OWNER' } }) || await prisma.profile.findFirst();
+        
+        // If DB is completely empty, provide an ultimate fallback mock profile
+        if (!profile) {
+          profile = {
+            id: clerkUserId === 'mock-admin-token' ? '11111111-1111-1111-1111-111111111111' : '22222222-2222-2222-2222-222222222222',
+            role: clerkUserId === 'mock-admin-token' ? 'SUPER_ADMIN' : 'OWNER',
+            organizationId: '00000000-0000-0000-0000-000000000000',
+            branchId: null,
+          } as any;
+        } else if (clerkUserId === 'mock-admin-token') {
+          // Force SUPER_ADMIN role for the admin token even if an OWNER profile was loaded
+          profile = { ...profile, role: 'SUPER_ADMIN' };
+        }
       } else {
         const mockProfileId = clerkUserId.replace('mock-user-token-', '');
         // Only query if it's a valid UUID length to avoid Prisma crash

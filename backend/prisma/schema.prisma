@@ -126,6 +126,7 @@ model Room {
   admissions Admission[]
   beds       Bed[]
 
+  @@index([branchId])
   @@map("rooms")
 }
 
@@ -142,6 +143,7 @@ model Bed {
 
   admissions     Admission[]
 
+  @@index([roomId])
   @@map("beds")
 }
 
@@ -202,6 +204,8 @@ model Admission {
   createdAt      DateTime     @default(now()) @map("created_at")
   updatedAt      DateTime     @updatedAt @map("updated_at")
 
+  @@index([bedId, status])
+  @@index([roomId, status])
   @@map("admissions")
 }
 

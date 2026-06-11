@@ -143,7 +143,7 @@ export default function QuickPaymentPage() {
               placeholder="Search tenant name..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full h-16 bg-white border border-slate-200 rounded-3xl pl-14 pr-4 text-xl font-bold placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/20 shadow-sm transition-all outline-none"
+              className="w-full h-16 bg-background text-foreground border border-slate-200 rounded-3xl pl-14 pr-4 text-xl font-bold placeholder:text-muted-foreground focus:ring-4 focus:ring-blue-500/20 shadow-sm transition-all outline-none"
             />
           </div>
 

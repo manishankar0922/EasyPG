@@ -21,11 +21,12 @@ export default function AddTenantPage() {
   const router = useRouter();
   const user = useAuthStore(state => state.user);
 
-  // Form State
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [photoUrl, setPhotoUrl] = useState('');
   const [aadhaarPhotoUrl, setAadhaarPhotoUrl] = useState('');
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const [isUploadingAadhaar, setIsUploadingAadhaar] = useState(false);
   const [checkinDate, setCheckinDate] = useState(new Date().toISOString().split('T')[0]);
   const [monthlyRent, setMonthlyRent] = useState<number | ''>('');
   
@@ -49,10 +50,15 @@ export default function AddTenantPage() {
       try {
         const { data } = await api.get('/rooms?includeBeds=true');
         if (data.success) {
-          setRooms(data.data);
+          // Defensive check: handle both paginated format { rooms: [] } and raw array format []
+          const fetchedRooms = Array.isArray(data.data) ? data.data : (data.data?.rooms || []);
+          setRooms(fetchedRooms);
+        } else {
+          setRooms([]);
         }
       } catch (err) {
         console.error("Failed to fetch rooms", err);
+        setRooms([]); // Ensure rooms stays an array on failure
       } finally {
         setLoadingRooms(false);
       }
@@ -62,13 +68,15 @@ export default function AddTenantPage() {
 
   // Compute best bed for auto-assign
   const bestBed = React.useMemo(() => {
-    if (!rooms.length) return null;
+    // Defensive programming: safely fallback if rooms is somehow not an array
+    if (!Array.isArray(rooms) || !rooms.length) return null;
     const sortedRooms = [...rooms].sort((a, b) => {
       if (a.floor !== b.floor) return a.floor - b.floor;
       return a.roomNumber.localeCompare(b.roomNumber);
     });
 
     for (const room of sortedRooms) {
+      if (!Array.isArray(room.beds)) continue;
       const vacantBeds = room.beds.filter(b => !b.isOccupied).sort((a, b) => a.bedNumber.localeCompare(b.bedNumber));
       if (vacantBeds.length > 0) {
         return { room, bed: vacantBeds[0] };
@@ -133,9 +141,10 @@ export default function AddTenantPage() {
   };
 
   // Group rooms for manual selection
-  const floors = Array.from(new Set(rooms.map(r => r.floor))).sort((a, b) => a - b);
-  const roomsOnSelectedFloor = rooms.filter(r => r.floor === selectedFloor);
-  const selectedRoom = rooms.find(r => r.id === selectedRoomId);
+  const safeRooms = Array.isArray(rooms) ? rooms : [];
+  const floors = Array.from(new Set(safeRooms.map(r => r.floor))).sort((a, b) => a - b);
+  const roomsOnSelectedFloor = safeRooms.filter(r => r.floor === selectedFloor);
+  const selectedRoom = safeRooms.find(r => r.id === selectedRoomId);
 
   return (
     <div className="min-h-screen bg-slate-50 pb-20">
@@ -153,11 +162,13 @@ export default function AddTenantPage() {
           <section className="grid grid-cols-2 gap-4">
             <MobileCameraCapture 
               label="Tenant Photo *" 
-              onUploadComplete={setPhotoUrl} 
+              onUploadStart={() => setIsUploadingPhoto(true)}
+              onUploadComplete={(url) => { setPhotoUrl(url); setIsUploadingPhoto(false); }} 
             />
             <MobileCameraCapture 
               label="Aadhaar ID" 
-              onUploadComplete={setAadhaarPhotoUrl} 
+              onUploadStart={() => setIsUploadingAadhaar(true)}
+              onUploadComplete={(url) => { setAadhaarPhotoUrl(url); setIsUploadingAadhaar(false); }} 
             />
           </section>
 
@@ -172,7 +183,7 @@ export default function AddTenantPage() {
                 <input 
                   type="text" required 
                   placeholder="Rahul Kumar"
-                  className="w-full rounded-xl border border-slate-200 py-3 pl-10 pr-4 text-slate-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition shadow-sm text-sm"
+                  className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-4 text-slate-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition shadow-sm text-sm"
                   value={name} onChange={e => setName(e.target.value)} 
                 />
               </div>
@@ -183,10 +194,14 @@ export default function AddTenantPage() {
               <div className="relative">
                 <Phone className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
                 <input 
-                  type="number" required 
-                  placeholder="9876543210"
-                  className="w-full rounded-xl border border-slate-200 py-3 pl-10 pr-4 text-slate-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition shadow-sm text-sm"
-                  value={phone} onChange={e => setPhone(e.target.value)} 
+                  type="tel"
+                  inputMode="numeric"
+                  pattern="[6-9][0-9]{9}"
+                  maxLength={10}
+                  required 
+                  placeholder="Enter 10 digit mobile number"
+                  className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-4 text-slate-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition shadow-sm text-sm"
+                  value={phone} onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))} 
                 />
               </div>
             </div>
@@ -319,7 +334,7 @@ export default function AddTenantPage() {
                   <Calendar className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
                   <input 
                     type="date" required 
-                    className="w-full rounded-xl border border-slate-200 py-3 pl-10 pr-4 text-slate-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition shadow-sm text-sm"
+                    className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-4 text-slate-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition shadow-sm text-sm"
                     value={checkinDate} onChange={e => setCheckinDate(e.target.value)} 
                   />
                 </div>
@@ -331,7 +346,7 @@ export default function AddTenantPage() {
                   <Banknote className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
                   <input 
                     type="number" required min="0"
-                    className="w-full rounded-xl border border-slate-200 py-3 pl-10 pr-4 text-slate-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition shadow-sm text-sm font-bold"
+                    className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-4 text-slate-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition shadow-sm text-sm font-bold"
                     value={monthlyRent} onChange={e => setMonthlyRent(Number(e.target.value))} 
                   />
                 </div>
@@ -349,11 +364,11 @@ export default function AddTenantPage() {
 
           <button 
             type="submit" 
-            disabled={submitting || (!autoAssign && !selectedBedId) || (autoAssign && !bestBed)}
+            disabled={submitting || (!autoAssign && !selectedBedId) || (autoAssign && !bestBed) || isUploadingPhoto || isUploadingAadhaar}
             className="w-full h-14 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-bold text-lg rounded-2xl transition-all shadow-xl shadow-blue-600/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
-            {submitting && <Loader2 className="h-5 w-5 animate-spin" />}
-            {submitting ? 'Adding Tenant...' : 'Add Tenant'}
+            {(submitting || isUploadingPhoto || isUploadingAadhaar) && <Loader2 className="h-5 w-5 animate-spin" />}
+            {submitting ? 'Adding Tenant...' : isUploadingPhoto || isUploadingAadhaar ? 'Waiting for upload...' : 'Add Tenant'}
           </button>
         </form>
       </main>

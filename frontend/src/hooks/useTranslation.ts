@@ -1,29 +1,22 @@
-import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
-import { en, te, TranslationKey } from '../lib/translations';
-
-type Language = 'en' | 'te';
-
-interface TranslationStore {
-  lang: Language;
-  setLang: (lang: Language) => void;
-}
-
-export const useTranslationStore = create<TranslationStore>()(
-  persist(
-    (set) => ({
-      lang: 'en',
-      setLang: (lang) => set({ lang }),
-    }),
-    {
-      name: 'u9-language-pref',
-    }
-  )
-);
+import { useState, useEffect } from 'react';
+import { translations } from '../lib/translations';
 
 export function useTranslation() {
-  const { lang, setLang } = useTranslationStore();
-  const t = lang === 'te' ? te : en;
+  const [lang, setLang] = useState<'en' | 'te'>(() => {
+    if (typeof window !== 'undefined') {
+      return (localStorage.getItem('easypg_lang') as 'en' | 'te') || 'en';
+    }
+    return 'en';
+  });
 
-  return { t, lang, setLang };
+  const switchLanguage = (newLang: 'en' | 'te') => {
+    setLang(newLang);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('easypg_lang', newLang);
+    }
+  };
+
+  const t = translations[lang];
+
+  return { t, lang, setLang: switchLanguage };
 }
