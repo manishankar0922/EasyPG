@@ -23,6 +23,11 @@ export const QueueService = {
   }
 };
 
+import { setupJobs } from '../jobs/index';
+
 export const startWorkers = () => {
   console.log('👷 Mock Workers started (Redis is disabled locally to prevent crashes)...');
+  
+  // Disabled setupJobs locally to prevent ioredis flooding the console with ECONNREFUSED
+  // setupJobs().catch(err => console.error('Failed to start rent generation job:', err.message));
 };

@@ -4,6 +4,8 @@ import { useAuthStore } from '@/store/auth-store';
 import BottomNav from '@/components/BottomNav';
 import { useRouter, usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { LanguageProvider } from '@/context/LanguageContext';
+import { BranchProvider } from '@/context/BranchContext';
 import { Loader2, Bell, Search } from 'lucide-react';
 
 export default function DashboardLayout({
@@ -35,11 +37,15 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-slate-50 font-sans pb-16">
-      <main className="flex-1 w-full max-w-md mx-auto bg-white min-h-screen shadow-sm relative">
-        {children}
-      </main>
-      <BottomNav />
-    </div>
+    <LanguageProvider>
+      <BranchProvider>
+        <div className="flex flex-col min-h-screen bg-slate-50 font-sans pb-16">
+          <main className="flex-1 w-full max-w-md mx-auto bg-white min-h-screen shadow-sm relative">
+            {children}
+          </main>
+          <BottomNav />
+        </div>
+      </BranchProvider>
+    </LanguageProvider>
   );
 }

@@ -15,7 +15,7 @@ export const createTenantSchema = z.object({
     // Admission & Bed fields
     roomId: z.string().uuid(),
     bedId: z.string().uuid(),
-    monthlyRent: z.number().min(0),
+    monthlyRent: z.number().min(0, 'Min rent is 0').max(500000, 'Max rent is 500k'),
     checkinDate: z.string(),
     depositAmount: z.number().min(0).optional(),
   }),

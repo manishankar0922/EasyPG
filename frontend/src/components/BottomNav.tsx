@@ -4,11 +4,11 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Home, Users, IndianRupee, Bed, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useTranslation } from '@/hooks/useTranslation';
+import { useLanguage } from '@/context/LanguageContext';
 
 export default function BottomNav() {
   const pathname = usePathname();
-  const { t } = useTranslation();
+  const { t } = useLanguage();
 
   const navItems = [
     { name: t.home, href: '/dashboard', icon: Home },

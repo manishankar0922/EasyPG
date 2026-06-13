@@ -115,7 +115,7 @@ function RoomPopover({
 
         {/* Edit Room CTA */}
         <Link
-          href={`/admin/organisations/${orgId}/rooms`}
+          href={`/superadmin/organisations/${orgId}/rooms`}
           onClick={onClose}
           className="block w-full text-center rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 py-2 text-xs font-semibold transition"
         >
@@ -305,7 +305,7 @@ export default function OrgHeatmapPage() {
       <header className="border-b border-slate-800 bg-slate-900/60 backdrop-blur-md sticky top-0 z-40">
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
           <div className="flex h-16 items-center gap-4">
-            <Link href={`/admin/organisations/${orgId}/rooms`}
+            <Link href={`/superadmin/organisations/${orgId}/rooms`}
               className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 transition">
               <ArrowLeft className="h-4 w-4 text-slate-300" />
             </Link>
@@ -321,7 +321,7 @@ export default function OrgHeatmapPage() {
               </div>
             </div>
             <Link
-              href={`/admin/organisations/${orgId}/rooms`}
+              href={`/superadmin/organisations/${orgId}/rooms`}
               className="ml-auto hidden sm:flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-300 transition"
             >
               Edit Rooms →

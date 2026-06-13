@@ -59,6 +59,13 @@ export default function LoadingScreen({
   const [currentTip, setCurrentTip] = useState(0)
   const [lang, setLang] = useState<'en' | 'te'>('en')
   const [visible, setVisible] = useState(true)
+  const [show, setShow] = useState(false)
+
+  // Wait 100ms for theme colors to apply before showing loader
+  useEffect(() => {
+    const t = setTimeout(() => setShow(true), 100)
+    return () => clearTimeout(t)
+  }, [])
 
   // Read language preference
   useEffect(() => {
@@ -80,13 +87,17 @@ export default function LoadingScreen({
 
   const tip = tips[currentTip]
 
+  if (!show) return (
+    <div className="min-h-screen bg-background" />
+  )
+
   return (
     <div className="min-h-screen bg-background flex flex-col
       items-center justify-center px-8 gap-8">
 
       {/* Logo */}
       <div className="flex flex-col items-center gap-2">
-        <div className="w-16 h-16 bg-blue-600 rounded-2xl
+        <div className="w-16 h-16 bg-primary rounded-2xl
           flex items-center justify-center shadow-lg">
           <span className="text-white text-2xl font-bold">EP</span>
         </div>
@@ -97,8 +108,8 @@ export default function LoadingScreen({
 
       {/* Spinner */}
       <div className="flex flex-col items-center gap-3">
-        <div className="w-10 h-10 border-4 border-blue-100
-          border-t-blue-600 rounded-full animate-spin" />
+        <div className="w-10 h-10 border-4 border-primary/20
+          border-t-primary rounded-full animate-spin" />
         <p className="text-sm text-muted-foreground">
           {message || (lang === 'te' ? 'లోడ్ అవుతోంది...' : 'Loading...')}
         </p>
@@ -106,17 +117,17 @@ export default function LoadingScreen({
 
       {/* Tip card */}
       <div
-        className="w-full max-w-sm bg-blue-50 border border-blue-100
+        className="w-full max-w-sm bg-primary/10 border border-primary/20
           rounded-2xl p-5 transition-opacity duration-300"
         style={{ opacity: visible ? 1 : 0 }}
       >
         <div className="flex items-start gap-3">
           <span className="text-2xl">💡</span>
           <div className="flex flex-col gap-1">
-            <p className="text-sm font-medium text-blue-800">
+            <p className="text-sm font-medium text-primary">
               {tip.en}
             </p>
-            <p className="text-sm text-blue-600 mt-1">
+            <p className="text-sm text-primary/80 mt-1">
               {tip.te}
             </p>
           </div>
@@ -130,8 +141,8 @@ export default function LoadingScreen({
             key={i}
             className={`h-1.5 rounded-full transition-all duration-300
               ${i === currentTip
-                ? 'w-4 bg-blue-600'
-                : 'w-1.5 bg-gray-300'
+                ? 'w-4 bg-primary'
+                : 'w-1.5 bg-muted'
               }`}
           />
         ))}

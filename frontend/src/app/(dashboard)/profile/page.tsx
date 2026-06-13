@@ -1,15 +1,15 @@
 'use client';
 
 import { useAuthStore } from '@/store/auth-store';
-import { useTranslation } from '@/hooks/useTranslation';
-import { LogOut, User, Building2, Languages } from 'lucide-react';
+import { useLanguage } from '@/context/LanguageContext';
+import { LogOut, User, Building2, Languages, CreditCard } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
 
 export default function ProfilePage() {
   const { user, logout } = useAuthStore();
-  const { t, lang, setLang } = useTranslation();
+  const { t, lang, switchLanguage } = useLanguage();
   const router = useRouter();
 
   const handleLogout = () => {
@@ -43,7 +43,7 @@ export default function ProfilePage() {
           
           <div className="flex gap-3">
             <button
-              onClick={() => setLang('en')}
+              onClick={() => switchLanguage('en')}
               className={cn(
                 "flex-1 h-14 rounded-2xl font-black transition-all border-2",
                 lang === 'en' 
@@ -54,7 +54,7 @@ export default function ProfilePage() {
               English
             </button>
             <button
-              onClick={() => setLang('te')}
+              onClick={() => switchLanguage('te')}
               className={cn(
                 "flex-1 h-14 rounded-2xl font-black transition-all border-2 text-lg",
                 lang === 'te' 
@@ -68,6 +68,27 @@ export default function ProfilePage() {
           <p className="text-xs text-center font-medium text-slate-400 mt-4">
             Changes will be applied immediately across the app.
           </p>
+        </div>
+
+        {/* Subscription Card */}
+        <div 
+          onClick={() => router.push('/dashboard/subscription')}
+          className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100 active:bg-slate-50 transition-colors cursor-pointer"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 bg-orange-50 rounded-xl flex items-center justify-center">
+                <CreditCard className="h-5 w-5 text-orange-500" />
+              </div>
+              <div>
+                <h2 className="font-black text-slate-900">Subscription Plans</h2>
+                <p className="text-xs font-semibold text-slate-500">Manage your EasyPG access</p>
+              </div>
+            </div>
+            <div className="h-8 px-3 bg-slate-100 rounded-full flex items-center justify-center">
+              <span className="text-xs font-bold text-slate-600">View</span>
+            </div>
+          </div>
         </div>
 
         {/* Hostel Details Card */}

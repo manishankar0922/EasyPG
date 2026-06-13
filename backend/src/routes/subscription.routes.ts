@@ -1,0 +1,63 @@
+import { Router } from 'express';
+import prisma from '../config/db';
+import { authMiddleware } from '../middlewares/auth.middleware';
+
+const router = Router();
+router.use(authMiddleware);
+
+// GET /api/subscription/status
+router.get('/status', async (req, res) => {
+  const orgId = req.user!.organizationId;
+
+  try {
+    let subscription = await prisma.subscription.findUnique({
+      where: { organizationId: orgId }
+    });
+
+    if (!subscription) {
+      // Create trial subscription by default if not exists
+      const trialEnd = new Date();
+      trialEnd.setDate(trialEnd.getDate() + 14); // 14 days trial
+
+      subscription = await prisma.subscription.create({
+        data: {
+          organizationId: orgId,
+          plan: 'STARTER',
+          status: 'TRIAL',
+          trialEndsAt: trialEnd
+        }
+      });
+    }
+
+    res.json({ success: true, data: subscription });
+  } catch (error: any) {
+    console.error('Failed to get subscription status', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch subscription status' });
+  }
+});
+
+// POST /api/subscription/request
+router.post('/request', async (req, res) => {
+  const orgId = req.user!.organizationId;
+  const { plan, upiRefNumber, screenshotUrl, amount } = req.body;
+
+  try {
+    const request = await prisma.paymentRequest.create({
+      data: {
+        organizationId: orgId,
+        plan,
+        amount,
+        upiRefNumber,
+        screenshotUrl,
+        status: 'PENDING'
+      }
+    });
+
+    res.json({ success: true, data: request, message: 'Payment request submitted' });
+  } catch (error: any) {
+    console.error('Failed to create payment request', error);
+    res.status(500).json({ success: false, error: 'Failed to submit payment request' });
+  }
+});
+
+export default router;

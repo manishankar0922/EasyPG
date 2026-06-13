@@ -4,12 +4,13 @@ import { useEffect, useState, useRef } from 'react';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/auth-store';
 import Image from 'next/image';
-import { Search, History, CheckCircle2, IndianRupee } from 'lucide-react';
+import { Search, History, CheckCircle2, IndianRupee, BarChart3 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import MonthlyReport from '@/components/invoices/MonthlyReport';
 
 export default function QuickPaymentPage() {
   const { user } = useAuthStore();
-  const [activeTab, setActiveTab] = useState<'RECORD' | 'HISTORY'>('RECORD');
+  const [activeTab, setActiveTab] = useState<'RECORD' | 'HISTORY' | 'REPORT'>('REPORT');
   const [searchQuery, setSearchQuery] = useState('');
   const [tenants, setTenants] = useState<any[]>([]);
   const [history, setHistory] = useState<any[]>([]);
@@ -117,17 +118,24 @@ export default function QuickPaymentPage() {
       <div className="bg-white px-5 pt-6 pb-4 sticky top-0 z-10 shadow-sm border-b border-slate-100">
         <div className="flex bg-slate-100 p-1 rounded-2xl">
           <button 
+            onClick={() => setActiveTab('REPORT')}
+            className={cn("flex-1 h-12 rounded-xl text-sm font-bold flex items-center justify-center transition-all", activeTab === 'REPORT' ? "bg-white text-blue-600 shadow-sm" : "text-slate-500")}
+          >
+            <BarChart3 className="h-4 w-4 mr-1.5" />
+            Report
+          </button>
+          <button 
             onClick={() => { setActiveTab('RECORD'); setSuccess(false); setSelectedTenant(null); }}
             className={cn("flex-1 h-12 rounded-xl text-sm font-bold flex items-center justify-center transition-all", activeTab === 'RECORD' ? "bg-white text-blue-600 shadow-sm" : "text-slate-500")}
           >
-            <IndianRupee className="h-4 w-4 mr-2" />
+            <IndianRupee className="h-4 w-4 mr-1.5" />
             Record
           </button>
           <button 
             onClick={() => setActiveTab('HISTORY')}
             className={cn("flex-1 h-12 rounded-xl text-sm font-bold flex items-center justify-center transition-all", activeTab === 'HISTORY' ? "bg-white text-blue-600 shadow-sm" : "text-slate-500")}
           >
-            <History className="h-4 w-4 mr-2" />
+            <History className="h-4 w-4 mr-1.5" />
             History
           </button>
         </div>
@@ -318,6 +326,8 @@ export default function QuickPaymentPage() {
           </div>
         </div>
       )}
+
+      {activeTab === 'REPORT' && <MonthlyReport />}
     </div>
   );
 }

@@ -246,7 +246,7 @@ export default function OrgRoomsPage() {
       <header className="border-b border-slate-800 bg-slate-900/60 backdrop-blur-md sticky top-0 z-40">
         <div className="mx-auto max-w-5xl px-4 sm:px-6">
           <div className="flex h-16 items-center gap-4">
-            <Link href="/admin"
+            <Link href="/superadmin/dashboard"
               className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 transition">
               <ArrowLeft className="h-4 w-4 text-slate-300" />
             </Link>
@@ -265,7 +265,7 @@ export default function OrgRoomsPage() {
                   {totalRooms} rooms · {totalBeds} beds
                 </span>
                 <Link
-                  href={`/admin/organisations/${orgId}/heatmap`}
+                  href={`/superadmin/organisations/${orgId}/heatmap`}
                   className="flex items-center gap-1.5 rounded-lg border border-emerald-700/50 bg-emerald-950/30 hover:bg-emerald-950/50 px-3 py-1.5 text-xs font-semibold text-emerald-400 transition"
                 >
                   View Heatmap →

@@ -1,12 +1,14 @@
 import { Router } from 'express';
 import prisma from '../config/db';
 import { authMiddleware } from '../middlewares/auth.middleware';
+import { checkSubscription } from '../middlewares/subscription.middleware';
 import { validate } from '../middlewares/validation.middleware';
 import { createBranchSchema, updateBranchSchema } from '../schemas/branch.schema';
 import { z } from 'zod';
 
 const router = Router();
 router.use(authMiddleware);
+router.use(checkSubscription);
 
 // Get all branches with basic occupancy data
 router.get('/', async (req, res) => {
@@ -98,6 +100,252 @@ router.get('/:id/stats', validate(z.object({ params: z.object({ id: z.string().u
   };
 
   res.json({ success: true, data: stats });
+});
+
+// GET /branches/:id/pending-rent
+router.get('/:id/pending-rent', validate(z.object({ params: z.object({ id: z.string().uuid() }) })), async (req, res) => {
+  const orgId = req.user!.organizationId as string;
+  const branchId = req.params.id as string;
+  const now = new Date();
+  const currentMonth = now.getMonth() + 1;
+  const currentYear = now.getFullYear();
+
+  try {
+    const ledgers = await prisma.rentLedger.findMany({
+      where: {
+        month: currentMonth,
+        year: currentYear,
+        status: { in: ['PENDING', 'PARTIAL', 'OVERDUE'] },
+        tenant: {
+          organizationId: orgId,
+          admissions: {
+            some: {
+              room: { branchId },
+              status: 'ACTIVE'
+            }
+          }
+        }
+      },
+      include: {
+        tenant: {
+          include: {
+            admissions: {
+              where: { status: 'ACTIVE' },
+              include: { room: true }
+            }
+          }
+        }
+      }
+    });
+
+    res.json({ success: true, data: ledgers });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: 'Failed to fetch pending rent' });
+  }
+});
+
+// GET /branches/:id/monthly-report
+router.get('/:id/monthly-report', async (req, res) => {
+  const orgId = req.user!.organizationId as string;
+  const branchId = req.params.id as string;
+  
+  const queryMonth = req.query.month ? Number(req.query.month) : new Date().getMonth() + 1;
+  const queryYear = req.query.year ? Number(req.query.year) : new Date().getFullYear();
+
+  try {
+    // Determine last month
+    let lastMonth = queryMonth - 1;
+    let lastYear = queryYear;
+    if (lastMonth === 0) {
+      lastMonth = 12;
+      lastYear -= 1;
+    }
+
+    const branchFilter = branchId === 'all' ? {} : { branchId };
+    
+    // 1. Fetch RentLedger for this month
+    const thisMonthLedgers = await prisma.rentLedger.findMany({
+      where: {
+        month: queryMonth,
+        year: queryYear,
+        tenant: {
+          organizationId: orgId,
+          admissions: {
+            some: {
+              room: branchFilter,
+              status: 'ACTIVE'
+            }
+          }
+        }
+      },
+      include: {
+        tenant: {
+          include: {
+            admissions: {
+              where: { status: 'ACTIVE' },
+              include: { room: { include: { branch: true } } }
+            }
+          }
+        }
+      }
+    });
+
+    // 2. Fetch RentLedger for last month
+    const lastMonthLedgers = await prisma.rentLedger.findMany({
+      where: {
+        month: lastMonth,
+        year: lastYear,
+        tenant: {
+          organizationId: orgId,
+          admissions: {
+            some: {
+              room: branchFilter,
+              status: 'ACTIVE'
+            }
+          }
+        }
+      }
+    });
+
+    // 3. Fetch Bed stats
+    const beds = await prisma.bed.findMany({
+      where: {
+        organizationId: orgId,
+        room: branchFilter
+      },
+      include: { room: { include: { branch: true } } }
+    });
+
+    // Calculate this month
+    let expectedRent = 0;
+    let collectedRent = 0;
+    
+    thisMonthLedgers.forEach(ledger => {
+      expectedRent += ledger.totalDue;
+      collectedRent += ledger.paidAmount;
+    });
+
+    const pendingRent = expectedRent - collectedRent;
+    const collectionRate = expectedRent > 0 ? Math.round((collectedRent / expectedRent) * 100) : 0;
+
+    const totalBeds = beds.length;
+    // For past months, thisMonthLedgers.length accurately represents how many tenants were billed.
+    // However, it could be greater than totalBeds if people moved in/out. We cap it at totalBeds just in case.
+    const occupiedBeds = Math.min(thisMonthLedgers.length, totalBeds);
+    const occupancyRate = totalBeds > 0 ? Math.round((occupiedBeds / totalBeds) * 100) : 0;
+
+    // Calculate last month
+    let lastMonthCollected = 0;
+    lastMonthLedgers.forEach(ledger => {
+      lastMonthCollected += ledger.paidAmount;
+    });
+
+    const rentDiff = collectedRent - lastMonthCollected;
+    const occupancyDiff = occupiedBeds - Math.min(lastMonthLedgers.length, totalBeds);
+
+    // Calculate branch comparison if 'all' or even single branch
+    const branchStats: Record<string, any> = {};
+    
+    // Group beds by branch (for total beds)
+    beds.forEach(bed => {
+      const bId = bed.room.branch.id;
+      if (!branchStats[bId]) {
+        branchStats[bId] = {
+          id: bId,
+          name: bed.room.branch.name,
+          expectedRent: 0,
+          collectedRent: 0,
+          totalBeds: 0,
+          occupiedBeds: 0
+        };
+      }
+      branchStats[bId].totalBeds++;
+    });
+
+    // Group ledgers by branch (for occupied beds & rent)
+    thisMonthLedgers.forEach(ledger => {
+      const admission = ledger.tenant.admissions[0];
+      if (admission && admission.room.branch) {
+        const bId = admission.room.branch.id;
+        if (branchStats[bId]) {
+          branchStats[bId].expectedRent += ledger.totalDue;
+          branchStats[bId].collectedRent += ledger.paidAmount;
+          branchStats[bId].occupiedBeds++;
+        }
+      }
+    });
+
+    const branchesArray = Object.values(branchStats).map((bs: any) => ({
+      id: bs.id,
+      name: bs.name,
+      expectedRent: bs.expectedRent,
+      collectedRent: bs.collectedRent,
+      occupancyRate: bs.totalBeds > 0 ? Math.round((Math.min(bs.occupiedBeds, bs.totalBeds) / bs.totalBeds) * 100) : 0
+    }));
+
+    res.json({
+      success: true,
+      data: {
+        expectedRent,
+        collectedRent,
+        pendingRent,
+        collectionRate,
+        totalBeds,
+        occupiedBeds,
+        occupancyRate,
+        vsLastMonth: {
+          rentDiff,
+          occupancyDiff
+        },
+        branches: branchesArray
+      }
+    });
+  } catch (error: any) {
+    console.error('Monthly report error:', error);
+    res.status(500).json({ success: false, error: 'Failed to generate monthly report' });
+  }
+});
+
+// GET /branches/:id/upcoming-vacancies
+router.get('/:id/upcoming-vacancies', validate(z.object({ params: z.object({ id: z.string().uuid() }) })), async (req, res) => {
+  const orgId = req.user!.organizationId as string;
+  const branchId = req.params.id as string;
+
+  try {
+    const thirtyDaysFromNow = new Date();
+    thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+
+    const notices = await prisma.vacateNotice.findMany({
+      where: {
+        organizationId: orgId,
+        status: 'PENDING',
+        vacateDate: { lte: thirtyDaysFromNow },
+        tenant: {
+          admissions: {
+            some: {
+              room: { branchId },
+              status: 'ACTIVE'
+            }
+          }
+        }
+      },
+      include: {
+        tenant: {
+          include: {
+            admissions: {
+              where: { status: 'ACTIVE' },
+              include: { room: true, bed: true }
+            }
+          }
+        }
+      },
+      orderBy: { vacateDate: 'asc' }
+    });
+
+    res.json({ success: true, data: notices });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: 'Failed to fetch upcoming vacancies' });
+  }
 });
 
 // Create branch
@@ -286,7 +534,20 @@ router.get('/:id/heatmap', async (req, res) => {
 
     const rooms = await prisma.room.findMany({
       where: { organizationId: orgId, branchId: branchId },
-      include: { beds: true, admissions: { where: { status: 'ACTIVE' }, include: { tenant: true, bed: true } } },
+      include: { 
+        beds: true, 
+        admissions: { 
+          where: { status: 'ACTIVE' }, 
+          include: { 
+            tenant: {
+              include: {
+                vacateNotice: true
+              }
+            }, 
+            bed: true 
+          } 
+        } 
+      },
       orderBy: [{ floor: 'asc' }, { roomNumber: 'asc' }]
     });
 
@@ -309,7 +570,8 @@ router.get('/:id/heatmap', async (req, res) => {
         hasAC: room.hasAC,
         tenants: (room as any).admissions.map((a: any) => ({
           ...a.tenant,
-          bedName: a.bed?.name || a.bed?.bedNumber || ''
+          bedName: a.bed?.name || a.bed?.bedNumber || '',
+          vacateNotice: a.tenant.vacateNotice || null
         }))
       });
       return acc;

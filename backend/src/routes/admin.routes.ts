@@ -13,7 +13,8 @@ router.use(authMiddleware);
 
 // Middleware to enforce SUPER_ADMIN role
 const requireSuperAdmin = (req: any, res: any, next: any) => {
-  if (req.user?.role !== 'SUPER_ADMIN') {
+  const allowed = ['SUPER_ADMIN', 'SUPERADMIN', 'superadmin', 'admin', 'ADMIN'];
+  if (!allowed.includes(req.user?.role)) {
     return res.status(403).json({ success: false, error: 'Access denied: Super Admin role required' });
   }
   next();
@@ -125,7 +126,11 @@ const createOrgSchema = z.object({
     maxRooms: z.number().int().positive().optional(),
     floors: z.array(z.object({
       floorNumber: z.number().int().min(1),
-      roomCount: z.number().int().min(1),
+      rooms: z.array(z.object({
+        roomName: z.string().min(1),
+        bedCount: z.number().int().min(1).max(8),
+        rentPerBed: z.number().min(0),
+      }))
     })).optional(),
   })
 });
@@ -183,36 +188,32 @@ router.post('/organizations', validate(createOrgSchema), async (req, res) => {
       let bedsCreated = 0;
 
       if (floors && Array.isArray(floors) && floors.length > 0) {
-        const BEDS_PER_ROOM = 3; // Default: 3 beds per room
-        const BED_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'];
+        const BED_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
 
         for (const floor of floors) {
-          for (let r = 1; r <= floor.roomCount; r++) {
-            // Room name format: "203" = Floor 2, Room 3
-            const roomName = `${floor.floorNumber}${r.toString().padStart(2, '0')}`;
-
+          if (!floor.rooms) continue;
+          for (const roomData of floor.rooms) {
             const room = await tx.room.create({
               data: {
                 organizationId: org.id,
                 branchId: branch.id,
-                roomNumber: roomName,
+                roomNumber: roomData.roomName,
                 floor: floor.floorNumber,
-                totalCapacity: BEDS_PER_ROOM,
-                roomType: 'TRIPLE',
-                rentAmount: 0, // Owner sets rent later
+                totalCapacity: roomData.bedCount,
+                roomType: 'CUSTOM',
+                rentAmount: roomData.rentPerBed,
                 genderType: 'BOYS',
               }
             });
             roomsCreated++;
 
-            // Auto-create Bed A, Bed B, Bed C
-            const bedData = Array.from({ length: BEDS_PER_ROOM }, (_, i) => ({
+            const bedData = Array.from({ length: roomData.bedCount }, (_, i) => ({
               organizationId: org.id,
               roomId: room.id,
-              bedNumber: `Bed ${BED_LETTERS[i]}`,
+              bedNumber: `Bed ${BED_LETTERS[i] || (i + 1)}`,
             }));
             await tx.bed.createMany({ data: bedData });
-            bedsCreated += BEDS_PER_ROOM;
+            bedsCreated += roomData.bedCount;
           }
         }
       }
@@ -231,8 +232,39 @@ router.post('/organizations', validate(createOrgSchema), async (req, res) => {
 
     res.status(201).json({ success: true, data: result });
   } catch (error: any) {
-    console.error('Error creating organization/owner:', error);
-    res.status(500).json({ success: false, error: 'Internal Server Error' });
+    // Log the REAL error
+    console.error('Organisation creation failed:', {
+      message: error.message,
+      code: error.code,
+      meta: error.meta,
+      stack: error.stack
+    })
+
+    // Return specific Prisma error messages
+    if (error.code === 'P2002') {
+      return res.status(400).json({
+        success: false,
+        error: 'Organisation with this name or email already exists.'
+      })
+    }
+    if (error.code === 'P2003') {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid reference. Check all IDs are correct.'
+      })
+    }
+    if (error.code === 'P2025') {
+      return res.status(404).json({
+        success: false,
+        error: 'Related record not found.'
+      })
+    }
+
+    return res.status(500).json({
+      success: false,
+      error: error.message || 'Organisation creation failed',
+      detail: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    })
   }
 });
 

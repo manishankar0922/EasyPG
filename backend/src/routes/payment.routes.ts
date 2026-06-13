@@ -59,9 +59,24 @@ router.get('/:id', validate(z.object({ params: z.object({ id: z.string().uuid() 
 });
 
 // Add payment
-router.post('/', async (req, res) => {
+router.post('/', validate(z.object({
+  body: z.object({
+    invoiceId: z.string().uuid().optional(),
+    tenantId: z.string().uuid().optional(),
+    amount: z.number().min(1, 'Amount must be greater than 0').max(500000, 'Amount too large'),
+    mode: z.enum(['UPI', 'CASH', 'BANK_TRANSFER']).optional(),
+    paymentMode: z.enum(['UPI', 'CASH', 'BANK_TRANSFER']).optional(),
+    date: z.string().optional(),
+    paymentDate: z.string().optional(),
+    note: z.string().optional()
+  }).refine(data => data.invoiceId || data.tenantId, {
+    message: "Either invoiceId or tenantId must be provided"
+  })
+})), async (req, res) => {
   const { invoiceId, tenantId, amount, mode, paymentMode, date, paymentDate, note } = req.body;
   const orgId = req.user!.organizationId;
+  const userRole = req.user!.role;
+  const userBranchId = req.user!.branchId;
 
   // Normalize parameters
   const finalPaymentMode = mode || paymentMode || 'CASH';
@@ -84,9 +99,13 @@ router.post('/', async (req, res) => {
         if (!invoice) {
           // If no invoice exists for this month, find their rent amount and create one
           const admission = await tx.admission.findFirst({
-            where: { tenantId, organizationId: orgId, status: 'ACTIVE' }
+            where: { tenantId, organizationId: orgId, status: 'ACTIVE' },
+            include: { room: true }
           });
           if (!admission) throw new Error("No active admission to create an invoice for");
+          if (userRole === 'WARDEN' && admission.room.branchId !== userBranchId) {
+            throw new Error("Forbidden: Cannot record payment for tenant in a different branch");
+          }
 
           invoice = await tx.invoice.create({
             data: {
@@ -107,15 +126,23 @@ router.post('/', async (req, res) => {
 
       const invoice = await tx.invoice.findUnique({
         where: { id: targetInvoiceId },
-        include: { payments: true }
+        include: { payments: true, tenant: { include: { admissions: { where: { status: 'ACTIVE' }, include: { room: true } } } } }
       });
 
       if (!invoice || invoice.organizationId !== orgId) throw new Error('Invoice not found');
+      
+      if (userRole === 'WARDEN') {
+        const activeAdmission = invoice.tenant.admissions[0];
+        if (activeAdmission && activeAdmission.room.branchId !== userBranchId) {
+          throw new Error('Forbidden: Cannot record payment for tenant in a different branch');
+        }
+      }
 
       const payment = await tx.payment.create({
         data: {
           organizationId: orgId,
           invoiceId: targetInvoiceId,
+          tenantId: invoice.tenantId,
           amount,
           paymentMode: finalPaymentMode,
           paymentDate: finalPaymentDate,
@@ -124,9 +151,14 @@ router.post('/', async (req, res) => {
       });
 
       const totalPaid = invoice.payments.reduce((acc, p) => acc + Number(p.amount), 0) + Number(amount);
+      
+      if (totalPaid > Number(invoice.amount)) {
+        throw new Error('Payment amount exceeds the total due amount');
+      }
+
       let newStatus: 'PAID' | 'PARTIAL' | 'UNPAID' = 'PARTIAL';
       
-      if (totalPaid >= Number(invoice.amount)) {
+      if (totalPaid === Number(invoice.amount)) {
         newStatus = 'PAID';
       } else if (totalPaid === 0) {
         newStatus = 'UNPAID';

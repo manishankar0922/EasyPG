@@ -1,9 +1,11 @@
 import { Router } from 'express';
 import prisma from '../config/db';
 import { authMiddleware } from '../middlewares/auth.middleware';
+import { checkSubscription } from '../middlewares/subscription.middleware';
 
 const router = Router();
 router.use(authMiddleware);
+router.use(checkSubscription);
 
 // GET /dashboard/overview
 router.get('/overview', async (req, res) => {
@@ -82,13 +84,17 @@ router.get('/mobile-home', async (req, res) => {
         }
       },
       include: {
-        tenant: true,
-        room: true,
-        invoices: {
-          where: {
-            createdAt: { gte: currentMonthStart }
+        tenant: {
+          include: {
+            rentLedgers: {
+              where: {
+                month: new Date().getMonth() + 1,
+                year: new Date().getFullYear()
+              }
+            }
           }
-        }
+        },
+        room: true
       }
     });
 
@@ -96,15 +102,32 @@ router.get('/mobile-home', async (req, res) => {
     let pendingRentTenantsCount = 0;
     let collectedAmount = 0;
     let collectedTenantsCount = 0;
+    let hasOverdue = false;
     const pendingTenants: any[] = [];
 
     activeAdmissions.forEach(admission => {
-      const currentMonthInvoices = admission.invoices as any[];
-      const fullyPaidInvoice = currentMonthInvoices.find(inv => inv.status === 'PAID');
+      const currentLedger = admission.tenant.rentLedgers && admission.tenant.rentLedgers[0];
       
-      if (fullyPaidInvoice) {
-        collectedAmount += Number(fullyPaidInvoice.amount);
-        collectedTenantsCount++;
+      if (currentLedger) {
+        collectedAmount += currentLedger.paidAmount;
+        if (currentLedger.paidAmount >= currentLedger.totalDue) {
+          collectedTenantsCount++;
+        }
+
+        const pending = currentLedger.totalDue - currentLedger.paidAmount;
+        if (pending > 0) {
+          if (currentLedger.status === 'OVERDUE') hasOverdue = true;
+          pendingRentAmount += pending;
+          pendingRentTenantsCount++;
+          pendingTenants.push({
+            id: admission.tenant.id,
+            name: admission.tenant.name,
+            phone: admission.tenant.phone,
+            photoUrl: admission.tenant.photoUrl,
+            roomNumber: admission.room.roomNumber,
+            rentPending: pending
+          });
+        }
       } else {
         const rentAmount = Number(admission.monthlyRent);
         pendingRentAmount += rentAmount;
@@ -150,7 +173,8 @@ router.get('/mobile-home', async (req, res) => {
       data: {
         rentPending: {
           amount: pendingRentAmount,
-          tenantCount: pendingRentTenantsCount
+          tenantCount: pendingRentTenantsCount,
+          status: pendingRentAmount === 0 ? 'PAID' : (hasOverdue ? 'OVERDUE' : 'PENDING')
         },
         collectedThisMonth: {
           amount: collectedAmount,
