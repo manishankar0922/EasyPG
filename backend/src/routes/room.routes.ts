@@ -174,20 +174,42 @@ router.post('/', validate(createRoomSchema), async (req, res) => {
     });
   }
 
-  const room = await prisma.room.create({
-    data: {
-      organizationId: orgId,
-      branchId,
-      roomNumber,
-      roomType,
-      totalCapacity,
-      rentAmount,
-      genderType,
-      status: status || 'ACTIVE'
-    }
-  });
-  
-  res.status(201).json({ success: true, data: room });
+  try {
+    const room = await prisma.$transaction(async (tx) => {
+      const newRoom = await tx.room.create({
+        data: {
+          organizationId: orgId,
+          branchId,
+          roomNumber,
+          roomType,
+          totalCapacity,
+          rentAmount,
+          genderType,
+          status: status || 'ACTIVE'
+        }
+      });
+
+      const bedData = [];
+      for (let b = 1; b <= totalCapacity; b++) {
+        const bedLetter = String.fromCharCode(64 + b);
+        bedData.push({
+          organizationId: orgId,
+          roomId: newRoom.id,
+          bedNumber: `Bed ${bedLetter}`
+        });
+      }
+
+      if (bedData.length > 0) {
+        await tx.bed.createMany({ data: bedData });
+      }
+
+      return newRoom;
+    });
+    res.status(201).json({ success: true, data: room });
+  } catch (error: any) {
+    console.error('Failed to create room:', error);
+    res.status(500).json({ success: false, error: 'Database transaction failed while creating room and beds' });
+  }
 });
 
 // Update room
@@ -234,23 +256,22 @@ router.delete('/:id', validate(z.object({ params: z.object({ id: z.string().uuid
   const roomId = req.params.id as string;
   const orgId = req.user!.organizationId as string;
 
-  // Check for active admissions
-  const activeAdmissions = await prisma.admission.count({
-    where: { roomId, organizationId: orgId, status: 'ACTIVE' }
+  // Check for ANY admissions (active or historical) to protect financial data integrity
+  const totalAdmissions = await prisma.admission.count({
+    where: { roomId, organizationId: orgId }
   });
 
-  if (activeAdmissions > 0) {
+  if (totalAdmissions > 0) {
     return res.status(400).json({ 
       success: false, 
-      error: 'Cannot delete room with active admissions. Please checkout or transfer tenants first.' 
+      error: 'Cannot delete room with admission history. Please mark it as INACTIVE instead.' 
     });
   }
 
-  const result = await prisma.room.deleteMany({
-    where: { id: roomId, organizationId: orgId }
-  });
-
-  if (result.count === 0) return res.status(404).json({ success: false, error: 'Room not found' });
+  await prisma.$transaction([
+    prisma.bed.deleteMany({ where: { roomId, organizationId: orgId } }),
+    prisma.room.deleteMany({ where: { id: roomId, organizationId: orgId } })
+  ]);
   
   res.json({ success: true, message: 'Room deleted' });
 });

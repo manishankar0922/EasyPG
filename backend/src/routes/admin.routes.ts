@@ -326,22 +326,35 @@ router.delete('/organizations/:id', async (req, res) => {
     // Since we don't have onDelete: Cascade, we must manually delete dependent data in order.
     // The order is important to avoid foreign key constraint violations.
     await prisma.$transaction(async (tx) => {
+      // 1. Delete deeply nested tenant relations first
       await tx.payment.deleteMany({ where: { organizationId: orgId } });
       await tx.invoice.deleteMany({ where: { organizationId: orgId } });
       await tx.admission.deleteMany({ where: { organizationId: orgId } });
+      await tx.complaint.deleteMany({ where: { organizationId: orgId } });
+      await tx.notification.deleteMany({ where: { organizationId: orgId } });
+      await tx.securityDeposit.deleteMany({ where: { organizationId: orgId } });
+      await tx.vacateNotice.deleteMany({ where: { organizationId: orgId } });
       
-      // Additional entities that might exist
-      await tx.complaint?.deleteMany({ where: { organizationId: orgId } }).catch(() => {});
-      await tx.notification?.deleteMany({ where: { organizationId: orgId } }).catch(() => {});
-      await tx.securityDeposit?.deleteMany({ where: { organizationId: orgId } }).catch(() => {});
-      await tx.vacateNotice?.deleteMany({ where: { organizationId: orgId } }).catch(() => {});
-      
+      // RentLedger doesn't have organizationId directly, so we delete by tenant's organizationId
+      const tenants = await tx.tenant.findMany({ where: { organizationId: orgId }, select: { id: true } });
+      const tenantIds = tenants.map(t => t.id);
+      if (tenantIds.length > 0) {
+        await tx.rentLedger.deleteMany({ where: { tenantId: { in: tenantIds } } });
+      }
+
+      // 2. Delete tenants and beds
       await tx.tenant.deleteMany({ where: { organizationId: orgId } });
       await tx.bed.deleteMany({ where: { organizationId: orgId } });
       await tx.room.deleteMany({ where: { organizationId: orgId } });
+      
+      // 3. Delete org-level child models
       await tx.branch.deleteMany({ where: { organizationId: orgId } });
       await tx.profile.deleteMany({ where: { organizationId: orgId } });
-      
+      await tx.user.deleteMany({ where: { organisationId: orgId } });
+      await tx.subscription.deleteMany({ where: { organizationId: orgId } });
+      await tx.paymentRequest.deleteMany({ where: { organizationId: orgId } });
+
+      // 4. Finally delete the organization
       await tx.organization.delete({ where: { id: orgId } });
 
       await tx.systemLog.create({

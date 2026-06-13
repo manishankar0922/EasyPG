@@ -17,90 +17,66 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-    setError('');
-
     try {
-      let token = '';
-      const cleanEmail = email.trim().toLowerCase();
-      const cleanPassword = password.trim();
+      setError('');
+      setLoading(true);
 
-      try {
-        const loginRes = await api.post('/auth/login', {
-          email: cleanEmail,
-          password: cleanPassword,
-        });
-        if (loginRes.data?.success && loginRes.data?.data?.session?.access_token) {
-          token = loginRes.data.data.session.access_token;
-        } else {
-          throw new Error(loginRes.data?.error || 'Login response structure invalid');
+      // Log what we're calling
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+      console.log('Calling:', `${apiUrl}/api/auth/login`);
+      console.log('Email:', email);
+
+      const response = await fetch(
+        `${apiUrl}/api/auth/login`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            email: email.trim().toLowerCase(),
+            password
+          })
         }
-      } catch (err: any) {
-        console.warn('Backend login endpoint failed or bypassed, falling back to Supabase client:', err);
-        // Fallback to Supabase client directly
-        if (cleanEmail === 'dev@gmail.com' && cleanPassword === 'dev123') {
-          token = 'mock-dev-token';
-        } else if (cleanEmail === 'admin@gmail.com' && cleanPassword === 'admin123') {
-          token = 'mock-admin-token';
-        } else {
-          const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-            email: cleanEmail,
-            password: cleanPassword,
-          });
-          // Fix: Throw a standard JS error so Turbopack doesn't crash parsing external SDK errors
-          if (authError) throw new Error(authError.message || 'Invalid login credentials');
-          token = authData.session.access_token;
-        }
+      );
+
+      console.log('Response status:', response.status);
+      const data = await response.json();
+      console.log('Response data:', data);
+
+      if (!response.ok) {
+        setError(data.error || 'Login failed');
+        return;
       }
 
-      // 2. Fetch Profile from Backend
-      const { data: profileRes } = await api.get('/auth/me', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      // Save token
+      localStorage.setItem('easypg_token', data.token);
+      localStorage.setItem('easypg_user', JSON.stringify(data.user));
+      setAuth(data.user, data.token); // Keep Zustand store in sync
 
-      if (profileRes.success) {
-        setAuth(profileRes.data, token);
-        if (['SUPERADMIN', 'SUPER_ADMIN', 'admin', 'ADMIN'].includes(profileRes.data.role)) {
-          router.push('/superadmin/dashboard');
-        } else {
-          router.push('/dashboard');
-        }
+      // Redirect based on role
+      const role = data.user.role;
+
+      if (role === 'SUPERADMIN' || role === 'SUPER_ADMIN') {
+        router.push('/superadmin/dashboard');
+      } else if (role === 'OWNER') {
+        router.push('/dashboard');
+      } else if (role === 'WARDEN') {
+        router.push('/dashboard');
       } else {
-        throw new Error('Profile not found');
+        setError('Unknown role. Contact admin.');
       }
+
     } catch (err: any) {
-      console.warn('Login issue:', err.message);
-      if (!err.response && err.message === 'Network Error') {
-        setError('Cannot connect to server. Please check your connection.');
+      console.error('Login error:', err);
+
+      if (err.message && err.message.includes('fetch')) {
+        setError(
+          'Cannot reach server. Check if backend is running.'
+        );
       } else {
-        setError(err.response?.data?.error || err.message || 'Login failed');
+        setError('Login failed. Please try again.');
       }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDevBypass = async () => {
-    setLoading(true);
-    setError('');
-
-    try {
-      const { data: profileRes } = await api.get('/auth/me', {
-        headers: { Authorization: `Bearer mock-dev-token` },
-      });
-
-      if (profileRes.success) {
-        setAuth(profileRes.data, 'mock-dev-token');
-        if (['SUPERADMIN', 'SUPER_ADMIN', 'admin', 'ADMIN'].includes(profileRes.data.role)) {
-          router.push('/superadmin/dashboard');
-        } else {
-          router.push('/dashboard');
-        }
-      } else {
-        throw new Error('Profile not found');
-      }
-    } catch (err: any) {
-      setError(err.message || 'Dev bypass login failed');
     } finally {
       setLoading(false);
     }
@@ -124,8 +100,15 @@ export default function LoginPage() {
 
         <form className="mt-10 space-y-6" onSubmit={handleLogin}>
           {error && (
-            <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm font-medium text-red-400 backdrop-blur-md">
-              {error}
+            <div className="w-full p-4 rounded-xl bg-red-950 border border-red-800 text-red-300 text-sm text-center">
+              {error === 'Invalid email or password'
+                ? '❌ Wrong email or password'
+                : error === 'Account deactivated. Contact admin.'
+                  ? '🚫 Account deactivated'
+                  : error.includes('Cannot reach server')
+                    ? '🌐 Server not reachable. Check connection.'
+                    : `❌ ${error}`
+              }
             </div>
           )}
 
@@ -163,25 +146,6 @@ export default function LoginPage() {
             <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out"></div>
             {loading ? <Loader2 className="relative z-10 mr-2 h-5 w-5 animate-spin" /> : <span className="relative z-10">Sign In Securely</span>}
           </button>
-
-          {process.env.NODE_ENV === 'development' && (
-            <>
-              <div className="relative flex py-4 items-center">
-                <div className="flex-grow border-t border-slate-800"></div>
-                <span className="flex-shrink mx-4 text-slate-500 text-[10px] font-bold uppercase tracking-widest">Or</span>
-                <span className="flex-grow border-t border-slate-800"></span>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleDevBypass}
-                disabled={loading}
-                className="flex w-full items-center justify-center rounded-xl border border-slate-700 bg-slate-800/30 px-4 py-3 text-sm font-semibold text-slate-300 transition-all hover:bg-slate-800 hover:text-white hover:border-slate-600 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 focus:ring-offset-slate-900 disabled:opacity-50"
-              >
-                Developer Bypass Access
-              </button>
-            </>
-          )}
         </form>
       </div>
     </div>

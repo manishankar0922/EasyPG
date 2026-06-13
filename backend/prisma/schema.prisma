@@ -14,6 +14,10 @@ model Organization {
   name               String   @db.VarChar(100)
   ownerName          String   @map("owner_name") @db.VarChar(100)
   ownerPhone         String   @map("owner_phone") @db.VarChar(20)
+  email              String?  @db.VarChar(100)
+  address            String?  @db.Text
+  logoUrl            String?  @map("logo_url") @db.VarChar(255)
+  gstin              String?  @db.VarChar(50)
   subscriptionPlan   String   @default("TRIAL") @map("subscription_plan") @db.VarChar(30)
   subscriptionStatus String   @default("ACTIVE") @map("subscription_status") @db.VarChar(30)
   maxBranches        Int      @default(3) @map("max_branches")

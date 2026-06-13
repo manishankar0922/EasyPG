@@ -471,6 +471,18 @@ router.delete('/:id', validate(z.object({ params: z.object({ id: z.string().uuid
     });
   }
 
+  // Check if branch has assigned wardens
+  const wardensCount = await prisma.user.count({
+    where: { branchId, organisationId: orgId }
+  });
+
+  if (wardensCount > 0) {
+    return res.status(400).json({ 
+      success: false, 
+      error: 'Cannot delete branch with assigned wardens. Please unassign them first.' 
+    });
+  }
+
   const result = await prisma.branch.deleteMany({
     where: { id: branchId, organizationId: orgId }
   });

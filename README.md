@@ -77,7 +77,7 @@ docker-compose up -d
 ### 3. Environment Configuration
 **Backend (`backend/.env`):**
 ```env
-PORT=4000
+PORT=3001
 DATABASE_URL="postgresql://...pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1"
 DIRECT_URL="postgresql://...db.supabase.co:5432/postgres"
 REDIS_URL="redis://localhost:6379"
@@ -95,10 +95,23 @@ CLOUDINARY_API_SECRET="..."
 
 **Frontend (`frontend/.env.local`):**
 ```env
-NEXT_PUBLIC_API_URL="http://localhost:4000/api"
+NEXT_PUBLIC_API_URL="http://localhost:3001/api"
 NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME="..."
 NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET="..."
 ```
+
+---
+
+## 🛠️ Recent Stabilization & Production Audits
+
+### 1. Robust API Interceptor & Routing
+*   **Centralized Routing:** The frontend `baseURL` (`NEXT_PUBLIC_API_URL`) now strictly embeds the `/api` suffix. This completely eliminates 404 errors by guaranteeing that all requests target the backend API router unconditionally.
+*   **Intelligent Token Management:** The custom Axios interceptor reads JWTs across both standard `localStorage` implementations (`easypg_token` and `u9-auth-token` from Zustand) to ensure session persistence across all environments.
+*   **Transparent Error Handling:** All 401s, 403s, and 500s are fully captured. The `api.ts` interceptor now guarantees that unauthorized roles trigger a clean redirection flow, logging full response payloads rather than silently dropping them.
+
+### 2. Payload Synchronization
+*   **Zod Alignment:** The Super Admin creation flow completely aligns with strict validation. The backend dynamically maps legacy inputs (`name` → `orgName`) ensuring backwards compatibility while safely injecting the hierarchy (Organizations → Branches → Floors → Rooms → Beds) in a single Prisma transaction.
+*   **Authentication Speller Guard:** Implemented a unified `req.user` spelling guard in `auth.middleware.ts`. This safely maps the Prisma token return `organisationId` to the standard application expectation `organizationId`, preventing `undefined` Prisma failures on route execution.
 
 ### 4. Database Setup
 ```bash

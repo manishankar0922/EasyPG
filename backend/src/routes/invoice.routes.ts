@@ -104,8 +104,22 @@ router.patch('/:id', validate(updateInvoiceSchema), async (req, res) => {
 // Delete invoice
 router.delete('/:id', validate(z.object({ params: z.object({ id: z.string().uuid() }) })), async (req, res) => {
   const invoiceId = req.params.id as string;
+  const orgId = req.user!.organizationId;
+
+  // Check for payments attached to this invoice
+  const paymentsCount = await prisma.payment.count({
+    where: { invoiceId, organizationId: orgId }
+  });
+
+  if (paymentsCount > 0) {
+    return res.status(400).json({ 
+      success: false, 
+      error: 'Cannot delete an invoice that has payments recorded against it.' 
+    });
+  }
+
   const result = await prisma.invoice.deleteMany({
-    where: { id: invoiceId, organizationId: req.user!.organizationId }
+    where: { id: invoiceId, organizationId: orgId }
   });
 
   if (result.count === 0) return res.status(404).json({ success: false, error: 'Invoice not found' });
