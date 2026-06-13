@@ -7,7 +7,7 @@ export function useUserRole() {
   // or just return our native roles
   const role = user?.role;
   
-  const isAdmin = role === 'SUPER_ADMIN';
+  const isAdmin = role === 'SUPER_ADMIN' || role === 'SUPERADMIN';
   const isOwner = role === 'OWNER';
   const isWarden = role === 'WARDEN';
   

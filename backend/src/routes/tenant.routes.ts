@@ -3,12 +3,14 @@ import { secureQuery } from '../lib/secureQuery';
 import { sanitizeResponse } from '../lib/sanitizeResponse';
 import prisma from '../config/db';
 import { authMiddleware } from '../middlewares/auth.middleware';
+import { checkSubscription } from '../middlewares/subscription.middleware';
 import { validate } from '../middlewares/validation.middleware';
 import { createTenantSchema, updateTenantSchema } from '../schemas/tenant.schema';
 import { z } from 'zod';
 
 const router = Router();
 router.use(authMiddleware);
+router.use(checkSubscription);
 
 // List tenants with search and filter
 router.get('/', async (req, res) => {
@@ -20,8 +22,14 @@ router.get('/', async (req, res) => {
 
   try {
     const currentMonthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 50;
+    const skip = (page - 1) * limit;
 
     const activeAdmissions = await prisma.admission.findMany({
+      skip,
+      take: limit,
       where: {
         organizationId: orgId,
         status: 'ACTIVE',
@@ -148,6 +156,9 @@ router.get('/:id', validate(z.object({ params: z.object({ id: z.string().uuid() 
       invoices: {
         include: { payments: true },
         orderBy: { createdAt: 'desc' }
+      },
+      vacateNotices: {
+        where: { status: 'PENDING' }
       }
     }
   });
@@ -176,6 +187,75 @@ router.get('/:id/history', validate(z.object({ params: z.object({ id: z.string()
     orderBy: { createdAt: 'desc' }
   });
   res.json({ success: true, data: history });
+});
+
+// GET /tenants/:id/ledger
+router.get('/:id/ledger', validate(z.object({ params: z.object({ id: z.string().uuid() }) })), async (req, res) => {
+  const tenantId = req.params.id as string;
+  const { organizationId: orgId } = req.user!;
+
+  try {
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: tenantId, organizationId: orgId }
+    });
+
+    if (!tenant) {
+      return res.status(404).json({ success: false, error: 'Tenant not found' });
+    }
+
+    const ledgers = await prisma.rentLedger.findMany({
+      where: { tenantId },
+      orderBy: [{ year: 'desc' }, { month: 'desc' }]
+    });
+
+    res.json({ success: true, data: ledgers });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: 'Failed to fetch ledger' });
+  }
+});
+
+// POST /tenants/:id/vacate-notice
+router.post('/:id/vacate-notice', validate(z.object({
+  params: z.object({ id: z.string().uuid() }),
+  body: z.object({
+    plannedVacateDate: z.string(),
+    reason: z.string().optional()
+  })
+})), async (req, res) => {
+  const tenantId = req.params.id as string;
+  const { plannedVacateDate, reason } = req.body;
+  const orgId = req.user!.organizationId;
+
+  try {
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: tenantId, organizationId: orgId }
+    });
+
+    if (!tenant) return res.status(404).json({ success: false, error: 'Tenant not found' });
+
+    // Check if there is already a pending notice
+    const existing = await prisma.vacateNotice.findFirst({
+      where: { tenantId, status: 'PENDING' }
+    });
+
+    if (existing) {
+      return res.status(400).json({ success: false, error: 'A pending vacate notice already exists.' });
+    }
+
+    const notice = await prisma.vacateNotice.create({
+      data: {
+        organizationId: orgId,
+        tenantId,
+        vacateDate: new Date(plannedVacateDate),
+        reason,
+        createdBy: req.user!.id
+      }
+    });
+
+    res.json({ success: true, data: notice, message: 'Vacate notice recorded' });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: 'Failed to record vacate notice' });
+  }
 });
 
 // Create tenant

@@ -60,8 +60,8 @@ export default function LoginPage() {
 
       if (profileRes.success) {
         setAuth(profileRes.data, token);
-        if (profileRes.data.role === 'SUPER_ADMIN') {
-          router.push('/admin');
+        if (['SUPERADMIN', 'SUPER_ADMIN', 'admin', 'ADMIN'].includes(profileRes.data.role)) {
+          router.push('/superadmin/dashboard');
         } else {
           router.push('/dashboard');
         }
@@ -69,9 +69,12 @@ export default function LoginPage() {
         throw new Error('Profile not found');
       }
     } catch (err: any) {
-      // Fix: Only use console.warn to avoid aggressive Turbopack error overlays
       console.warn('Login issue:', err.message);
-      setError(err.response?.data?.error || err.message || 'Login failed');
+      if (!err.response && err.message === 'Network Error') {
+        setError('Cannot connect to server. Please check your connection.');
+      } else {
+        setError(err.response?.data?.error || err.message || 'Login failed');
+      }
     } finally {
       setLoading(false);
     }
@@ -88,7 +91,11 @@ export default function LoginPage() {
 
       if (profileRes.success) {
         setAuth(profileRes.data, 'mock-dev-token');
-        router.push('/dashboard');
+        if (['SUPERADMIN', 'SUPER_ADMIN', 'admin', 'ADMIN'].includes(profileRes.data.role)) {
+          router.push('/superadmin/dashboard');
+        } else {
+          router.push('/dashboard');
+        }
       } else {
         throw new Error('Profile not found');
       }
@@ -100,27 +107,35 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 p-4">
-      <div className="w-full max-w-md space-y-8 rounded-2xl bg-white p-8 shadow-xl">
+    <div className="flex min-h-screen items-center justify-center bg-slate-950 relative overflow-hidden">
+      {/* Background Gradients & Glows */}
+      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-blue-600/20 blur-[120px]"></div>
+      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-indigo-600/20 blur-[120px]"></div>
+      <div className="absolute top-[20%] right-[20%] w-[20%] h-[20%] rounded-full bg-violet-600/10 blur-[100px]"></div>
+
+      <div className="w-full max-w-md space-y-8 rounded-3xl bg-slate-900/50 backdrop-blur-xl border border-white/10 p-10 shadow-2xl relative z-10">
         <div className="text-center">
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">U9 Solutions</h1>
-          <p className="mt-2 text-slate-600">Hostel Operations Intelligence</p>
+          <div className="mx-auto w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center mb-6 shadow-lg shadow-blue-500/30">
+            <span className="text-2xl font-black text-white">U9</span>
+          </div>
+          <h1 className="text-3xl font-black tracking-tight text-white mb-2">U9 Solutions</h1>
+          <p className="text-sm text-slate-400 font-medium tracking-wide uppercase">Hostel Operations Intelligence</p>
         </div>
 
-        <form className="mt-8 space-y-6" onSubmit={handleLogin}>
+        <form className="mt-10 space-y-6" onSubmit={handleLogin}>
           {error && (
-            <div className="rounded-lg bg-red-50 p-4 text-sm text-red-600">
+            <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm font-medium text-red-400 backdrop-blur-md">
               {error}
             </div>
           )}
 
-          <div className="space-y-4">
+          <div className="space-y-5">
             <div>
-              <label className="block text-sm font-medium text-slate-700">Email Address</label>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Email Address</label>
               <input
                 type="email"
                 required
-                className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="block w-full rounded-xl border border-slate-700 bg-slate-800/50 px-4 py-3 text-white placeholder-slate-500 transition-all focus:border-blue-500 focus:bg-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-inner"
                 placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -128,11 +143,11 @@ export default function LoginPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700">Password</label>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Password</label>
               <input
                 type="password"
                 required
-                className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="block w-full rounded-xl border border-slate-700 bg-slate-800/50 px-4 py-3 text-white placeholder-slate-500 transition-all focus:border-blue-500 focus:bg-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-inner"
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -143,25 +158,30 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="flex w-full items-center justify-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
+            className="group relative flex w-full items-center justify-center rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-3.5 text-sm font-bold text-white transition-all hover:from-blue-500 hover:to-indigo-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-900 disabled:opacity-50 overflow-hidden"
           >
-            {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Sign In'}
+            <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out"></div>
+            {loading ? <Loader2 className="relative z-10 mr-2 h-5 w-5 animate-spin" /> : <span className="relative z-10">Sign In Securely</span>}
           </button>
 
-          <div className="relative flex py-2 items-center">
-            <div className="flex-grow border-t border-slate-200"></div>
-            <span className="flex-shrink mx-4 text-slate-400 text-xs uppercase">Or</span>
-            <span className="flex-grow border-t border-slate-200"></span>
-          </div>
+          {process.env.NODE_ENV === 'development' && (
+            <>
+              <div className="relative flex py-4 items-center">
+                <div className="flex-grow border-t border-slate-800"></div>
+                <span className="flex-shrink mx-4 text-slate-500 text-[10px] font-bold uppercase tracking-widest">Or</span>
+                <span className="flex-grow border-t border-slate-800"></span>
+              </div>
 
-          <button
-            type="button"
-            onClick={handleDevBypass}
-            disabled={loading}
-            className="flex w-full items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 disabled:opacity-50"
-          >
-            Sign In with Developer Bypass
-          </button>
+              <button
+                type="button"
+                onClick={handleDevBypass}
+                disabled={loading}
+                className="flex w-full items-center justify-center rounded-xl border border-slate-700 bg-slate-800/30 px-4 py-3 text-sm font-semibold text-slate-300 transition-all hover:bg-slate-800 hover:text-white hover:border-slate-600 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 focus:ring-offset-slate-900 disabled:opacity-50"
+              >
+                Developer Bypass Access
+              </button>
+            </>
+          )}
         </form>
       </div>
     </div>

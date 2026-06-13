@@ -8,6 +8,7 @@ import { Phone, MessageCircle, IndianRupee, ArrowLeft, Loader2, CheckCircle2 } f
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { useAuthStore } from '@/store/auth-store';
 import { cn } from '@/lib/utils';
+import VacateNoticeSheet from '@/components/shared/VacateNoticeSheet';
 
 export default function TenantDetailPage() {
   const { id } = useParams();
@@ -26,6 +27,9 @@ export default function TenantDetailPage() {
   // Vacate Dialog State
   const [isVacateDialogOpen, setIsVacateDialogOpen] = useState(false);
   const [vacating, setVacating] = useState(false);
+
+  // Vacate Notice State
+  const [isVacateNoticeSheetOpen, setIsVacateNoticeSheetOpen] = useState(false);
 
   const fetchTenant = async () => {
     try {
@@ -155,6 +159,19 @@ export default function TenantDetailPage() {
             <p className="text-xs font-medium text-slate-400 bg-slate-50 px-3 py-1 rounded-full">
               Staying since {checkinDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
             </p>
+          )}
+
+          {tenant.vacateNotices?.some((n: any) => n.status === 'PENDING') ? (
+            <div className="mt-4 w-full bg-orange-50 border border-orange-200 rounded-xl p-3 flex flex-col items-center">
+              <span className="text-orange-600 font-bold text-sm">Vacating on {new Date(tenant.vacateNotices.find((n: any) => n.status === 'PENDING').vacateDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+            </div>
+          ) : (
+            <button 
+              onClick={() => setIsVacateNoticeSheetOpen(true)}
+              className="mt-4 w-full h-12 bg-white border-2 border-orange-200 text-orange-600 rounded-xl font-bold text-sm active:bg-orange-50 transition-colors flex items-center justify-center gap-2"
+            >
+              <span>📅</span> Give Vacate Notice
+            </button>
           )}
         </div>
 
@@ -348,6 +365,15 @@ export default function TenantDetailPage() {
           </div>
         </div>
       )}
+
+      {/* Vacate Notice Sheet */}
+      <VacateNoticeSheet 
+        tenantId={id as string}
+        tenantName={tenant.name}
+        isOpen={isVacateNoticeSheetOpen}
+        onClose={() => setIsVacateNoticeSheetOpen(false)}
+        onSuccess={fetchTenant}
+      />
     </div>
   );
 }

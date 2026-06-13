@@ -3,54 +3,160 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🚀 Starting Clean Development Seed...');
+  // Clear existing
+  await prisma.systemLog.deleteMany();
+  await prisma.paymentRequest.deleteMany();
+  await prisma.subscription.deleteMany();
+  await prisma.payment.deleteMany();
+  await prisma.rentLedger.deleteMany();
+  await prisma.admission.deleteMany();
+  await prisma.bed.deleteMany();
+  await prisma.room.deleteMany();
+  await prisma.branch.deleteMany();
+  await prisma.tenant.deleteMany();
+  await prisma.user.deleteMany();
+  await prisma.organization.deleteMany();
 
-  // 1. Core Organization
-  const org = await prisma.organization.create({
+  // 1. Superadmin User
+  await prisma.user.create({
     data: {
-      name: 'Skyline Premium Hostels',
-      ownerName: 'Vikram Sethi',
-      ownerPhone: '98765 11111',
+      clerkId: 'superadmin_1',
+      name: 'Super Admin',
+      email: 'admin@easypg.com',
+      role: 'SUPERADMIN'
     }
   });
 
-  // 2. Base Developer Owner Profile (linked to mock-dev-token / dev@gmail.com)
-  const ownerProfile = await prisma.profile.create({
-    data: {
-      id: '00000000-0000-0000-0000-000000000001', // Fixed for dev bypass
-      organizationId: org.id,
-      name: 'Vikram Sethi',
-      email: 'dev@gmail.com',
-      phone: '98765 11111',
-      role: 'OWNER'
-    }
-  });
+  // 2. 2 Organisations
+  for (let o = 1; o <= 2; o++) {
+    const org = await prisma.organization.create({
+      data: {
+        name: `Org ${o}`,
+        ownerName: `Owner ${o}`,
+        ownerPhone: `900000000${o}`
+      }
+    });
 
-  // 3. Base Developer Super Admin Profile (linked to mock-admin-token / admin@gmail.com)
-  const adminProfile = await prisma.profile.create({
-    data: {
-      id: '00000000-0000-0000-0000-000000000000', // Fixed for admin bypass
-      name: 'System Admin',
-      email: 'admin@gmail.com',
-      phone: '98765 00000',
-      role: 'SUPER_ADMIN'
-    }
-  });
+    // 1 pending subscription request
+    await prisma.paymentRequest.create({
+      data: {
+        organizationId: org.id,
+        plan: 'STARTER',
+        amount: 499,
+        upiRefNumber: `UPI${o}00000`,
+        status: 'PENDING'
+      }
+    });
 
-  console.log('✅ Base Organization, Developer Owner, and Super Admin Profiles Created.');
-  console.log(`
-🌱 CLEAN SEED SUMMARY:
-----------------------
-Organization: ${org.name}
-Developer Owner: Vikram Sethi (id: 00000000-0000-0000-0000-000000000001)
-  `);
+    // 3. 2 branches per org
+    for (let b = 1; b <= 2; b++) {
+      const branch = await prisma.branch.create({
+        data: {
+          name: `Branch ${b} (Org ${o})`,
+          organizationId: org.id,
+          address: `123 Main St, Area ${b}`
+        }
+      });
+
+      // 9. 2 warden users per branch
+      for (let w = 1; w <= 2; w++) {
+        await prisma.user.create({
+          data: {
+            clerkId: `warden_${o}_${b}_${w}`,
+            name: `Warden ${w}`,
+            email: `warden${w}@org${o}branch${b}.com`,
+            role: 'WARDEN',
+            organisationId: org.id,
+            branchId: branch.id
+          }
+        });
+      }
+
+      const allBeds = [];
+
+      // 4. 3 floors, 5 rooms per floor
+      for (let f = 1; f <= 3; f++) {
+        for (let r = 1; r <= 5; r++) {
+          const room = await prisma.room.create({
+            data: {
+              organizationId: org.id,
+              branchId: branch.id,
+              roomNumber: `${f}0${r}`,
+              floor: f,
+              totalCapacity: 3,
+              rentAmount: 5000,
+              roomType: 'TRIPLE'
+            }
+          });
+
+          // 5. 3 beds per room
+          for (let bedNum = 1; bedNum <= 3; bedNum++) {
+            const bed = await prisma.bed.create({
+              data: {
+                organizationId: org.id,
+                roomId: room.id,
+                bedNumber: `Bed ${String.fromCharCode(64 + bedNum)}`
+              }
+            });
+            allBeds.push(bed);
+          }
+        }
+      }
+
+      // 6. 10 active tenants per branch
+      for (let t = 1; t <= 10; t++) {
+        const tenant = await prisma.tenant.create({
+          data: {
+            organizationId: org.id,
+            name: `Tenant ${t} (B${b})`,
+            phone: `8000${o}${b}${t.toString().padStart(3, '0')}`
+          }
+        });
+
+        const bed = allBeds[t - 1]; // Pick a bed
+        await prisma.bed.update({ where: { id: bed.id }, data: { isOccupied: true } });
+
+        await prisma.admission.create({
+          data: {
+            organizationId: org.id,
+            tenantId: tenant.id,
+            roomId: bed.roomId,
+            bedId: bed.id,
+            checkinDate: new Date('2024-05-01'),
+            monthlyRent: 5000,
+            status: 'ACTIVE'
+          }
+        });
+
+        // 7. 2 months of rent ledger entries
+        // 8. Mix of paid, partial, overdue
+        const statuses = ['PAID', 'PARTIAL', 'OVERDUE', 'PENDING'] as any[];
+        
+        for (let month = 5; month <= 6; month++) {
+          const status = statuses[(t + month) % 4];
+          let paidAmount = 0;
+          if (status === 'PAID') paidAmount = 5000;
+          if (status === 'PARTIAL') paidAmount = 2500;
+          
+          await prisma.rentLedger.create({
+            data: {
+              tenantId: tenant.id,
+              month,
+              year: 2024,
+              expectedRent: 5000,
+              totalDue: 5000,
+              paidAmount,
+              balanceFromLastMonth: 0,
+              status,
+              dueDate: new Date(`2024-0${month}-05`)
+            }
+          });
+        }
+      }
+    }
+  }
+
+  console.log('Seed completed successfully!');
 }
 
-main()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+main().catch(console.error).finally(() => prisma.$disconnect());

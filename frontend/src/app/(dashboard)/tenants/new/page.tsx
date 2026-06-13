@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import MobileCameraCapture from '@/components/shared/MobileCameraCapture';
+import LoadingScreen from '@/components/shared/LoadingScreen';
 import { Loader2, UserPlus, Phone, Calendar, Banknote, BedDouble, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/auth-store';
@@ -50,9 +51,7 @@ export default function AddTenantPage() {
       try {
         const { data } = await api.get('/rooms?includeBeds=true');
         if (data.success) {
-          // Defensive check: handle both paginated format { rooms: [] } and raw array format []
-          const fetchedRooms = Array.isArray(data.data) ? data.data : (data.data?.rooms || []);
-          setRooms(fetchedRooms);
+          setRooms(Array.isArray(data.data) ? data.data : data.data?.rooms ?? []);
         } else {
           setRooms([]);
         }
@@ -141,10 +140,29 @@ export default function AddTenantPage() {
   };
 
   // Group rooms for manual selection
-  const safeRooms = Array.isArray(rooms) ? rooms : [];
-  const floors = Array.from(new Set(safeRooms.map(r => r.floor))).sort((a, b) => a - b);
-  const roomsOnSelectedFloor = safeRooms.filter(r => r.floor === selectedFloor);
-  const selectedRoom = safeRooms.find(r => r.id === selectedRoomId);
+  const floors = Array.isArray(rooms)
+    ? Array.from(new Set(rooms.map(r => r.floor))).sort((a, b) => a - b)
+    : [];
+
+  const roomsOnSelectedFloor = Array.isArray(rooms)
+    ? rooms.filter(r => r.floor === selectedFloor)
+    : [];
+
+  const selectedRoom = Array.isArray(rooms)
+    ? rooms.find(r => r.id === selectedRoomId)
+    : undefined;
+
+  if (loadingRooms) return <LoadingScreen message="Loading rooms..." />;
+  if (!Array.isArray(rooms) || rooms.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center p-8 gap-3 min-h-screen bg-slate-50">
+        <span className="text-4xl">🛏️</span>
+        <p className="text-gray-500 text-center">
+          No rooms found. Ask your admin to set up rooms first.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 pb-20">

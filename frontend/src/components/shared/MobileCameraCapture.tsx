@@ -2,6 +2,7 @@
 
 import React, { useRef, useState } from 'react';
 import { Camera, Loader2, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
+import { useLanguage } from '@/context/LanguageContext';
 
 interface Props {
   label: string;
@@ -17,25 +18,39 @@ export default function MobileCameraCapture({ label, onUploadComplete, onUploadS
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const { lang } = useLanguage();
+
   const uploadToCloudinary = async (blob: Blob): Promise<string> => {
-    const formData = new FormData();
-    formData.append('file', blob);
-    formData.append('upload_preset', process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET!);
-    formData.append('folder', 'easypg/tenants');
+    const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME
+    const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET
 
-    const res = await fetch(
-      `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`,
-      { method: 'POST', body: formData }
-    );
-
-    if (!res.ok) {
-      const errorData = await res.json();
-      throw new Error(`Cloudinary upload failed: ${errorData.error?.message}`);
+    if (!cloudName || !uploadPreset) {
+      throw new Error(
+        'Cloudinary config missing. Check NEXT_PUBLIC_ env variables.'
+      )
     }
 
-    const data = await res.json();
-    return data.secure_url;
-  };
+    const formData = new FormData()
+    formData.append('file', blob)
+    formData.append('upload_preset', uploadPreset)
+    formData.append('folder', 'easypg/tenants')
+
+    const response = await fetch(
+      `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
+      { method: 'POST', body: formData }
+    )
+
+    if (!response.ok) {
+      const errorBody = await response.json()
+      console.error('Cloudinary error detail:', errorBody)
+      throw new Error(
+        errorBody?.error?.message || 'Cloudinary upload failed'
+      )
+    }
+
+    const data = await response.json()
+    return data.secure_url as string
+  }
 
   const executeUpload = async (file: File) => {
     setLoading(true);
@@ -54,7 +69,11 @@ export default function MobileCameraCapture({ label, onUploadComplete, onUploadS
       setPendingFile(null); // Clear pending file on success
     } catch (err: any) {
       console.error('Upload error:', err);
-      setError('Upload failed. Please try again.');
+      setError(
+        lang === 'te'
+          ? 'ఫోటో అప్లోడ్ విఫలమైంది. మీ internet connection చెక్ చేయండి.'
+          : 'Photo upload failed. Please check your internet and try again.'
+      );
       // Intentionally DO NOT call onUploadComplete with localUrl here.
       // This prevents the parent form from submitting a broken blob URL.
     } finally {
@@ -127,10 +146,19 @@ export default function MobileCameraCapture({ label, onUploadComplete, onUploadS
       )}
 
       {error && (
-        <span className="text-[11px] text-amber-600 flex items-center gap-1 text-center leading-tight">
-          <AlertCircle className="h-3 w-3 shrink-0" />
-          {error}
-        </span>
+        <div className="flex flex-col items-center">
+          <span className="text-[11px] text-amber-600 flex items-center gap-1 text-center leading-tight">
+            <AlertCircle className="h-3 w-3 shrink-0" />
+            {error}
+          </span>
+          <button
+            type="button"
+            onClick={handleRetry}
+            className="text-sm text-blue-600 underline mt-1"
+          >
+            {lang === 'te' ? 'మళ్ళీ ప్రయత్నించు' : 'Tap to retry'}
+          </button>
+        </div>
       )}
       
       <input

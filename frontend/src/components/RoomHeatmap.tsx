@@ -8,6 +8,7 @@ import api from '@/lib/api';
 interface Tenant {
   id: string;
   name: string;
+  vacateNotice?: any;
 }
 
 interface RoomHeatmapCell {
@@ -94,13 +95,21 @@ export default function RoomHeatmap({ branchId }: { branchId: string }) {
                   if (room.status === 'PARTIAL') bgColor = "bg-amber-400";
                   if (room.status === 'VACANT') bgColor = "bg-rose-500";
 
+                  const pendingNotice = room.tenants?.find(t => t.vacateNotice);
+
                   return (
                     <Popover key={room.roomId}>
                       <PopoverTrigger asChild>
                         <button 
-                          className={`w-12 h-12 sm:w-14 sm:h-14 rounded-xl flex items-center justify-center font-black text-white text-sm shadow-sm transition-transform active:scale-90 ${bgColor}`}
+                          className={`relative w-12 h-12 sm:w-14 sm:h-14 rounded-xl flex items-center justify-center font-black text-white text-sm shadow-sm transition-transform active:scale-90 ${bgColor}`}
                         >
                           {room.roomName.split('-')[1]}
+                          {pendingNotice && (
+                            <span 
+                              className="absolute -top-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-orange-500 border-2 border-white"
+                              title={`Vacating on ${new Date(pendingNotice.vacateNotice.vacateDate).toLocaleDateString()}`}
+                            />
+                          )}
                         </button>
                       </PopoverTrigger>
                       <PopoverContent className="w-64 p-4 rounded-2xl" sideOffset={8}>
@@ -117,9 +126,16 @@ export default function RoomHeatmap({ branchId }: { branchId: string }) {
                         <div className="space-y-3">
                           {room.tenants && room.tenants.length > 0 ? (
                             room.tenants.map((t, idx) => (
-                              <div key={t.id || idx} className="flex items-center text-sm font-medium text-slate-700 bg-slate-50 p-2 rounded-lg">
-                                <Bed className="w-4 h-4 mr-2 text-slate-400" />
-                                {t.name}
+                              <div key={t.id || idx} className="flex flex-col text-sm font-medium text-slate-700 bg-slate-50 p-2 rounded-lg">
+                                <div className="flex items-center">
+                                  <Bed className="w-4 h-4 mr-2 text-slate-400" />
+                                  {t.name}
+                                </div>
+                                {t.vacateNotice && (
+                                  <div className="text-xs text-orange-600 font-bold mt-1 ml-6">
+                                    Vacating: {new Date(t.vacateNotice.vacateDate).toLocaleDateString()}
+                                  </div>
+                                )}
                               </div>
                             ))
                           ) : (

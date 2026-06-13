@@ -37,7 +37,7 @@ const financialItems = [
   { icon: CreditCard, label: 'Payments', href: '/payments' },
 ];
 
-const adminSettingsItem = { icon: ShieldCheck, label: 'Super Admin', href: '/admin', adminOnly: true };
+const adminSettingsItem = { icon: ShieldCheck, label: 'Super Admin', href: '/superadmin/dashboard', adminOnly: true };
 
 export default function Sidebar() {
   const pathname = usePathname();

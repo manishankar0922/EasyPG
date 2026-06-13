@@ -22,6 +22,10 @@ import paymentRoutes from './routes/payment.routes';
 import dashboardRoutes from './routes/dashboard.routes';
 import adminRoutes from './routes/admin.routes';
 import uploadRoutes from './routes/upload.routes';
+import superadminRoutes from './routes/superadmin.routes';
+import rentLedgerRoutes from './routes/rent-ledger.routes';
+import vacateNoticeRoutes from './routes/vacate-notice.routes';
+import subscriptionRoutes from './routes/subscription.routes';
 
 import hpp from 'hpp';
 import mongoSanitize from 'express-mongo-sanitize';
@@ -53,6 +57,8 @@ app.use(compression());
 
 const allowedOrigins = [
   process.env.FRONTEND_URL || 'http://localhost:3000',
+  'http://localhost:3001',
+  'http://localhost:3002',
   'https://easypg.in'
 ];
 app.use(cors({
@@ -108,9 +114,32 @@ app.use('/api/payments', paymentRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/superadmin', superadminRoutes);
+app.use('/api/rent-ledger', rentLedgerRoutes);
+app.use('/api/vacate-notices', vacateNoticeRoutes);
+app.use('/api/subscription', subscriptionRoutes);
 
 // Error Middleware
 app.use(errorHandler);
+
+// List all registered routes
+app._router.stack.forEach((middleware: any) => {
+  if (middleware.route) {
+    console.log(
+      middleware.route.stack[0].method.toUpperCase(),
+      middleware.route.path
+    )
+  } else if (middleware.name === 'router') {
+    middleware.handle.stack.forEach((handler: any) => {
+      if (handler.route) {
+        console.log(
+          handler.route.stack[0].method.toUpperCase(),
+          handler.route.path
+        )
+      }
+    })
+  }
+})
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);

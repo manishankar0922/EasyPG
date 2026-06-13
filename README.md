@@ -11,42 +11,50 @@ U9 Solutions is a high-scale, multi-tenant SaaS application designed to automate
 ## 🏗️ Technical Architecture
 
 ### 1. Core Stack
-*   **Frontend:** Next.js 15 (App Router), TypeScript, Tailwind CSS, Zustand, Lucide Icons.
+*   **Frontend:** Next.js 15 (App Router, Turbopack), React 19, TypeScript, Tailwind CSS, Zustand, Lucide Icons.
 *   **Backend:** Node.js, Express.js (REST API), TypeScript, Zod.
-*   **Data Layer:** PostgreSQL (Supabase), Prisma ORM.
-*   **Authentication:** Clerk (with local Dev Bypass & Secure JWT impersonation).
+*   **Data Layer:** PostgreSQL (Supabase Pooler), Prisma ORM.
+*   **Authentication:** Custom Local Authentication (JWT, bcryptjs) with Role-Based Access Control.
 *   **Infrastructure:** BullMQ & Redis (Distributed Queues), Docker.
 *   **Storage:** Cloudinary (Direct secure signed uploads).
 
-### 2. High-Scale Design & Security
+### 2. Multi-Tenant Branch Architecture
+EasyPG uses a strict hierarchical data model to support large-scale property owners:
+*   **Organization:** Represents the business owner (e.g., "Skyline Hostels"). Tied to the Owner's billing and subscription plan.
+*   **Branch:** Physical properties/buildings under an Organization. An owner can manage multiple isolated Branches.
+*   **Rooms & Floors:** Fully dynamic setup. Rooms are assigned to a Branch, Floors, and have configurable bed capacities and rent prices.
+*   **Beds:** The lowest atomic unit. Tenants are checked directly into Beds to track real-time occupancy.
+
+### 3. High-Scale Design & Security
 The platform is designed to handle thousands of concurrent tenants securely:
-*   **Background Workers:** Intensive tasks like monthly billing and mass notifications are offloaded to BullMQ workers.
-*   **Transactional Integrity:** Critical operations (Check-ins, Room Transfers) use Prisma transactions with strict foreign-key verification to prevent data drift and overbooking.
-*   **Enterprise-Grade Security:** Hardened with `helmet`, strict `cors` whitelists, `express-rate-limit`, `hpp` (HTTP Parameter Pollution prevention), and `express-mongo-sanitize`.
-*   **Data Isolation:** Data is strictly isolated using `organizationId` globally, secured via a centralized Prisma query wrapper (`secureQuery`). PII is scrubbed via response sanitizers.
-*   **Production Logging:** Implementing `winston` and `winston-daily-rotate-file` to keep extensive error and combined server logs with PII redaction.
+*   **Role-Based Access Control (RBAC):** Strict Global Axios Interceptors and Next.js Edge Middleware ensure 401/403 redirects based on Profile status (e.g., rejecting Deactivated Wardens).
+*   **Query Integrity:** Heatmap and Dashboard queries are heavily optimized using Prisma relations (eliminating N+1 queries) and `@@index` constraints on frequently queried fields (e.g., `branchId`, `roomId`, `status`).
+*   **Background Workers:** Intensive tasks like the new **Automated Monthly Rent Ledger** are scheduled and offloaded to BullMQ workers to prevent API timeouts.
+*   **Data Isolation:** Data is strictly isolated using `organizationId` and `branchId` globally.
 
 ---
 
-## ✨ Features & Capabilities
+## ✨ Core Business Modules
 
-### 👥 Hierarchical User Management
-A sophisticated administrative system allows for delegated management:
-*   **Super Admin:** Cross-organization actions and owner impersonation (using highly secure fallback tokens).
-*   **Owner:** Full control over the organization, branches, and high-level team creation.
-*   **Warden:** Manages daily operations (rooms/tenants) and can create `Staff` members.
-*   **Staff:** Entry-level access for recording payments and managing check-ins.
+### 1. Hierarchical User Management (IAM)
+*   **Super Admin:** Cross-organization management, subscription approval, global metrics, and complete lifecycle control (Suspend/Cascade Delete Organizations).
+*   **Owner:** Full control over the Organization, P&L Reports, Multi-branch view, and Warden assignment.
+*   **Warden:** Branch-restricted access. Can manage daily operations (check-ins, check-outs, cash collection) only for their assigned branch.
 
-### 🏠 Intelligent Property Management
-*   **Branch & Room Control:** Supports multiple branches per organization.
-*   **Smart Room Numbering:** Validated room identifiers for standardized tracking.
-*   **Atomic Operations:** Safe bed allocation and instant movement of tenants.
-*   **Document Management:** Integrated Cloudinary signing mechanism allowing frontend to directly and securely upload tenant documents.
+### 2. Automated Rent Ledger & Payments
+*   **Monthly Automation:** A background system automatically generates expected rent dues on the 1st of every month, carrying forward previous balances.
+*   **Payment Collection:** Supports Cash, UPI, and Bank Transfer tracking. Features automatic status resolution (PAID, PARTIAL, OVERDUE).
 
-### 📊 Intelligence Dashboard
-*   **Real-time KPIs:** Occupancy rates, Vacant beds, and Revenue collection status.
-*   **Financial Tracking:** Precision monitoring of Invoiced vs. Collected vs. Pending dues.
-*   **Branch Analytics:** Visual occupancy heatmaps across different hostel locations.
+### 3. Vacate Notice System
+*   **Predictive Vacancy:** Wardens can log 30-day or custom vacate notices for tenants.
+*   **Heatmap Integration:** The Room Heatmap visually highlights beds that are scheduled to be vacated soon, allowing Owners to pre-book them and minimize revenue loss.
+
+### 4. P&L and Intelligence Dashboard
+*   **Owner Dashboard:** A high-level overview showing "Expected Rent", "Collected Rent", and "Pending Rent" across all branches.
+*   **Room Heatmap:** A visual 2D grid showing occupied beds, vacant beds, and beds with pending vacate notices.
+
+### 5. Subscription & Billing
+*   **Manual SaaS Billing:** Subscription tracking via manual UPI verification. Super Admins approve/reject plan upgrades (Starter, Growth, Pro) directly from the dashboard.
 
 ---
 
@@ -56,7 +64,6 @@ A sophisticated administrative system allows for delegated management:
 *   Node.js (v20+)
 *   Docker & Docker Compose
 *   Supabase Account (Database)
-*   Clerk Account (Authentication)
 *   Cloudinary Account (Image Storage)
 
 ### 2. Infrastructure Startup
@@ -71,19 +78,14 @@ docker-compose up -d
 **Backend (`backend/.env`):**
 ```env
 PORT=4000
-DATABASE_URL="postgresql://..."
-DIRECT_URL="postgresql://..."
+DATABASE_URL="postgresql://...pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1"
+DIRECT_URL="postgresql://...db.supabase.co:5432/postgres"
 REDIS_URL="redis://localhost:6379"
 
-# Clerk Authentication
-CLERK_PUBLISHABLE_KEY="pk_test_..."
-CLERK_SECRET_KEY="sk_test_..."
+# Authentication
+JWT_SECRET="your-super-secret-jwt-key"
 ENABLE_MOCK_AUTH=true
 NODE_ENV=development
-
-# Security
-FRONTEND_URL="http://localhost:3000"
-JWT_SECRET="super-secret-key"
 
 # Cloudinary
 CLOUDINARY_CLOUD_NAME="..."
@@ -94,46 +96,37 @@ CLOUDINARY_API_SECRET="..."
 **Frontend (`frontend/.env.local`):**
 ```env
 NEXT_PUBLIC_API_URL="http://localhost:4000/api"
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY="pk_test_..."
 NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME="..."
+NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET="..."
 ```
 
-### 4. Database Seeding (Hierarchical Data)
-The new seeding script creates a complete test environment with realistic relationships:
+### 4. Database Setup
 ```bash
 cd backend
 npm install
-npx prisma db push --force-reset
-npx prisma db seed
+npx prisma db push
 ```
 
 ---
 
-## 🧪 Testing Credentials
-For local development, use the mock authentication headers (if `ENABLE_MOCK_AUTH=true` is set) to bypass Clerk.
-Example:
-```bash
-Authorization: Bearer mock-dev-token
-```
-This automatically authenticates you as the first Owner profile available in the local database.
+## 🧪 Testing Credentials & Developer Bypass
+The platform uses a custom JWT authentication system. For local development, there are built-in mock accounts to quickly bypass full database validation:
+
+*   **Super Admin Login:** Use `admin@gmail.com` with password `admin123`.
+*   **Dev/Owner Login:** Use `dev@gmail.com` with password `dev123`.
+*   *Note:* The mock credentials return a hardcoded developer JWT token to instantly grant access. To test real authentication flows, create a new Organization via the Super Admin portal and log in with the newly generated credentials.
 
 ---
 
-## 🛠️ Roadmap
-- [x] Hierarchical User Management (Super Admin/Owner/Warden/Staff)
+## 🛠️ Roadmap & Future Scope
+- [x] Hierarchical User Management (Super Admin/Owner/Warden)
 - [x] Intelligence Dashboard & Revenue Tracking
-- [x] Atomic Room Transfers & Protected Transactions
-- [x] Enterprise Security Hardening & Logging
-- [x] Cloudinary Signed Upload Integration
-- [x] **Mobile-First Warden UI**: Intuitive UI patterns (like WhatsApp) replacing complex ERP tables.
-- [x] **Robust Error Handling**: Fixed frontend state management for paginated APIs and stabilized Cloudinary upload failure scenarios.
-- [ ] Automated Monthly Billing Service (BullMQ)
+- [x] Automated Monthly Rent Ledger Generation
+- [x] Vacate Notice Tracking System
+- [x] Manual SaaS Subscription & Approval Workflow
+- [x] Enterprise Security Hardening & Performance Audits
+- [ ] Offline PWA Support (Service Workers for Dashboard caching)
+- [ ] Automated WhatsApp/SMS Notification Engine for Rent Reminders
 - [ ] OCR-based Tenant ID Verification
-- [ ] WhatsApp/SMS Notification Engine
-
-## 📝 Recent Architectural Updates (for the Team)
-1. **Granular Room Setup:** The setup wizard and frontend flows have been refactored away from rigid "Bed per Room" assumptions. The UI now supports completely dynamic floor-by-floor and room-by-room configurations.
-2. **UI Stabilization:** The global Dark Mode CSS has been explicitly scoped to avoid interfering with the pristine Admin Panel. Input fields across the tenant onboarding and login flows have been stabilized.
-3. **Cloudinary Uploads:** `MobileCameraCapture` now explicitly tracks `pendingFile` upload states and completely blocks form submission until images are fully uploaded to Cloudinary, preventing broken `blob:` URLs from entering the database.
 
 *Built with ❤️ by Urban9Solutions*
