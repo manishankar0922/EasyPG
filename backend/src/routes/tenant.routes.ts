@@ -317,9 +317,21 @@ router.post('/', validate(createTenantSchema), async (req, res) => {
     
     // Check for specific Prisma errors
     if (error.code === 'P2002') {
+      if (error.custom) {
+        return res.status(400).json({ success: false, error: error.message });
+      }
+      const target = error.meta?.target || [];
+      const targetStr = Array.isArray(target) ? target.join(', ') : target;
+      
+      if (targetStr.includes('phone')) {
+        return res.status(400).json({ 
+          success: false,
+          error: 'A tenant with this phone number already exists.' 
+        });
+      }
       return res.status(400).json({ 
         success: false,
-        error: 'This bed is already assigned to another tenant.' 
+        error: 'Unique constraint failed. This bed may already be assigned, or the data is duplicate.' 
       });
     }
     if (error.code === 'P2025') {
@@ -417,13 +429,26 @@ router.delete('/:id', validate(z.object({ params: z.object({ id: z.string().uuid
     });
   }
 
-  const result = await prisma.tenant.deleteMany({
-    where: { id: tenantId, organizationId: orgId }
+  await prisma.$transaction(async (tx) => {
+    // 1. Delete deeply nested dependencies
+    await tx.payment.deleteMany({ where: { tenantId } });
+    await tx.invoice.deleteMany({ where: { tenantId } });
+    await tx.admission.deleteMany({ where: { tenantId } });
+    await tx.rentLedger.deleteMany({ where: { tenantId } });
+    
+    // 2. Delete direct tenant dependencies
+    await tx.vacateNotice.deleteMany({ where: { tenantId } });
+    await tx.securityDeposit.deleteMany({ where: { tenantId } });
+    await tx.notification.deleteMany({ where: { tenantId } });
+    await tx.complaint.deleteMany({ where: { tenantId } });
+    
+    // 3. Finally delete the tenant
+    await tx.tenant.deleteMany({
+      where: { id: tenantId, organizationId: orgId }
+    });
   });
 
-  if (result.count === 0) return res.status(404).json({ success: false, error: 'Tenant not found' });
-
-  res.json({ success: true, message: 'Tenant deleted' });
+  res.json({ success: true, message: 'Tenant and related records deleted' });
 });
 
 // Auto-Assign Bed

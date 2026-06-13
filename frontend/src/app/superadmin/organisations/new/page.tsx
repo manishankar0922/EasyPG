@@ -154,8 +154,8 @@ export default function NewOrganisationPage() {
 
       if (data.success) {
         setSuccessData({
-          email: ownerEmail,
-          password: data.data.tempPassword
+          email: data.data.ownerCredentials?.email || ownerEmail,
+          password: data.data.ownerCredentials?.tempPassword || data.data.tempPassword
         });
         window.scrollTo(0, 0);
       }

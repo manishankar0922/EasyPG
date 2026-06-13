@@ -1,0 +1,48 @@
+src/jobs/index.ts(10,3): error TS2322: Type 'Redis' is not assignable to type 'ConnectionOptions'.
+  Type 'Redis' is not assignable to type 'ClusterOptions | Redis | IRedisClient | Cluster'.
+    Type 'import("/home/mohan/Urbun9/EasyPG/backend/node_modules/ioredis/built/Redis").default' is not assignable to type 'import("/home/mohan/Urbun9/EasyPG/backend/node_modules/bullmq/node_modules/ioredis/built/Redis").default'.
+      Types of property 'options' are incompatible.
+        Type 'import("/home/mohan/Urbun9/EasyPG/backend/node_modules/ioredis/built/redis/RedisOptions").RedisOptions' is not assignable to type 'import("/home/mohan/Urbun9/EasyPG/backend/node_modules/bullmq/node_modules/ioredis/built/redis/RedisOptions").RedisOptions'.
+          Type 'RedisOptions' is not assignable to type 'CommonRedisOptions'.
+            Types of property 'Connector' are incompatible.
+              Type 'import("/home/mohan/Urbun9/EasyPG/backend/node_modules/ioredis/built/connectors/ConnectorConstructor").default | undefined' is not assignable to type 'import("/home/mohan/Urbun9/EasyPG/backend/node_modules/bullmq/node_modules/ioredis/built/connectors/ConnectorConstructor").default | undefined'.
+                Type 'import("/home/mohan/Urbun9/EasyPG/backend/node_modules/ioredis/built/connectors/ConnectorConstructor").default' is not assignable to type 'import("/home/mohan/Urbun9/EasyPG/backend/node_modules/bullmq/node_modules/ioredis/built/connectors/ConnectorConstructor").default'.
+                  Type 'import("/home/mohan/Urbun9/EasyPG/backend/node_modules/ioredis/built/connectors/AbstractConnector").default' is not assignable to type 'import("/home/mohan/Urbun9/EasyPG/backend/node_modules/bullmq/node_modules/ioredis/built/connectors/AbstractConnector").default'.
+                    Property 'connecting' is protected but type 'AbstractConnector' is not a class derived from 'AbstractConnector'.
+src/jobs/index.ts(14,3): error TS2322: Type 'Redis' is not assignable to type 'ConnectionOptions'.
+  Type 'Redis' is not assignable to type 'ClusterOptions | Redis | IRedisClient | Cluster'.
+    Type 'import("/home/mohan/Urbun9/EasyPG/backend/node_modules/ioredis/built/Redis").default' is not assignable to type 'import("/home/mohan/Urbun9/EasyPG/backend/node_modules/bullmq/node_modules/ioredis/built/Redis").default'.
+      Types of property 'options' are incompatible.
+        Type 'import("/home/mohan/Urbun9/EasyPG/backend/node_modules/ioredis/built/redis/RedisOptions").RedisOptions' is not assignable to type 'import("/home/mohan/Urbun9/EasyPG/backend/node_modules/bullmq/node_modules/ioredis/built/redis/RedisOptions").RedisOptions'.
+          Type 'RedisOptions' is not assignable to type 'CommonRedisOptions'.
+            Types of property 'Connector' are incompatible.
+              Type 'import("/home/mohan/Urbun9/EasyPG/backend/node_modules/ioredis/built/connectors/ConnectorConstructor").default | undefined' is not assignable to type 'import("/home/mohan/Urbun9/EasyPG/backend/node_modules/bullmq/node_modules/ioredis/built/connectors/ConnectorConstructor").default | undefined'.
+                Type 'import("/home/mohan/Urbun9/EasyPG/backend/node_modules/ioredis/built/connectors/ConnectorConstructor").default' is not assignable to type 'import("/home/mohan/Urbun9/EasyPG/backend/node_modules/bullmq/node_modules/ioredis/built/connectors/ConnectorConstructor").default'.
+                  Type 'import("/home/mohan/Urbun9/EasyPG/backend/node_modules/ioredis/built/connectors/AbstractConnector").default' is not assignable to type 'import("/home/mohan/Urbun9/EasyPG/backend/node_modules/bullmq/node_modules/ioredis/built/connectors/AbstractConnector").default'.
+                    Property 'connecting' is protected but type 'AbstractConnector' is not a class derived from 'AbstractConnector'.
+src/jobs/index.ts(44,7): error TS2322: Type 'Redis' is not assignable to type 'ConnectionOptions'.
+  Type 'Redis' is not assignable to type 'ClusterOptions | Redis | IRedisClient | Cluster'.
+    Type 'import("/home/mohan/Urbun9/EasyPG/backend/node_modules/ioredis/built/Redis").default' is not assignable to type 'import("/home/mohan/Urbun9/EasyPG/backend/node_modules/bullmq/node_modules/ioredis/built/Redis").default'.
+      Types of property 'options' are incompatible.
+        Type 'import("/home/mohan/Urbun9/EasyPG/backend/node_modules/ioredis/built/redis/RedisOptions").RedisOptions' is not assignable to type 'import("/home/mohan/Urbun9/EasyPG/backend/node_modules/bullmq/node_modules/ioredis/built/redis/RedisOptions").RedisOptions'.
+          Type 'RedisOptions' is not assignable to type 'CommonRedisOptions'.
+            Types of property 'Connector' are incompatible.
+              Type 'import("/home/mohan/Urbun9/EasyPG/backend/node_modules/ioredis/built/connectors/ConnectorConstructor").default | undefined' is not assignable to type 'import("/home/mohan/Urbun9/EasyPG/backend/node_modules/bullmq/node_modules/ioredis/built/connectors/ConnectorConstructor").default | undefined'.
+                Type 'import("/home/mohan/Urbun9/EasyPG/backend/node_modules/ioredis/built/connectors/ConnectorConstructor").default' is not assignable to type 'import("/home/mohan/Urbun9/EasyPG/backend/node_modules/bullmq/node_modules/ioredis/built/connectors/ConnectorConstructor").default'.
+                  Type 'import("/home/mohan/Urbun9/EasyPG/backend/node_modules/ioredis/built/connectors/AbstractConnector").default' is not assignable to type 'import("/home/mohan/Urbun9/EasyPG/backend/node_modules/bullmq/node_modules/ioredis/built/connectors/AbstractConnector").default'.
+                    Property 'connecting' is protected but type 'AbstractConnector' is not a class derived from 'AbstractConnector'.
+src/jobs/subscriptionReminder.ts(50,5): error TS2322: Type 'Redis' is not assignable to type 'ConnectionOptions'.
+  Type 'Redis' is not assignable to type 'ClusterOptions | Redis | IRedisClient | Cluster'.
+    Type 'import("/home/mohan/Urbun9/EasyPG/backend/node_modules/ioredis/built/Redis").default' is not assignable to type 'import("/home/mohan/Urbun9/EasyPG/backend/node_modules/bullmq/node_modules/ioredis/built/Redis").default'.
+      Types of property 'options' are incompatible.
+        Type 'import("/home/mohan/Urbun9/EasyPG/backend/node_modules/ioredis/built/redis/RedisOptions").RedisOptions' is not assignable to type 'import("/home/mohan/Urbun9/EasyPG/backend/node_modules/bullmq/node_modules/ioredis/built/redis/RedisOptions").RedisOptions'.
+          Type 'RedisOptions' is not assignable to type 'CommonRedisOptions'.
+            Types of property 'Connector' are incompatible.
+              Type 'import("/home/mohan/Urbun9/EasyPG/backend/node_modules/ioredis/built/connectors/ConnectorConstructor").default | undefined' is not assignable to type 'import("/home/mohan/Urbun9/EasyPG/backend/node_modules/bullmq/node_modules/ioredis/built/connectors/ConnectorConstructor").default | undefined'.
+                Type 'import("/home/mohan/Urbun9/EasyPG/backend/node_modules/ioredis/built/connectors/ConnectorConstructor").default' is not assignable to type 'import("/home/mohan/Urbun9/EasyPG/backend/node_modules/bullmq/node_modules/ioredis/built/connectors/ConnectorConstructor").default'.
+                  Type 'import("/home/mohan/Urbun9/EasyPG/backend/node_modules/ioredis/built/connectors/AbstractConnector").default' is not assignable to type 'import("/home/mohan/Urbun9/EasyPG/backend/node_modules/bullmq/node_modules/ioredis/built/connectors/AbstractConnector").default'.
+                    Property 'connecting' is protected but type 'AbstractConnector' is not a class derived from 'AbstractConnector'.
+src/middlewares/auth.middleware.ts(137,36): error TS2367: This comparison appears to be unintentional because the types '"SUPERADMIN" | "OWNER"' and '"warden"' have no overlap.
+src/routes/payment.routes.ts(142,9): error TS2322: Type '{ organizationId: string; invoiceId: any; amount: any; paymentMode: any; paymentDate: Date; }' is not assignable to type '(Without<PaymentCreateInput, PaymentUncheckedCreateInput> & PaymentUncheckedCreateInput) | (Without<...> & PaymentCreateInput)'.
+  Type '{ organizationId: string; invoiceId: any; amount: any; paymentMode: any; paymentDate: Date; }' is not assignable to type 'Without<PaymentCreateInput, PaymentUncheckedCreateInput> & PaymentUncheckedCreateInput'.
+    Property 'tenantId' is missing in type '{ organizationId: string; invoiceId: any; amount: any; paymentMode: any; paymentDate: Date; }' but required in type 'PaymentUncheckedCreateInput'.

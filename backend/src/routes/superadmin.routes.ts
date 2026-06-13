@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { requireAuth, attachUserContext, requireRole } from '../middlewares/auth.middleware';
 import prisma from '../config/db';
-import { clerkClient } from '@clerk/clerk-sdk-node';
+import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -90,48 +90,107 @@ router.get('/dashboard', async (req, res) => {
   }
 });
 
-router.post('/organisations', async (req, res) => {
+router.get('/stats', async (req, res, next) => {
   try {
-    const validatedData = orgSchema.parse(req.body);
+    const [
+      totalOrgs,
+      totalBranches,
+      totalTenants,
+      totalUsers,
+      pendingRequests
+    ] = await Promise.all([
+      prisma.organization.count(), // Fix: Changed organisation to organization
+      prisma.branch.count(),
+      prisma.tenant.count(),
+      prisma.user.count(),
+      prisma.paymentRequest.count({
+        where: { status: 'PENDING' }
+      }).catch(() => 0)
+    ]);
+
+    return res.json({
+      success: true,
+      data: {
+        totalOrgs,
+        totalBranches,
+        totalTenants,
+        totalUsers,
+        pendingRequests
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/organisations', async (req, res) => {
+  console.log('=== ORG CREATION STARTED ===');
+  console.log('Body received:', JSON.stringify(req.body, null, 2));
+
+  try {
+    const payload = { ...req.body };
+    if (payload.name && !payload.orgName) payload.orgName = payload.name;
+    if (payload.phone && !payload.ownerPhone) payload.ownerPhone = payload.phone;
+    if (payload.email && !payload.ownerEmail) payload.ownerEmail = payload.email;
+    if (payload.address && !payload.ownerAddress) payload.ownerAddress = payload.address;
+    if (payload.floors && !payload.branches) {
+      payload.branches = [{
+        name: "Main Branch",
+        address: payload.address,
+        floors: payload.floors
+      }];
+    }
+    
+    const validatedData = orgSchema.parse(payload);
     const { orgName, ownerName, ownerPhone, ownerEmail, ownerAddress, branches } = validatedData;
     
-    const tempPassword = generateTempPassword();
+    console.log(`Creating org with ${branches.length} branches`);
+    branches.forEach((b, i) => {
+      console.log(`Branch ${i+1}: ${b.floors?.length || 0} floors`);
+      b.floors?.forEach((f, j) => {
+        console.log(`  Floor ${j+1}: ${f.rooms?.length || 0} rooms`);
+      });
+    });
+
+    const tempPassword = ownerPhone; // Temp password is phone number
 
     const result = await prisma.$transaction(async (tx) => {
       // 1. Create Organisation
+      console.log('Creating organisation...');
       const org = await tx.organization.create({
         data: { 
           id: uuidv4(),
           name: orgName, 
           ownerName: ownerName,
-          ownerPhone: ownerPhone
+          ownerPhone: ownerPhone,
+          email: ownerEmail,
+          address: ownerAddress
         }
       });
+      console.log('✅ Organisation created:', org.id);
 
-      // 2. Create Clerk user for owner (or mock if local testing)
-      const mockProfileId = uuidv4();
-      let clerkUserId = mockProfileId; // Use pure UUID for local mock
-      if (process.env.ENABLE_MOCK_AUTH !== 'true') {
-        const clerkUser = await clerkClient.users.createUser({
-          emailAddress: [ownerEmail],
-          phoneNumber: [`+91${ownerPhone}`],
-          firstName: ownerName,
-          password: tempPassword,
-          publicMetadata: {
-            role: 'owner',
-            organisationId: org.id
-          }
-        });
-        clerkUserId = clerkUser.id;
-      }
-
-      // 3. Create Profile record in DB
-      // We must use a pure UUID for the Profile ID to satisfy Postgres UUID columns.
-      // If clerkUserId from Clerk is not a UUID, we use the generated mockProfileId
-      // and ideally store clerkUser.id in a separate column (when added to schema).
-      const owner = await tx.profile.create({
+      // 2. Create owner user using custom local auth
+      console.log('Creating owner...');
+      const passwordHash = bcrypt.hashSync(tempPassword, 12);
+      
+      const owner = await tx.user.create({
         data: {
-          id: mockProfileId,
+          clerkId: 'local_' + uuidv4(),
+          name: ownerName,
+          email: ownerEmail.toLowerCase().trim(),
+          phone: ownerPhone,
+          passwordHash,
+          role: 'OWNER',
+          organisationId: org.id,
+          isActive: true
+        }
+      });
+      console.log('✅ Owner User created:', owner.id);
+
+      // Maintain Profile for legacy relations if needed
+      await tx.profile.create({
+        data: {
+          id: uuidv4(),
           name: ownerName,
           email: ownerEmail,
           phone: ownerPhone,
@@ -139,10 +198,15 @@ router.post('/organisations', async (req, res) => {
           organizationId: org.id
         }
       });
+      console.log('✅ Legacy Profile created');
 
-      // 4. Create each branch with rooms and beds
+      // 3. Create branches, rooms, and beds
       const createdBranches = [];
+      let totalRooms = 0;
+      let totalBeds = 0;
+
       for (const branch of branches) {
+        console.log(`Creating branch: ${branch.name}...`);
         const createdBranch = await tx.branch.create({
           data: {
             id: uuidv4(),
@@ -151,9 +215,11 @@ router.post('/organisations', async (req, res) => {
             organizationId: org.id
           }
         });
+        console.log('✅ Branch created:', createdBranch.id);
 
         if (branch.floors) {
           for (const floor of branch.floors) {
+            console.log(`Processing floor ${floor.floorNumber}...`);
             if (floor.rooms) {
               for (const room of floor.rooms) {
                 const createdRoom = await tx.room.create({
@@ -167,44 +233,92 @@ router.post('/organisations', async (req, res) => {
                     totalCapacity: room.bedCount,
                   }
                 });
+                totalRooms++;
+                console.log(`  ✅ Room ${createdRoom.roomNumber} created`);
 
                 const bedNames = ['A','B','C','D','E','F','G','H'];
+                const bedData = [];
                 for (let i = 0; i < room.bedCount; i++) {
-                  await tx.bed.create({
-                    data: {
-                      id: uuidv4(),
-                      bedNumber: `Bed ${bedNames[i] || (i + 1)}`,
-                      roomId: createdRoom.id,
-                      organizationId: org.id,
-                      isOccupied: false
-                    }
+                  bedData.push({
+                    id: uuidv4(),
+                    bedNumber: `Bed ${bedNames[i] || (i + 1)}`,
+                    roomId: createdRoom.id,
+                    organizationId: org.id,
+                    isOccupied: false
                   });
+                  totalBeds++;
+                }
+                
+                if (bedData.length > 0) {
+                  await tx.bed.createMany({ data: bedData });
+                  console.log(`  ✅ ${room.bedCount} beds created for room ${createdRoom.roomNumber}`);
                 }
               }
             }
           }
         }
-
         createdBranches.push(createdBranch.id);
       }
+
+      // 4. Create trial subscription
+      const trialEnd = new Date();
+      trialEnd.setDate(trialEnd.getDate() + 14);
+
+      await tx.subscription.create({
+        data: {
+          organizationId: org.id,
+          plan: 'STARTER',
+          status: 'TRIAL',
+          trialEndsAt: trialEnd
+        }
+      });
+      console.log('✅ Trial subscription created');
+
+      console.log(`\n=== CREATION COMPLETE ===`);
+      console.log(`Org: ${org.id}`);
+      console.log(`Owner: ${owner.id}`);
+      console.log(`Rooms: ${totalRooms}`);
+      console.log(`Beds: ${totalBeds}`);
 
       return {
         orgId: org.id,
         ownerId: owner.id,
         branchIds: createdBranches,
-        tempPassword
+        totalRooms,
+        totalBeds,
+        ownerCredentials: {
+          email: ownerEmail,
+          tempPassword: tempPassword
+        }
       };
     }, {
       maxWait: 15000,
-      timeout: 30000
+      timeout: 30000 // Extended timeout for large orgs
     });
 
-    res.status(201).json({ success: true, data: result });
+    res.status(201).json({ 
+      success: true, 
+      data: result,
+      message: `Organisation created with ${result.totalRooms} rooms and ${result.totalBeds} beds` 
+    });
   } catch (error: any) {
+    console.error('=== ORG CREATION FAILED ===');
+    console.error('Error:', error);
+
+    if (error.code === 'P2002') {
+      const target = error.meta?.target;
+      const targetStr = Array.isArray(target) ? target.join(', ') : (target || 'record');
+      return res.status(400).json({
+        success: false,
+        error: `Already exists: ${targetStr}. Please use a different one.`
+      });
+    }
+
     if (error instanceof z.ZodError) {
       // Format Zod errors as a field-specific map
       const fieldErrors: Record<string, string> = {};
-      (error as any).errors.forEach((err: any) => {
+      const issues = (error as any).issues || (error as any).errors || [];
+      issues.forEach((err: any) => {
         if (err.path && err.path.length > 0) {
           fieldErrors[err.path.join('.')] = err.message;
         } else {
@@ -216,9 +330,17 @@ router.post('/organisations', async (req, res) => {
     
 
     console.error('Organisation creation failed:', error);
+    require('fs').writeFileSync('/tmp/easypg_error.log', JSON.stringify({
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+      code: error.code
+    }, null, 2));
+
     res.status(500).json({ 
       success: false, 
-      error: error.message || 'Failed to create organisation'
+      error: error.message || 'Failed to create organisation',
+      stack: error.stack
     });
   }
 });
@@ -279,22 +401,31 @@ router.delete('/organisations/:orgId', async (req, res) => {
     const tenantIds = tenants.map(t => t.id);
 
     await prisma.$transaction([
-      prisma.rentLedger.deleteMany({ where: { tenantId: { in: tenantIds } } }),
-      prisma.paymentRequest.deleteMany({ where: { organizationId: orgId } }),
-      prisma.subscription.deleteMany({ where: { organizationId: orgId } }),
-      prisma.vacateNotice.deleteMany({ where: { organizationId: orgId } }),
-      prisma.securityDeposit.deleteMany({ where: { organizationId: orgId } }),
-      prisma.bed.deleteMany({ where: { organizationId: orgId } }),
-      prisma.notification.deleteMany({ where: { organizationId: orgId } }),
-      prisma.complaint.deleteMany({ where: { organizationId: orgId } }),
+      // 1. Deepest dependencies (referencing other models)
       prisma.payment.deleteMany({ where: { organizationId: orgId } }),
       prisma.invoice.deleteMany({ where: { organizationId: orgId } }),
       prisma.admission.deleteMany({ where: { organizationId: orgId } }),
+      prisma.rentLedger.deleteMany({ where: { tenantId: { in: tenantIds } } }),
+      
+      // 2. Models directly dependent on Tenant or Organization
+      prisma.vacateNotice.deleteMany({ where: { organizationId: orgId } }),
+      prisma.securityDeposit.deleteMany({ where: { organizationId: orgId } }),
+      prisma.notification.deleteMany({ where: { organizationId: orgId } }),
+      prisma.complaint.deleteMany({ where: { organizationId: orgId } }),
+      
+      // 3. Middle tier (Tenants, Beds, Rooms)
       prisma.tenant.deleteMany({ where: { organizationId: orgId } }),
+      prisma.bed.deleteMany({ where: { organizationId: orgId } }),
       prisma.room.deleteMany({ where: { organizationId: orgId } }),
+      
+      // 4. Top tier (Branch, User, Profile, etc.)
+      prisma.paymentRequest.deleteMany({ where: { organizationId: orgId } }),
+      prisma.subscription.deleteMany({ where: { organizationId: orgId } }),
       prisma.branch.deleteMany({ where: { organizationId: orgId } }),
       prisma.user.deleteMany({ where: { organisationId: orgId } }),
       prisma.profile.deleteMany({ where: { organizationId: orgId } }),
+      
+      // 5. Final parent
       prisma.organization.delete({ where: { id: orgId } }),
     ]);
 
@@ -339,30 +470,29 @@ router.get('/organisations/:orgId/wardens', async (req, res) => {
 router.post('/wardens', async (req, res) => {
   const { name, email, phone, organisationId, branchId } = req.body;
   try {
-    const tempPassword = generateTempPassword();
+    const tempPassword = phone; // temp password is phone
 
-    // 1. Create Clerk user for warden (or mock)
-    const mockWardenId = uuidv4();
-    let clerkUserId = mockWardenId;
-    if (process.env.ENABLE_MOCK_AUTH !== 'true') {
-      const clerkUser = await clerkClient.users.createUser({
-        emailAddress: [email],
-        phoneNumber: [`+91${phone}`],
-        firstName: name,
-        password: tempPassword,
-        publicMetadata: {
-          role: 'warden',
-          organisationId,
-          branchId
-        }
-      });
-      clerkUserId = clerkUser.id;
-    }
+    // 1. Create User using local auth
+    const passwordHash = bcrypt.hashSync(tempPassword, 12);
+    
+    const user = await prisma.user.create({
+      data: {
+        clerkId: 'local_warden_' + uuidv4(),
+        name,
+        email: email.toLowerCase().trim(),
+        phone,
+        passwordHash,
+        role: 'WARDEN',
+        organisationId,
+        branchId,
+        isActive: true
+      }
+    });
 
-    // 2. Create Profile record in DB
+    // 2. Create Profile record in DB for legacy backwards compatibility
     const warden = await prisma.profile.create({
       data: {
-        id: mockWardenId,
+        id: uuidv4(),
         name,
         email,
         phone,
@@ -391,22 +521,17 @@ router.patch('/wardens/:id/reassign', async (req, res) => {
     const warden = await prisma.profile.findUnique({ where: { id } });
     if (!warden) return res.status(404).json({ success: false, error: 'Warden not found' });
 
-    // 1. Update DB
+    // 1. Update Profile DB
     await prisma.profile.update({
       where: { id },
       data: { branchId: newBranchId }
     });
 
-    // 2. Update Clerk Metadata
-    if (process.env.ENABLE_MOCK_AUTH !== 'true') {
-      await clerkClient.users.updateUserMetadata(warden.id, {
-        publicMetadata: {
-          role: 'warden',
-          organisationId: warden.organizationId,
-          branchId: newBranchId
-        }
-      });
-    }
+    // 2. Update User DB
+    await prisma.user.updateMany({
+      where: { email: warden.email },
+      data: { branchId: newBranchId }
+    });
 
     res.json({ success: true, message: 'Warden reassigned successfully' });
   } catch (error: any) {
@@ -422,16 +547,17 @@ router.patch('/wardens/:id/deactivate', async (req, res) => {
     const warden = await prisma.profile.findUnique({ where: { id } });
     if (!warden) return res.status(404).json({ success: false, error: 'Warden not found' });
 
-    // 1. Update DB
+    // 1. Update Profile DB
     await prisma.profile.update({
       where: { id },
       data: { status: 'INACTIVE' }
     });
 
-    // 2. Ban or revoke Clerk session
-    if (process.env.ENABLE_MOCK_AUTH !== 'true') {
-      await clerkClient.users.banUser(warden.id);
-    }
+    // 2. Update User DB
+    await prisma.user.updateMany({
+      where: { email: warden.email },
+      data: { isActive: false }
+    });
 
     res.json({ success: true, message: 'Warden deactivated successfully' });
   } catch (error: any) {
@@ -446,13 +572,13 @@ router.post('/wardens/:id/reset-password', async (req, res) => {
     const warden = await prisma.profile.findUnique({ where: { id } });
     if (!warden) return res.status(404).json({ success: false, error: 'Warden not found' });
 
-    const tempPassword = generateTempPassword();
+    const tempPassword = warden.phone || 'password123';
+    const passwordHash = bcrypt.hashSync(tempPassword, 12);
 
-    if (process.env.ENABLE_MOCK_AUTH !== 'true') {
-      await clerkClient.users.updateUser(warden.id, {
-        password: tempPassword
-      });
-    }
+    await prisma.user.updateMany({
+      where: { email: warden.email },
+      data: { passwordHash }
+    });
 
     res.json({ success: true, data: { tempPassword } });
   } catch (error: any) {
@@ -467,16 +593,16 @@ router.delete('/wardens/:id', async (req, res) => {
     const warden = await prisma.profile.findUnique({ where: { id } });
     if (!warden) return res.status(404).json({ success: false, error: 'Warden not found' });
 
-    // 1. Soft Delete in DB
+    // 1. Soft Delete in Profile DB
     await prisma.profile.update({
       where: { id },
       data: { status: 'INACTIVE' }
     });
 
-    // 2. Delete Clerk Account
-    if (process.env.ENABLE_MOCK_AUTH !== 'true') {
-      await clerkClient.users.deleteUser(warden.id);
-    }
+    // 2. Delete User Account
+    await prisma.user.deleteMany({
+      where: { email: warden.email }
+    });
 
     res.json({ success: true, message: 'Warden deleted successfully' });
   } catch (error: any) {

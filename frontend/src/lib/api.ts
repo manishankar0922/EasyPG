@@ -1,60 +1,145 @@
-import axios from 'axios';
+import axios from 'axios'
 
 const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api',
+  baseURL: process.env.NEXT_PUBLIC_API_URL
+    || 'http://localhost:3001',
+  timeout: 30000,
   headers: {
-    'Content-Type': 'application/json',
-  },
-});
+    'Content-Type': 'application/json'
+  }
+})
 
-// Add a request interceptor to include the token
+// Attach token to every request
 api.interceptors.request.use((config) => {
   if (typeof window !== 'undefined') {
-    const token = localStorage.getItem('u9-auth-token');
+    const token = localStorage.getItem('easypg_token') || localStorage.getItem('u9-auth-token')
     if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+      config.headers.Authorization = `Bearer ${token}`
     }
+    console.log(
+      '📤 API Call:',
+      config.method?.toUpperCase(),
+      config.baseURL + (config.url || '')
+    )
   }
-  return config;
-});
+  return config
+})
 
-// Add a response interceptor for 402 Payment Required
+// Handle all responses
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response && error.response.status === 402) {
-      if (typeof window !== 'undefined') {
-        const code = error.response.data?.code || 'SUBSCRIPTION_EXPIRED';
-        window.location.href = `/dashboard/subscription?blocked=true&code=${code}`;
-      }
-    }
-    
-    if (error.response && error.response.status === 401) {
-      if (typeof window !== 'undefined' && window.location.pathname !== '/sign-in') {
-        // Clear tokens and go to sign-in
-        localStorage.removeItem('u9-auth-token');
-        window.location.href = '/sign-in';
-      }
-    }
+    const status = error.response?.status
+    const data = error.response?.data
+    const url = error.config?.url
+    const method = error.config?.method?.toUpperCase()
 
-    if (error.response && error.response.status === 403) {
-      if (typeof window !== 'undefined') {
-        const errorMsg = error.response.data?.error;
-        if (errorMsg === 'Account deactivated. Contact your owner.') {
-          window.location.href = '/unauthorized?reason=deactivated';
-        } else if (errorMsg === 'No branch assigned. Contact your admin.') {
-          window.location.href = '/unauthorized?reason=no_branch';
-        }
-      }
-    }
+    // Show FULL error details always
+    console.error('❌ API Error:', {
+      status,
+      url: `${method} ${url}`,
+      error: data?.error || data?.message || error.message,
+      data,
+      requestBody: (() => {
+        try {
+          return JSON.parse(error.config?.data || '{}')
+        } catch { return error.config?.data }
+      })()
+    })
 
+    // No response = backend not reachable
     if (!error.response) {
-      // Network error - backend not reachable
-      return Promise.reject(new Error('Cannot connect to server. Please check your connection.'));
+      return Promise.reject(
+        new Error(
+          'Backend not reachable. ' +
+          'Is server running on port 3001?'
+        )
+      )
     }
 
-    return Promise.reject(error);
-  }
-);
+    if (status === 401) {
+      localStorage.removeItem('easypg_token')
+      localStorage.removeItem('easypg_user')
+      if (typeof window !== 'undefined') {
+        window.location.href = '/login'
+      }
+      return Promise.reject(
+        new Error('Session expired. Please login.')
+      )
+    }
 
-export default api;
+    if (status === 403) {
+      return Promise.reject(
+        new Error(
+          data?.error || 'Access denied'
+        )
+      )
+    }
+
+    if (status === 404) {
+      console.error(
+        `404: Route "${url}" not found in backend.`,
+        'Check backend routes are mounted correctly.'
+      )
+      return Promise.reject(
+        new Error(
+          `API route not found: ${url}. ` +
+          'Check backend route registration.'
+        )
+      )
+    }
+
+    if (status === 500) {
+      return Promise.reject(
+        new Error(
+          data?.error ||
+          data?.message ||
+          'Server error. Check backend terminal for real error.'
+        )
+      )
+    }
+
+    return Promise.reject(
+      new Error(data?.error || error.message)
+    )
+  }
+)
+
+export default api
+
+export const getToken = () => {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem('easypg_token') || localStorage.getItem('u9-auth-token');
+};
+
+export const apiCall = async (
+  endpoint: string,
+  options: RequestInit = {}
+) => {
+  const token = getToken();
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+
+  const response = await fetch(`${apiUrl}${endpoint}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...options.headers
+    }
+  });
+
+  if (response.status === 401) {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('easypg_token');
+      localStorage.removeItem('u9-auth-token');
+      window.location.href = '/login';
+    }
+    return;
+  }
+
+  if (response.status === 404) {
+    throw new Error(`Route not found: ${endpoint}`);
+  }
+
+  return response.json();
+};

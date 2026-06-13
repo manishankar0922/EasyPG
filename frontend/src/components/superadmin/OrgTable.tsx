@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import api from '@/lib/api';
 import { Building2, Settings2, Users, Layers, ExternalLink, Power, ShieldCheck, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -19,10 +20,8 @@ export default function OrgTable({ organisations }: OrgTableProps) {
     
     try {
       setLoadingId(orgId);
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api'}/superadmin/organisations/${orgId}/toggle-status`, {
-        method: 'PATCH',
-      });
-      const data = await res.json();
+      const res = await api.patch(`/superadmin/organisations/${orgId}/toggle-status`);
+      const data = res.data;
       if (data.success) {
         alert(data.message);
         window.location.reload(); // Refresh the page to reflect the new status

@@ -2,14 +2,14 @@ import 'express-async-errors';
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import morgan from 'morgan';
-import compression from 'compression';
-import rateLimit from 'express-rate-limit';
+import { json } from 'express';
 import dotenv from 'dotenv';
 import { errorHandler } from './middlewares/error.middleware';
+import { requestLogger } from './middlewares/requestLogger';
 import { startWorkers, serverAdapter } from './config/queue';
+import prisma from './config/db';
 
-// Routes (to be imported)
+// Import all routers
 import authRoutes from './routes/auth.routes';
 import userRoutes from './routes/user.routes';
 import organizationRoutes from './routes/organization.routes';
@@ -27,82 +27,80 @@ import rentLedgerRoutes from './routes/rent-ledger.routes';
 import vacateNoticeRoutes from './routes/vacate-notice.routes';
 import subscriptionRoutes from './routes/subscription.routes';
 
-import hpp from 'hpp';
-import mongoSanitize from 'express-mongo-sanitize';
-import { generalLimiter, authLimiter, paymentLimiter } from './middlewares/rateLimiter';
-import { requestLogger } from './middlewares/requestLogger';
-
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 4000;
 
-// Security & Optimization Middleware
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrc: ["'self'"],
-      imgSrc: ["'self'", "data:", "res.cloudinary.com"],
-    }
-  },
-  hsts: { maxAge: 31536000, includeSubDomains: true },
-  noSniff: true,
-  xssFilter: true,
-  frameguard: { action: 'deny' }
-}));
+// Trust proxy for rate limiting behind reverse proxies (Render, Heroku, etc.)
+app.set('trust proxy', 1);
 
-app.use(compression());
+// STEP 1 — Security headers (must be first)
+app.use(helmet());
 
-const allowedOrigins = [
-  process.env.FRONTEND_URL || 'http://localhost:3000',
-  'http://localhost:3001',
-  'http://localhost:3002',
-  'https://easypg.in'
-];
+// STEP 2 — CORS (must be before routes)
 app.use(cors({
-  origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+  origin: [
+    process.env.FRONTEND_URL || 'http://localhost:3000',
+    'http://localhost:3000',
+    'http://localhost:3001'
+  ],
   credentials: true,
   methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// Input sanitization and payload limits
-app.use(express.json({ limit: '10kb' }));
-app.use(express.urlencoded({ extended: true, limit: '10kb' }));
-app.use(mongoSanitize()); // Prevent NoSQL injection attacks (even on Postgres, guards against certain object injections)
-app.use(hpp()); // Prevent HTTP Parameter Pollution
+// STEP 3 — Handle preflight OPTIONS requests
+app.options('*', cors());
 
-app.use(morgan('dev'));
+// STEP 4 — Body parsers (must be before routes)
+app.use(json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// STEP 5 — Request logger
 app.use(requestLogger);
-
-// Mount Bull Board (Queue Monitor) - Needs to be before any body parsers if it conflicts, but standard express is fine.
-app.use('/api/admin/queues', serverAdapter.getRouter());
-
-// Rate Limiting
-app.use('/api/', generalLimiter);
-app.use('/api/auth/', authLimiter);
-app.use('/api/payments/', paymentLimiter);
 
 // Initialize Background Workers
 if (process.env.NODE_ENV !== 'test') {
   startWorkers();
 }
 
-// Health check
-app.get('/health', (req: Request, res: Response) => {
+// Queue Monitor
+app.use('/api/admin/queues', serverAdapter.getRouter());
+
+// Health endpoints
+app.get('/api/health', (req: Request, res: Response) => {
   res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
-// Mount Routes
+app.get('/api/health/db', async (req: Request, res: Response) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    const counts = {
+      users: await prisma.user.count(),
+      organisations: await prisma.organization.count(),
+      branches: await prisma.branch.count(),
+      rooms: await prisma.room.count(),
+      beds: await prisma.bed.count(),
+      tenants: await prisma.tenant.count(),
+    };
+    return res.json({
+      status: 'healthy',
+      database: 'connected',
+      counts
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      status: 'unhealthy',
+      database: 'disconnected',
+      error: error.message
+    });
+  }
+});
+
+// STEP 6 — Public routes (no auth needed)
 app.use('/api/auth', authRoutes);
+
+// STEP 7 — Protected routes (auth required)
 app.use('/api/users', userRoutes);
 app.use('/api/organizations', organizationRoutes);
 app.use('/api/branches', branchRoutes);
@@ -119,28 +117,40 @@ app.use('/api/rent-ledger', rentLedgerRoutes);
 app.use('/api/vacate-notices', vacateNoticeRoutes);
 app.use('/api/subscription', subscriptionRoutes);
 
-// Error Middleware
+// STEP 8 — 404 handler (after all routes)
+app.use('*', (req, res) => {
+  res.status(404).json({
+    success: false,
+    error: `Route not found: ${req.method} ${req.originalUrl}`,
+    availableRoutes: [
+      'POST /api/auth/login',
+      'GET /api/health',
+      'GET /api/health/db',
+      'POST /api/superadmin/organisations',
+      'GET /api/dashboard/:branchId',
+      'GET /api/tenants',
+      'POST /api/tenants',
+      'POST /api/payments/record',
+    ]
+  });
+});
+
+// STEP 9 — Global error handler (must be LAST)
 app.use(errorHandler);
 
-// List all registered routes
-app._router.stack.forEach((middleware: any) => {
-  if (middleware.route) {
-    console.log(
-      middleware.route.stack[0].method.toUpperCase(),
-      middleware.route.path
-    )
-  } else if (middleware.name === 'router') {
-    middleware.handle.stack.forEach((handler: any) => {
-      if (handler.route) {
-        console.log(
-          handler.route.stack[0].method.toUpperCase(),
-          handler.route.path
-        )
-      }
-    })
-  }
-})
-
+const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🚀 EasyPG Server Running
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Port:     ${PORT}
+  Mode:     ${process.env.NODE_ENV}
+  DB:       ${process.env.DATABASE_URL ? '✅ Connected' : '❌ Missing'}
+  JWT:      ${process.env.JWT_SECRET ? '✅ Set' : '❌ Missing'}
+  Frontend: ${process.env.FRONTEND_URL}
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  `);
 });
+
+export default app;

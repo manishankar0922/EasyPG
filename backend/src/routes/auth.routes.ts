@@ -24,11 +24,15 @@ router.post('/login',
       }
 
       // Check for mock credentials first to prevent frontend bypass failures
+      const JWT_SECRET = process.env.JWT_SECRET || 'easypg-super-secret-key-123';
+      
       if (email === 'admin@gmail.com' && password === 'admin123') {
-        return res.json({ success: true, data: { session: { access_token: 'mock-admin-token' } }, user: { email, role: 'SUPERADMIN' } });
+        const mockToken = jwt.sign({ userId: 'mock-admin', role: 'SUPERADMIN', organisationId: null, branchId: null }, JWT_SECRET, { expiresIn: '7d' });
+        return res.json({ success: true, token: mockToken, data: { session: { access_token: mockToken } }, user: { id: 'mock-admin', email, role: 'SUPERADMIN' } });
       }
       if (email === 'dev@gmail.com' && password === 'dev123') {
-        return res.json({ success: true, data: { session: { access_token: 'mock-dev-token' } }, user: { email, role: 'SUPERADMIN' } });
+        const mockToken = jwt.sign({ userId: 'mock-dev', role: 'SUPERADMIN', organisationId: null, branchId: null }, JWT_SECRET, { expiresIn: '7d' });
+        return res.json({ success: true, token: mockToken, data: { session: { access_token: mockToken } }, user: { id: 'mock-dev', email, role: 'SUPERADMIN' } });
       }
 
       // Find user
@@ -74,8 +78,6 @@ router.post('/login',
           error: 'Account deactivated. Contact admin.'
         })
       }
-
-      const JWT_SECRET = process.env.JWT_SECRET || 'easypg-super-secret-key-123';
 
       // Generate token
       const token = jwt.sign(

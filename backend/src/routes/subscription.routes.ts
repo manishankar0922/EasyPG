@@ -7,7 +7,7 @@ router.use(authMiddleware);
 
 // GET /api/subscription/status
 router.get('/status', async (req, res) => {
-  const orgId = req.user!.organizationId;
+  const orgId = req.user!.organisationId || req.user!.organizationId;
 
   try {
     let subscription = await prisma.subscription.findUnique({
@@ -38,7 +38,7 @@ router.get('/status', async (req, res) => {
 
 // POST /api/subscription/request
 router.post('/request', async (req, res) => {
-  const orgId = req.user!.organizationId;
+  const orgId = req.user!.organisationId || req.user!.organizationId;
   const { plan, upiRefNumber, screenshotUrl, amount } = req.body;
 
   try {
