@@ -62,35 +62,33 @@ The platform is designed to handle thousands of concurrent tenants securely:
 
 ### 1. Prerequisites
 *   Node.js (v20+)
-*   Docker & Docker Compose
 *   Supabase Account (Database)
 *   Cloudinary Account (Image Storage)
 
-### 2. Infrastructure Startup
-The project includes a full Docker environment for Redis and Monitoring tools:
+### 2. Startup Dev Servers (Recommended)
+You can start both the backend and frontend dev servers concurrently with a single command from the root directory:
 ```bash
-docker-compose up -d
+npm run dev
 ```
-*   **Redis:** `localhost:6379`
-*   **Bull Board (Queue Monitor):** `localhost:3001`
+*   **Frontend:** `http://localhost:3000`
+*   **Backend:** `http://localhost:3001`
+*   **API Documentation:** `http://localhost:3001/api/v1/docs`
+
+Alternatively, you can run them individually:
+*   **Backend:** `cd backend && npm run dev`
+*   **Frontend:** `cd frontend && npm run dev`
 
 ### 3. Environment Configuration
 **Backend (`backend/.env`):**
 ```env
 PORT=3001
-DATABASE_URL="postgresql://...pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1"
+DATABASE_URL="postgresql://...pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=15"
 DIRECT_URL="postgresql://...db.supabase.co:5432/postgres"
 REDIS_URL="redis://localhost:6379"
 
 # Authentication
 JWT_SECRET="your-super-secret-jwt-key"
-ENABLE_MOCK_AUTH=true
 NODE_ENV=development
-
-# Cloudinary
-CLOUDINARY_CLOUD_NAME="..."
-CLOUDINARY_API_KEY="..."
-CLOUDINARY_API_SECRET="..."
 ```
 
 **Frontend (`frontend/.env.local`):**
@@ -102,56 +100,29 @@ NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET="..."
 
 ---
 
-## 🛠️ Recent Stabilization & Production Audits
+## 🧪 Seed Credentials & DB Verification
 
-### 1. Robust API Interceptor & Routing
-*   **Centralized Routing:** The frontend `baseURL` (`NEXT_PUBLIC_API_URL`) now strictly embeds the `/api` suffix. This completely eliminates 404 errors by guaranteeing that all requests target the backend API router unconditionally.
-*   **Intelligent Token Management:** The custom Axios interceptor reads JWTs across both standard `localStorage` implementations (`easypg_token` and `u9-auth-token` from Zustand) to ensure session persistence across all environments.
-*   **Transparent Error Handling:** All 401s, 403s, and 500s are fully captured. The `api.ts` interceptor now guarantees that unauthorized roles trigger a clean redirection flow, logging full response payloads rather than silently dropping them.
-
-### 2. Payload Synchronization
-*   **Zod Alignment:** The Super Admin creation flow completely aligns with strict validation. The backend dynamically maps legacy inputs (`name` → `orgName`) ensuring backwards compatibility while safely injecting the hierarchy (Organizations → Branches → Floors → Rooms → Beds) in a single Prisma transaction.
-*   **Authentication Speller Guard:** Implemented a unified `req.user` spelling guard in `auth.middleware.ts`. This safely maps the Prisma token return `organisationId` to the standard application expectation `organizationId`, preventing `undefined` Prisma failures on route execution.
-
-### 3. Payment Stabilization & Audit Trails
-*   **Timezone-Safe Rent Ledgers:** Fixed critical Node.js `toISOString()` UTC conversion bugs. Ledger and invoice generations now rigorously enforce local `YYYY-MM` string bucket allocations, ensuring payments made late at night in IST aren't mistakenly attributed to the previous month.
-*   **Accountability Tracing:** Upgraded the `Payment` and `User` relational models. Every payment explicitly tracks the `recordedById`, enabling the dashboard to display an immutable "Accepted by [Name] (Branch Warden)" audit trail.
-
-### 4. UI/UX Polishing & Constraints
-*   **Mobile-Frame Architecture:** Implemented a unified `w-full max-w-md mx-auto` boundary constraint across all Radix UI Bottom Sheets (Rooms, Tenants, and Subscriptions) ensuring full-screen web components beautifully respect the mobile-first bounding box on ultra-wide desktop monitors.
-*   **Profile Enhancements:** Completely dynamic Profile displays. Eliminated hardcoded fallback variables to accurately display hierarchical access levels ("All Branches" vs "Assigned Branch Only"), registered emails, and synced phone numbers directly from the `useAuthStore`.
-
-### 5. Account Recovery & Password Management
-*   **Self-Serve Resets:** Built a secure `/auth/reset-password` flow equipped with bcrypt hashing for users directly on the login screen.
-*   **Emergency Interventions:** Outfitted the Super Admin `OrgTable` dashboard with a zero-knowledge "Key" action button. This allows developers to instantly force-reset locked-out Owner passwords to a secure default (`EasyPG@123`) without ever exposing plaintext data.
-
-### 6. Automated WhatsApp Ecosystem & UX
-*   **Onboarding Automation:** Generates a pre-filled WhatsApp welcome message instantly upon adding a new tenant (containing room & rent info).
-*   **Dynamic Payment Receipts:** Seamlessly integrated across both the global Invoices list and the Tenant Profile. Calculates exact paid amounts, payment modes (UPI/Cash), and automatically generates the remaining due balance. If the remaining due is zero, the system elegantly hides the pending text.
-*   **Farewell/Vacate Messages:** A final automated "Goodbye" message sequence during the successful vacate flow.
-*   **Localized Scalability:** Extracted hardcoded language ternaries (like "Searching...") into the unified `translations.ts` dictionary mapped to context, ensuring effortless additions for new languages.
-*   **Live Operations Dashboard:** Replaced static UI elements (like profile circles) with a live Date/Calendar widget dynamically bound to the selected localization (e.g., Telugu/English).
-
-### 7. Advanced Payment Handling (Split & Partial)
-*   **Split Payments:** Re-engineered the backend validation block to natively support split payments (e.g., 2000 PhonePe and 3000 Cash) without crashing.
-*   **Partial Advanced Payments:** Eliminated strict rigid over-payment blocks, automatically recognizing and reconciling partial advanced payments (e.g., 4000 today, 1000 tomorrow), seamlessly updating from `PARTIAL` to `PAID` state in the Rent Ledger.
-*   **Database Transaction Resilience:** Re-configured Prisma's heavy `$transaction` blocks with robust timeout modifiers (`maxWait: 15s`, `timeout: 20s`), permanently rectifying timeout crashes and connection-drop errors (`Transaction not found`) during intensive ledger syncs.
-
-### 8. Database Setup
+### 1. Seed System Credentials
+To reset and seed the database with clean test accounts:
 ```bash
 cd backend
-npm install
-npx prisma db push
+npx prisma db seed
 ```
 
----
+Once seeded, you can log in using these official accounts:
 
-## 🧪 Testing Credentials & Developer Bypass
-The platform uses a custom JWT authentication system. For local development, there are built-in mock accounts to quickly bypass full database validation:
+| Role | Email Address | Password |
+| :--- | :--- | :--- |
+| **SuperAdmin** | `admin@easypg.com` | `easypg123` |
+| **Warden (Org 1)** | `warden1@org1branch1.com` | `easypg123` |
+| **Warden (Org 2)** | `warden1@org2branch1.com` | `easypg123` |
 
-*   **Super Admin Login:** Use `admin@gmail.com` with password `admin123`.
-*   **Dev/Owner Login:** Use `dev@gmail.com` with password `dev123`.
-*   *Note:* The mock credentials return a hardcoded developer JWT token to instantly grant access. To test real authentication flows, create a new Organization via the Super Admin portal and log in with the newly generated credentials.
+### 2. Verify Database Write Persistence
+To verify read/write database operations are fully functional on your machine:
+```bash
+cd backend
+npx ts-node src/test/scratch_db_check.ts
+```
 
 ---
 
