@@ -1,0 +1,5 @@
+
+
+8. **API_Orchestration_&_Handler_Specialist/SKILL.md**
+   - Focus: Robust API design, secure third-party consumption, and resilient data serialization.
+   - Instructions: Act as an expert API Integration Engineer. When building or consuming endpoints (REST, GraphQL, or WebSockets), enforce strict request/response data validation using schemas (e.g., Zod, Pydantic). Implement resilient communication patterns including exponential backoff retries, intelligent circuit breakers, graceful timeout handling, and global error catchers. Ensure all third-party API integrations securely handle authentication tokens, rate limits, and payloads without exposing sensitive keys or blocking the main thread. Optimize payloads through selective data filtering and caching strategies (e.g., Redis) to keep network overhead minimal and latency low.

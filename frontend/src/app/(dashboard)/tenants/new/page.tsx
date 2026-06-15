@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import MobileCameraCapture from '@/components/shared/MobileCameraCapture';
 import LoadingScreen from '@/components/shared/LoadingScreen';
-import { Loader2, UserPlus, Phone, Calendar, Banknote, BedDouble, AlertCircle } from 'lucide-react';
+import { Loader2, UserPlus, Phone, Calendar, Banknote, BedDouble, AlertCircle, CheckCircle2, MessageCircle, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/auth-store';
 
@@ -46,6 +46,8 @@ export default function AddTenantPage() {
 
   // Submit State
   const [submitting, setSubmitting] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [createdTenantData, setCreatedTenantData] = useState<any>(null);
   const [error, setError] = useState('');
 
   // Fetch rooms with beds
@@ -136,7 +138,14 @@ export default function AddTenantPage() {
       });
 
       if (res.data.success) {
-        router.push('/tenants');
+        const assignedRoom = Array.isArray(rooms) ? rooms.find(r => r.id === finalRoomId) : null;
+        setCreatedTenantData({
+          name,
+          phone,
+          room: assignedRoom?.roomNumber || 'Unknown',
+          rent: monthlyRent
+        });
+        setSuccess(true);
       }
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to add tenant');
@@ -180,9 +189,57 @@ export default function AddTenantPage() {
       </header>
 
       <main className="max-w-xl mx-auto px-4 py-6">
-        <form onSubmit={handleSubmit} className="space-y-8">
-          
-          {/* Photos */}
+        {success ? (
+          <div className="flex flex-col items-center justify-center pt-8 animate-in zoom-in-95 duration-500">
+            <div className="h-24 w-24 bg-emerald-100 rounded-full flex items-center justify-center mb-6">
+              <CheckCircle2 className="h-12 w-12 text-emerald-600" />
+            </div>
+            <h2 className="text-2xl font-black text-slate-900 mb-6">Profile Created!</h2>
+            
+            <div className="bg-white border border-slate-200 rounded-3xl p-6 w-full shadow-sm mb-8 relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-full h-1 bg-emerald-500"></div>
+              <div className="flex items-center gap-4 mb-6">
+                <div className="h-16 w-16 bg-slate-100 rounded-full overflow-hidden relative">
+                  {photoUrl ? <img src={photoUrl} alt="Photo" className="object-cover w-full h-full" /> : <User className="m-auto mt-4 text-slate-400" />}
+                </div>
+                <div>
+                  <h3 className="font-bold text-xl text-slate-900">{createdTenantData?.name}</h3>
+                  <p className="text-slate-500 font-medium">{createdTenantData?.phone}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-2xl">
+                <div>
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Room</p>
+                  <p className="font-bold text-slate-900">{createdTenantData?.room}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Rent</p>
+                  <p className="font-bold text-emerald-600">₹{createdTenantData?.rent}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="w-full space-y-4">
+              <a 
+                href={`https://wa.me/91${createdTenantData?.phone}?text=${encodeURIComponent(`Welcome to EasyPG, *${createdTenantData?.name}*!\n\nYour profile has been successfully created.\n*Room:* ${createdTenantData?.room}\n*Rent:* ₹${createdTenantData?.rent}\n\nWe are happy to have you!\n- Management`)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full h-14 bg-[#25D366] text-white rounded-2xl font-bold text-lg active:scale-95 transition-transform flex items-center justify-center gap-2 shadow-lg shadow-[#25D366]/20"
+              >
+                <MessageCircle className="h-5 w-5" /> Send Welcome WhatsApp
+              </a>
+              <button 
+                onClick={() => router.push('/tenants')}
+                className="w-full h-14 bg-white border-2 border-slate-200 text-slate-700 rounded-2xl font-bold text-lg active:bg-slate-50 transition-colors"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-8">
+            
+            {/* Photos */}
           <section className="grid grid-cols-2 gap-4">
             <MobileCameraCapture 
               label="Tenant Photo *" 
@@ -439,6 +496,7 @@ export default function AddTenantPage() {
             {submitting ? 'Adding Tenant...' : isUploadingPhoto || isUploadingAadhaar ? 'Waiting for upload...' : 'Add Tenant'}
           </button>
         </form>
+        )}
       </main>
     </div>
   );

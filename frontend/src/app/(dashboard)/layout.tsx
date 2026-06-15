@@ -8,6 +8,8 @@ import { LanguageProvider } from '@/context/LanguageContext';
 import { BranchProvider } from '@/context/BranchContext';
 import { Loader2, Bell, Search } from 'lucide-react';
 
+import OfflineIndicator from '@/components/shared/OfflineIndicator';
+
 export default function DashboardLayout({
   children,
 }: {
@@ -39,6 +41,7 @@ export default function DashboardLayout({
   return (
     <LanguageProvider>
       <BranchProvider>
+        <OfflineIndicator />
         <div className="flex flex-col min-h-screen bg-slate-50 font-sans pb-16">
           <main className="flex-1 w-full max-w-md mx-auto bg-white min-h-screen shadow-sm relative">
             {children}

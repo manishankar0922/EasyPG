@@ -15,6 +15,30 @@ export default function LoginPage() {
   const router = useRouter();
   const setAuth = useAuthStore((state) => state.setAuth);
 
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [resetting, setResetting] = useState(false);
+
+  const handleResetPassword = async () => {
+    setResetting(true);
+    try {
+      const res = await api.post('/auth/reset-password', { email: resetEmail, newPassword });
+      if (res.data.success) {
+        alert('Password reset successfully. You can now login.');
+        setShowResetModal(false);
+        setResetEmail('');
+        setNewPassword('');
+      } else {
+        alert(res.data.error || 'Failed to reset password');
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Failed to reset password');
+    } finally {
+      setResetting(false);
+    }
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -120,7 +144,7 @@ export default function LoginPage() {
               <input
                 type="email"
                 required
-                className="block w-full rounded-xl border border-slate-700 bg-slate-800/50 px-4 py-3 text-white placeholder-slate-500 transition-all focus:border-blue-500 focus:bg-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-inner"
+                className="block w-full rounded-2xl border-2 border-white/10 bg-white/5 px-5 py-4 text-white placeholder-slate-500 transition-all focus:border-blue-500 focus:bg-white/10 focus:outline-none focus:ring-4 focus:ring-blue-500/20 shadow-inner"
                 placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -141,7 +165,7 @@ export default function LoginPage() {
               <input
                 type="password"
                 required
-                className="block w-full rounded-xl border border-slate-700 bg-slate-800/50 px-4 py-3 text-white placeholder-slate-500 transition-all focus:border-blue-500 focus:bg-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-inner"
+                className="block w-full rounded-2xl border-2 border-white/10 bg-white/5 px-5 py-4 text-white placeholder-slate-500 transition-all focus:border-blue-500 focus:bg-white/10 focus:outline-none focus:ring-4 focus:ring-blue-500/20 shadow-inner"
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -152,7 +176,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="group relative flex w-full items-center justify-center rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-3.5 text-sm font-bold text-white transition-all hover:from-blue-500 hover:to-indigo-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-900 disabled:opacity-50 overflow-hidden"
+            className="group relative flex w-full items-center justify-center rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-4 text-sm font-black tracking-wide text-white transition-all hover:scale-[0.98] focus:outline-none focus:ring-4 focus:ring-blue-500/30 disabled:opacity-50 overflow-hidden shadow-xl shadow-blue-900/20 mt-2"
           >
             <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out"></div>
             {loading ? <Loader2 className="relative z-10 mr-2 h-5 w-5 animate-spin" /> : <span className="relative z-10">Sign In Securely</span>}

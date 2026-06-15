@@ -4,12 +4,14 @@ import { useEffect, useState, useRef } from 'react';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/auth-store';
 import Image from 'next/image';
-import { Search, History, CheckCircle2, IndianRupee, BarChart3 } from 'lucide-react';
+import { Search, History, CheckCircle2, IndianRupee, BarChart3, MessageCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import MonthlyReport from '@/components/invoices/MonthlyReport';
+import { useLanguage } from '@/context/LanguageContext';
 
 export default function QuickPaymentPage() {
   const { user } = useAuthStore();
+  const { t, lang } = useLanguage();
   const [activeTab, setActiveTab] = useState<'RECORD' | 'HISTORY' | 'REPORT'>('REPORT');
   const [searchQuery, setSearchQuery] = useState('');
   const [tenants, setTenants] = useState<any[]>([]);
@@ -122,21 +124,21 @@ export default function QuickPaymentPage() {
             className={cn("flex-1 h-12 rounded-xl text-sm font-bold flex items-center justify-center transition-all", activeTab === 'REPORT' ? "bg-white text-blue-600 shadow-sm" : "text-slate-500")}
           >
             <BarChart3 className="h-4 w-4 mr-1.5" />
-            Report
+            {lang === 'te' ? 'రిపోర్ట్' : 'Report'}
           </button>
           <button 
             onClick={() => { setActiveTab('RECORD'); setSuccess(false); setSelectedTenant(null); }}
             className={cn("flex-1 h-12 rounded-xl text-sm font-bold flex items-center justify-center transition-all", activeTab === 'RECORD' ? "bg-white text-blue-600 shadow-sm" : "text-slate-500")}
           >
             <IndianRupee className="h-4 w-4 mr-1.5" />
-            Record
+            {t.record}
           </button>
           <button 
             onClick={() => setActiveTab('HISTORY')}
             className={cn("flex-1 h-12 rounded-xl text-sm font-bold flex items-center justify-center transition-all", activeTab === 'HISTORY' ? "bg-white text-blue-600 shadow-sm" : "text-slate-500")}
           >
             <History className="h-4 w-4 mr-1.5" />
-            History
+            {t.history}
           </button>
         </div>
       </div>
@@ -148,10 +150,10 @@ export default function QuickPaymentPage() {
             <input
               ref={searchInputRef}
               type="text"
-              placeholder="Search tenant name..."
+              placeholder={t.searchTenant}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full h-16 bg-background text-foreground border border-slate-200 rounded-3xl pl-14 pr-4 text-xl font-bold placeholder:text-muted-foreground focus:ring-4 focus:ring-blue-500/20 shadow-sm transition-all outline-none"
+              className="w-full h-16 bg-white text-slate-900 border border-slate-200 rounded-3xl pl-14 pr-4 text-xl font-bold placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/20 shadow-sm transition-all outline-none"
             />
           </div>
 
@@ -174,18 +176,18 @@ export default function QuickPaymentPage() {
                   </div>
                   <div className="text-left">
                     <p className="font-bold text-slate-900 leading-tight">{tenant.name}</p>
-                    <p className="text-sm font-semibold text-slate-500">Room {tenant.roomNumber}</p>
+                    <p className="text-sm font-semibold text-slate-500">{lang === 'te' ? 'గది ' : 'Room '}{tenant.roomNumber}</p>
                   </div>
                 </div>
                 
                 {tenant.rentPending > 0 ? (
                   <div className="text-right">
                     <p className="font-black text-rose-600">₹{tenant.rentPending}</p>
-                    <p className="text-[10px] font-bold text-rose-400 uppercase">Due</p>
+                    <p className="text-[10px] font-bold text-rose-400 uppercase">{t.due}</p>
                   </div>
                 ) : (
                   <div className="text-right">
-                    <p className="font-black text-emerald-600">Paid ✅</p>
+                    <p className="font-black text-emerald-600">{t.paid} ✅</p>
                   </div>
                 )}
               </button>
@@ -193,12 +195,12 @@ export default function QuickPaymentPage() {
 
             {tenants.length === 0 && searchQuery && (
               <div className="p-8 text-center text-slate-500 font-bold">
-                No tenants found for "{searchQuery}"
+                {t.noTenantsFoundFor} "{searchQuery}"
               </div>
             )}
             {tenants.length === 0 && !searchQuery && (
               <div className="p-8 text-center text-slate-400 font-medium">
-                Type a name to search...
+                {lang === 'te' ? 'వెతకడానికి పేరు టైప్ చేయండి...' : 'Type a name to search...'}
               </div>
             )}
           </div>
@@ -220,11 +222,11 @@ export default function QuickPaymentPage() {
                 </div>
               )}
             </div>
-            {selectedTenant.name} <span className="text-slate-400 font-normal">· Change</span>
+            {selectedTenant.name} <span className="text-slate-400 font-normal">· {lang === 'te' ? 'మార్చండి' : 'Change'}</span>
           </button>
 
           <div className="bg-white rounded-[2rem] p-6 shadow-xl shadow-slate-200/50 border border-slate-100 mb-8">
-            <label className="block text-center text-sm font-black text-slate-400 uppercase tracking-widest mb-4">Amount to Collect</label>
+            <label className="block text-center text-sm font-black text-slate-400 uppercase tracking-widest mb-4">{t.enterAmount}</label>
             <div className="flex items-center justify-center text-slate-900 mb-8">
               <span className="text-4xl font-black mr-1 pb-1">₹</span>
               <input 
@@ -236,7 +238,7 @@ export default function QuickPaymentPage() {
               />
             </div>
 
-            <label className="block text-center text-sm font-black text-slate-400 uppercase tracking-widest mb-4">Payment Mode</label>
+            <label className="block text-center text-sm font-black text-slate-400 uppercase tracking-widest mb-4">{t.paymentMode}</label>
             <div className="grid grid-cols-2 gap-3">
               {paymentModes.map(mode => (
                 <button
@@ -260,7 +262,7 @@ export default function QuickPaymentPage() {
             disabled={submitting || !paymentAmount}
             className="w-full h-16 bg-emerald-600 text-white rounded-3xl font-black text-xl active:scale-95 transition-transform flex items-center justify-center gap-2 shadow-xl shadow-emerald-600/30 disabled:opacity-50 disabled:active:scale-100"
           >
-            {submitting ? <div className="h-6 w-6 border-4 border-white border-t-transparent rounded-full animate-spin"></div> : 'Record Payment'}
+            {submitting ? <div className="h-6 w-6 border-4 border-white border-t-transparent rounded-full animate-spin"></div> : t.recordPayment}
           </button>
         </div>
       )}
@@ -270,23 +272,35 @@ export default function QuickPaymentPage() {
           <div className="h-24 w-24 bg-emerald-100 text-emerald-500 rounded-full flex items-center justify-center mb-6">
             <CheckCircle2 className="h-16 w-16" />
           </div>
-          <h2 className="text-3xl font-black text-slate-900 mb-2">Payment Recorded!</h2>
+          <h2 className="text-3xl font-black text-slate-900 mb-2">{t.paymentRecorded}</h2>
           <p className="text-lg font-semibold text-slate-500 mb-12 text-center">
-            {selectedTenant?.name} paid <span className="text-emerald-600 font-bold">₹{paymentAmount}</span> via {paymentModes.find(m => m.id === paymentMode)?.label.replace(/[^\x00-\x7F]/g, "").trim()}
+            {selectedTenant?.name} {lang === 'te' ? 'చెల్లించారు ' : 'paid '} <span className="text-emerald-600 font-bold">₹{paymentAmount}</span>
           </p>
 
           <div className="w-full space-y-4">
+            <a 
+              href={`https://wa.me/91${selectedTenant?.phone}?text=${encodeURIComponent(
+                `Hello *${selectedTenant?.name}*,\n\nWe have successfully received your payment of *₹${paymentAmount}* via *${paymentMode.replace('_', ' ')}*.\n\n` + 
+                ((selectedTenant?.rentPending || 0) - Number(paymentAmount) > 0 ? `Remaining Due: *₹${(selectedTenant?.rentPending || 0) - Number(paymentAmount)}*\n\n` : '') +
+                `Thank you!\n- EasyPG Management`
+              )}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full h-14 bg-[#25D366] text-white rounded-2xl font-bold text-lg active:scale-95 transition-transform flex items-center justify-center gap-2 shadow-lg shadow-[#25D366]/20"
+            >
+              <MessageCircle className="h-5 w-5" /> {lang === 'te' ? 'రసీదు పంపండి' : 'Send Receipt'}
+            </a>
             <button 
               onClick={handleRecordAnother}
               className="w-full h-14 bg-slate-900 text-white rounded-2xl font-bold text-lg active:scale-95 transition-transform shadow-lg shadow-slate-900/20"
             >
-              Record Another
+              {t.recordAnother}
             </button>
             <button 
               onClick={() => { window.location.href = '/dashboard'; }}
               className="w-full h-14 bg-white border-2 border-slate-200 text-slate-700 rounded-2xl font-bold text-lg active:bg-slate-50 transition-colors"
             >
-              Go Home
+              {t.goHome}
             </button>
           </div>
         </div>
@@ -295,7 +309,7 @@ export default function QuickPaymentPage() {
       {activeTab === 'HISTORY' && (
         <div className="p-4 flex-1 flex flex-col animate-in fade-in">
           <div className="bg-emerald-50 rounded-3xl p-6 border border-emerald-100 mb-6 flex flex-col items-center text-center">
-            <p className="text-sm font-bold text-emerald-600 uppercase tracking-widest mb-1">Total Collected This Month</p>
+            <p className="text-sm font-bold text-emerald-600 uppercase tracking-widest mb-1">{t.totalCollected}</p>
             <p className="text-4xl font-black text-emerald-700">₹{totalCollectedThisMonth.toLocaleString()}</p>
           </div>
 

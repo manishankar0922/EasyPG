@@ -1,0 +1,3 @@
+{"ip":"::ffff:127.0.0.1","level":"error","message":"API Request Failed","method":"GET","responseTime":"30007ms","service":"easypg-api","statusCode":500,"timestamp":"2026-06-15T04:50:57.238Z","url":"/api/branches","userId":"anonymous"}
+{"ip":"::ffff:127.0.0.1","level":"error","message":"API Request Failed","method":"GET","responseTime":"30013ms","service":"easypg-api","statusCode":500,"timestamp":"2026-06-15T04:50:57.246Z","url":"/api/branches","userId":"anonymous"}
+{"ip":"::ffff:127.0.0.1","level":"error","message":"API Request Failed","method":"GET","responseTime":"30005ms","service":"easypg-api","statusCode":500,"timestamp":"2026-06-15T04:50:57.523Z","url":"/api/tenants?search=&paymentStatus=&newThisMonth=&branchId=","userId":"anonymous"}

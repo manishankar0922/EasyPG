@@ -12,7 +12,7 @@ import LoadingScreen from '@/components/shared/LoadingScreen';
 
 export default function MobileDashboard() {
   const { user } = useAuthStore();
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { activeBranchId, loading: branchLoading, error: branchError } = useBranch();
   const [data, setData] = useState<any>(null);
   const [vacancies, setVacancies] = useState<any[]>([]);
@@ -97,10 +97,13 @@ export default function MobileDashboard() {
             <h1 className="text-xl font-bold text-slate-900 tracking-tight">EasyPG</h1>
             <p className="text-sm font-semibold text-slate-500">{user?.name || 'Owner'}</p>
           </div>
-          <div className="h-11 w-11 rounded-full bg-blue-100 flex items-center justify-center border-2 border-blue-500 overflow-hidden shrink-0">
-            <span className="text-blue-700 font-bold text-lg">
-              {user?.name ? user.name.substring(0, 2).toUpperCase() : 'U9'}
-            </span>
+          <div className="flex flex-col items-end justify-center text-right bg-slate-50 px-3 py-1.5 rounded-2xl border border-slate-100">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">
+              {new Date().toLocaleDateString(lang === 'te' ? 'te-IN' : 'en-US', { weekday: 'short' })}
+            </p>
+            <p className="text-lg font-black text-blue-600 leading-none">
+              {new Date().toLocaleDateString(lang === 'te' ? 'te-IN' : 'en-US', { day: '2-digit', month: 'short' })}
+            </p>
           </div>
         </div>
         <BranchSwitcher />
@@ -262,13 +265,7 @@ export default function MobileDashboard() {
                 ))}
               </div>
             )}
-            {d.pendingTenants.length > 0 && (
-              <div className="p-3 bg-slate-50 border-t border-slate-100 text-center">
-                <button className="text-sm font-bold text-blue-600 active:text-blue-800">
-                  View All Pending
-                </button>
-              </div>
-            )}
+
           </div>
         </div>
       </div>
