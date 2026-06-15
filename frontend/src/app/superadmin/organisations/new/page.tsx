@@ -37,6 +37,12 @@ export default function NewOrganisationPage() {
   const [ownerEmail, setOwnerEmail] = useState('');
   const [ownerAddress, setOwnerAddress] = useState('');
 
+  // OTP Verification state for Owner
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpVerified, setOtpVerified] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
+
   const [branchCount, setBranchCount] = useState<number | ''>('');
   const [branches, setBranches] = useState<BranchConfig[]>([]);
 
@@ -140,6 +146,28 @@ export default function NewOrganisationPage() {
       newBranches[bIdx] = branch;
       return newBranches;
     });
+  };
+
+  const handleSendOtp = () => {
+    if (!ownerPhone || ownerPhone.length < 10) {
+      alert('Please enter a valid 10-digit phone number first.');
+      return;
+    }
+    setVerifyingOtp(true);
+    setTimeout(() => {
+      setVerifyingOtp(false);
+      setOtpSent(true);
+      alert(`Dummy OTP sent to ${ownerPhone}`);
+    }, 1000);
+  };
+
+  const handleVerifyOtp = () => {
+    setVerifyingOtp(true);
+    setTimeout(() => {
+      setVerifyingOtp(false);
+      setOtpVerified(true);
+      alert('Owner phone verified successfully!');
+    }, 1000);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -275,13 +303,48 @@ export default function NewOrganisationPage() {
                   </div>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">Owner Phone</label>
+                  <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">Owner Phone (OTP Verified)</label>
                   <div className="relative">
                     <Phone className="absolute left-3 top-3 h-5 w-5 text-slate-500" />
                     <input type="tel" required placeholder="9876511111" pattern="[0-9]{10}" maxLength={10}
-                      className="w-full rounded-xl border border-slate-700 bg-slate-950 py-3 pl-10 pr-4 text-white placeholder-slate-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm font-medium"
-                      value={ownerPhone} onChange={e => setOwnerPhone(e.target.value)} />
+                      className="w-full rounded-xl border border-slate-700 bg-slate-950 py-3 pl-10 pr-4 text-white placeholder-slate-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm font-medium disabled:opacity-50"
+                      value={ownerPhone} onChange={e => setOwnerPhone(e.target.value.replace(/\D/g, '').slice(0, 10))} disabled={otpVerified} />
                   </div>
+                  
+                  {!otpVerified && (
+                    <div className="flex gap-2 mt-2">
+                      {otpSent ? (
+                        <>
+                          <input 
+                            type="text" 
+                            maxLength={6} 
+                            placeholder="OTP" 
+                            className="flex-1 max-w-[120px] rounded-lg border border-slate-700 bg-slate-950 px-3 py-1.5 text-sm text-white focus:border-blue-500 focus:outline-none tracking-widest"
+                            value={otpCode}
+                            onChange={(e) => setOtpCode(e.target.value)}
+                          />
+                          <button 
+                            type="button" 
+                            onClick={handleVerifyOtp}
+                            disabled={verifyingOtp || otpCode.length < 4}
+                            className="rounded-lg bg-emerald-600 px-4 py-1.5 text-xs font-bold text-white hover:bg-emerald-700 transition disabled:opacity-50"
+                          >
+                            {verifyingOtp ? 'Verifying...' : 'Verify'}
+                          </button>
+                        </>
+                      ) : (
+                        <button 
+                          type="button" 
+                          onClick={handleSendOtp}
+                          disabled={verifyingOtp || ownerPhone.length < 10}
+                          className="rounded-lg bg-blue-600/20 text-blue-400 border border-blue-500/30 px-4 py-1.5 text-xs font-bold hover:bg-blue-600/40 transition disabled:opacity-50"
+                        >
+                          {verifyingOtp ? <Loader2 className="h-4 w-4 animate-spin inline" /> : 'Send OTP'}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  {otpVerified && <div className="text-xs font-bold text-emerald-500 mt-1 flex items-center gap-1"><CheckCircle2 className="h-3 w-3" /> Verified</div>}
                 </div>
               </div>
 

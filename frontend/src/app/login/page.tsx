@@ -20,6 +20,13 @@ export default function LoginPage() {
   const [newPassword, setNewPassword] = useState('');
   const [resetting, setResetting] = useState(false);
 
+  // New Tab & OTP Feature States
+  const [loginTab, setLoginTab] = useState<'client' | 'dev'>('client');
+  const [loginMethod, setLoginMethod] = useState<'password' | 'otp'>('otp');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+
   const handleResetPassword = async () => {
     setResetting(true);
     try {
@@ -45,12 +52,9 @@ export default function LoginPage() {
       setError('');
       setLoading(true);
 
-      // Log what we're calling
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
-      // apiUrl already includes /api, so we just append /auth/login
-      const endpoint = apiUrl.endsWith('/api') ? '/auth/login' : '/api/auth/login';
-      console.log('Calling:', `${apiUrl}${endpoint}`);
-      console.log('Email:', email);
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+      // apiUrl already includes /api/v1, so we just append /auth/login
+      const endpoint = apiUrl.endsWith('/api/v1') ? '/auth/login' : '/api/v1/auth/login';
 
       const response = await fetch(
         `${apiUrl}${endpoint}`,
@@ -66,9 +70,7 @@ export default function LoginPage() {
         }
       );
 
-      console.log('Response status:', response.status);
       const data = await response.json();
-      console.log('Response data:', data);
 
       if (!response.ok) {
         setError(data.error || 'Login failed');
@@ -108,6 +110,32 @@ export default function LoginPage() {
     }
   };
 
+  // Mock OTP Handlers
+  const handleSendOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    // Simulate API call for sending OTP
+    setTimeout(() => {
+      setLoading(false);
+      setOtpSent(true);
+      alert(`Dummy OTP sent to ${phoneNumber}. This is a UI placeholder.`);
+    }, 1000);
+  };
+
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    // Simulate API call for verifying OTP
+    setTimeout(() => {
+      setLoading(false);
+      alert('Dummy OTP Verified successfully! (API integration pending)');
+      // Reset for now since it's dummy
+      setOtpSent(false);
+      setOtpCode('');
+      setPhoneNumber('');
+    }, 1000);
+  };
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-950 relative overflow-hidden">
       {/* Background Gradients & Glows */}
@@ -124,64 +152,155 @@ export default function LoginPage() {
           <p className="text-sm text-slate-400 font-medium tracking-wide uppercase">Hostel Operations Intelligence</p>
         </div>
 
-        <form className="mt-10 space-y-6" onSubmit={handleLogin}>
-          {error && (
-            <div className="w-full p-4 rounded-xl bg-red-950 border border-red-800 text-red-300 text-sm text-center">
-              {error === 'Invalid email or password'
-                ? '❌ Wrong email or password'
-                : error === 'Account deactivated. Contact admin.'
-                  ? '🚫 Account deactivated'
-                  : error.includes('Cannot reach server')
-                    ? '🌐 Server not reachable. Check connection.'
-                    : `❌ ${error}`
-              }
-            </div>
-          )}
+        {/* Tabs for Client vs Dev */}
+        <div className="flex border-b border-slate-700 mb-6 mt-6">
+          <button
+            className={`flex-1 py-3 text-sm font-bold text-center border-b-2 transition-colors ${loginTab === 'client' ? 'border-blue-500 text-blue-400' : 'border-transparent text-slate-400 hover:text-slate-300'}`}
+            onClick={() => { setLoginTab('client'); setLoginMethod('otp'); }}
+          >
+            Tenant Login
+          </button>
+          <button
+            className={`flex-1 py-3 text-sm font-bold text-center border-b-2 transition-colors ${loginTab === 'dev' ? 'border-blue-500 text-blue-400' : 'border-transparent text-slate-400 hover:text-slate-300'}`}
+            onClick={() => { setLoginTab('dev'); setLoginMethod('password'); }}
+          >
+            Staff / Dev Login
+          </button>
+        </div>
 
-          <div className="space-y-5">
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Email Address</label>
-              <input
-                type="email"
-                required
-                className="block w-full rounded-2xl border-2 border-white/10 bg-white/5 px-5 py-4 text-white placeholder-slate-500 transition-all focus:border-blue-500 focus:bg-white/10 focus:outline-none focus:ring-4 focus:ring-blue-500/20 shadow-inner"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
+        {/* Toggle Login Method */}
+        <div className="flex gap-2 mb-6">
+          <button
+             type="button"
+             className={`flex-1 py-2 text-xs font-bold rounded-xl transition-colors ${loginMethod === 'otp' ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}
+             onClick={() => setLoginMethod('otp')}
+          >
+            Login via OTP
+          </button>
+          <button
+             type="button"
+             className={`flex-1 py-2 text-xs font-bold rounded-xl transition-colors ${loginMethod === 'password' ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}
+             onClick={() => setLoginMethod('password')}
+          >
+            Login via Password
+          </button>
+        </div>
+
+        {error && (
+          <div className="w-full p-4 rounded-xl bg-red-950 border border-red-800 text-red-300 text-sm text-center mt-4">
+            {error === 'Invalid email or password'
+              ? '❌ Wrong email or password'
+              : error === 'Account deactivated. Contact admin.'
+                ? '🚫 Account deactivated'
+                : error.includes('Cannot reach server')
+                  ? '🌐 Server not reachable. Check connection.'
+                  : `❌ ${error}`
+            }
+          </div>
+        )}
+
+        {loginMethod === 'password' ? (
+          <form className="mt-4 space-y-6" onSubmit={handleLogin}>
+            <div className="space-y-5">
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Email Address</label>
+                <input
+                  type="email"
+                  required
+                  className="block w-full rounded-2xl border-2 border-white/10 bg-white/5 px-5 py-4 text-white placeholder-slate-500 transition-all focus:border-blue-500 focus:bg-white/10 focus:outline-none focus:ring-4 focus:ring-blue-500/20 shadow-inner"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-400">Password</label>
+                  <button 
+                    type="button" 
+                    onClick={() => setShowResetModal(true)}
+                    className="text-xs font-bold text-blue-400 hover:text-blue-300 transition-colors"
+                  >
+                    Forgot Password?
+                  </button>
+                </div>
+                <input
+                  type="password"
+                  required
+                  className="block w-full rounded-2xl border-2 border-white/10 bg-white/5 px-5 py-4 text-white placeholder-slate-500 transition-all focus:border-blue-500 focus:bg-white/10 focus:outline-none focus:ring-4 focus:ring-blue-500/20 shadow-inner"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+              </div>
             </div>
 
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400">Password</label>
+            <button
+              type="submit"
+              disabled={loading}
+              className="group relative flex w-full items-center justify-center rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-4 text-sm font-black tracking-wide text-white transition-all hover:scale-[0.98] focus:outline-none focus:ring-4 focus:ring-blue-500/30 disabled:opacity-50 overflow-hidden shadow-xl shadow-blue-900/20 mt-2"
+            >
+              <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out"></div>
+              {loading ? <Loader2 className="relative z-10 mr-2 h-5 w-5 animate-spin" /> : <span className="relative z-10">Sign In Securely</span>}
+            </button>
+          </form>
+        ) : (
+          <form className="mt-4 space-y-6" onSubmit={otpSent ? handleVerifyOtp : handleSendOtp}>
+            {!otpSent ? (
+              <div className="space-y-5">
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Phone Number</label>
+                  <input
+                    type="tel"
+                    required
+                    className="block w-full rounded-2xl border-2 border-white/10 bg-white/5 px-5 py-4 text-white placeholder-slate-500 transition-all focus:border-blue-500 focus:bg-white/10 focus:outline-none focus:ring-4 focus:ring-blue-500/20 shadow-inner"
+                    placeholder="+91 9999999999"
+                    value={phoneNumber}
+                    onChange={(e) => setPhoneNumber(e.target.value)}
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-5">
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Enter OTP</label>
+                  <input
+                    type="text"
+                    required
+                    className="block w-full rounded-2xl border-2 border-white/10 bg-white/5 px-5 py-4 text-white placeholder-slate-500 transition-all focus:border-blue-500 focus:bg-white/10 focus:outline-none focus:ring-4 focus:ring-blue-500/20 shadow-inner tracking-[0.5em] text-center text-lg font-mono"
+                    placeholder="••••"
+                    value={otpCode}
+                    onChange={(e) => setOtpCode(e.target.value)}
+                    maxLength={6}
+                  />
+                </div>
+              </div>
+            )}
+            
+            <button
+              type="submit"
+              disabled={loading}
+              className="group relative flex w-full items-center justify-center rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-4 text-sm font-black tracking-wide text-white transition-all hover:scale-[0.98] focus:outline-none focus:ring-4 focus:ring-blue-500/30 disabled:opacity-50 overflow-hidden shadow-xl shadow-blue-900/20 mt-2"
+            >
+              <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out"></div>
+              {loading ? <Loader2 className="relative z-10 mr-2 h-5 w-5 animate-spin" /> : <span className="relative z-10">{otpSent ? 'Verify & Login' : 'Send OTP'}</span>}
+            </button>
+            
+            {otpSent && (
+              <div className="text-center mt-4">
                 <button 
                   type="button" 
-                  onClick={() => setShowResetModal(true)}
-                  className="text-xs font-bold text-blue-400 hover:text-blue-300 transition-colors"
+                  onClick={() => setOtpSent(false)}
+                  className="text-xs font-bold text-slate-400 hover:text-white transition-colors"
                 >
-                  Forgot Password?
+                  Change Phone Number
                 </button>
               </div>
-              <input
-                type="password"
-                required
-                className="block w-full rounded-2xl border-2 border-white/10 bg-white/5 px-5 py-4 text-white placeholder-slate-500 transition-all focus:border-blue-500 focus:bg-white/10 focus:outline-none focus:ring-4 focus:ring-blue-500/20 shadow-inner"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
-          </div>
+            )}
+          </form>
+        )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="group relative flex w-full items-center justify-center rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-4 text-sm font-black tracking-wide text-white transition-all hover:scale-[0.98] focus:outline-none focus:ring-4 focus:ring-blue-500/30 disabled:opacity-50 overflow-hidden shadow-xl shadow-blue-900/20 mt-2"
-          >
-            <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out"></div>
-            {loading ? <Loader2 className="relative z-10 mr-2 h-5 w-5 animate-spin" /> : <span className="relative z-10">Sign In Securely</span>}
-          </button>
-        </form>
       </div>
 
       {/* Reset Password Modal */}
@@ -235,3 +354,4 @@ export default function LoginPage() {
     </div>
   );
 }
+

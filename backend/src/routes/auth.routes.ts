@@ -23,17 +23,8 @@ router.post('/login',
         })
       }
 
-      // Check for mock credentials first to prevent frontend bypass failures
+      // Secret key for token generation
       const JWT_SECRET = process.env.JWT_SECRET || 'easypg-super-secret-key-123';
-      
-      if (email === 'admin@gmail.com' && password === 'admin123') {
-        const mockToken = jwt.sign({ userId: 'mock-admin', role: 'SUPERADMIN', organisationId: null, branchId: null }, JWT_SECRET, { expiresIn: '7d' });
-        return res.json({ success: true, token: mockToken, data: { session: { access_token: mockToken } }, user: { id: 'mock-admin', email, role: 'SUPERADMIN' } });
-      }
-      if (email === 'dev@gmail.com' && password === 'dev123') {
-        const mockToken = jwt.sign({ userId: 'mock-dev', role: 'SUPERADMIN', organisationId: null, branchId: null }, JWT_SECRET, { expiresIn: '7d' });
-        return res.json({ success: true, token: mockToken, data: { session: { access_token: mockToken } }, user: { id: 'mock-dev', email, role: 'SUPERADMIN' } });
-      }
 
       // Find user
       const user = await prisma.user.findUnique({

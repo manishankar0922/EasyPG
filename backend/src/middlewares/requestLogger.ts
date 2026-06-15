@@ -1,5 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
+import crypto from 'crypto';
 import logger from '../lib/logger';
+import { contextStorage } from '../lib/context';
 
 // Helper to mask sensitive fields
 const redactDeep = (obj: any): any => {
@@ -42,32 +44,39 @@ const redactDeep = (obj: any): any => {
 
 export const requestLogger = (req: Request, res: Response, next: NextFunction) => {
   const start = Date.now();
+  const requestId = (req.headers['x-request-id'] as string) || crypto.randomUUID();
+  
+  // Expose the Request ID to the client
+  res.setHeader('X-Request-Id', requestId);
 
-  // Listen for the response to finish
-  res.on('finish', () => {
-    const responseTime = Date.now() - start;
-    const userId = (req as any).user?.id || (req as any).auth?.userId || 'anonymous';
-    
-    // We log the standard requested metadata
-    const logData = {
-      method: req.method,
-      url: req.originalUrl || req.url,
-      statusCode: res.statusCode,
-      responseTime: `${responseTime}ms`,
-      userId,
-      ip: req.ip,
-      // Optional: you can log redacted body/query if needed, but keeping it strict to the requested format:
-      // body: Object.keys(req.body).length ? redactDeep(req.body) : undefined,
-    };
+  // Initialize store and run within AsyncLocalStorage context
+  const store = new Map<string, any>();
+  store.set('requestId', requestId);
 
-    if (res.statusCode >= 500) {
-      logger.error('API Request Failed', logData);
-    } else if (res.statusCode >= 400) {
-      logger.warn('API Request Warning', logData);
-    } else {
-      logger.info('API Request Success', logData);
-    }
+  contextStorage.run(store, () => {
+    // Listen for the response to finish
+    res.on('finish', () => {
+      const responseTime = Date.now() - start;
+      const userId = (req as any).user?.id || (req as any).auth?.userId || 'anonymous';
+      
+      const logData = {
+        method: req.method,
+        url: req.originalUrl || req.url,
+        statusCode: res.statusCode,
+        responseTime: `${responseTime}ms`,
+        userId,
+        ip: req.ip,
+      };
+
+      if (res.statusCode >= 500) {
+        logger.error('API Request Failed', logData);
+      } else if (res.statusCode >= 400) {
+        logger.warn('API Request Warning', logData);
+      } else {
+        logger.info('API Request Success', logData);
+      }
+    });
+
+    next();
   });
-
-  next();
 };

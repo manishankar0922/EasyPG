@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import prisma from '../config/db';
 import { authMiddleware } from '../middlewares/auth.middleware';
+import { idempotencyMiddleware } from '../middlewares/idempotency.middleware';
 import { validate } from '../middlewares/validation.middleware';
 import { addPaymentSchema } from '../schemas/financial.schema';
 import { z } from 'zod';
@@ -59,7 +60,7 @@ router.get('/:id', validate(z.object({ params: z.object({ id: z.string().min(5) 
 });
 
 // Add payment
-router.post('/', validate(z.object({
+router.post('/', idempotencyMiddleware, validate(z.object({
   body: z.object({
     invoiceId: z.string().min(5).optional(),
     tenantId: z.string().min(5).optional(),

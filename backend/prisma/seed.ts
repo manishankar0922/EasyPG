@@ -1,15 +1,27 @@
 import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
 async function main() {
+  const defaultPasswordHash = await bcrypt.hash('easypg123', 12);
+
   // Clear existing
   await prisma.systemLog.deleteMany();
   await prisma.paymentRequest.deleteMany();
   await prisma.subscription.deleteMany();
+  
+  // Clear tenant dependants
   await prisma.payment.deleteMany();
   await prisma.rentLedger.deleteMany();
   await prisma.admission.deleteMany();
+  await prisma.invoice.deleteMany();
+  await prisma.securityDeposit.deleteMany();
+  await prisma.complaint.deleteMany();
+  await prisma.notification.deleteMany();
+  await prisma.vacateNotice.deleteMany();
+  
+  // Clear parent hierarchies
   await prisma.bed.deleteMany();
   await prisma.room.deleteMany();
   await prisma.branch.deleteMany();
@@ -23,6 +35,7 @@ async function main() {
       clerkId: 'superadmin_1',
       name: 'Super Admin',
       email: 'admin@easypg.com',
+      passwordHash: defaultPasswordHash,
       role: 'SUPERADMIN'
     }
   });
@@ -58,13 +71,13 @@ async function main() {
         }
       });
 
-      // 9. 2 warden users per branch
       for (let w = 1; w <= 2; w++) {
         await prisma.user.create({
           data: {
             clerkId: `warden_${o}_${b}_${w}`,
             name: `Warden ${w}`,
             email: `warden${w}@org${o}branch${b}.com`,
+            passwordHash: defaultPasswordHash,
             role: 'WARDEN',
             organisationId: org.id,
             branchId: branch.id

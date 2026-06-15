@@ -7,12 +7,25 @@ export const redisConnection = new Redis(process.env.REDIS_URL || 'redis://local
   lazyConnect: true
 });
 
+redisConnection.on('error', (err) => {
+  // Log a warning instead of letting the process crash
+  console.warn('⚠️ Redis Connection Error: Caching/Background workers will not function until Redis is started.', err.message);
+});
+
 export const rentQueue = new Queue('rent-generation', { 
   connection: redisConnection as any 
 });
 
+rentQueue.on('error', (err) => {
+  // Catch queue level connection errors
+});
+
 export const subscriptionReminderQueue = new Queue('subscription-reminder-queue', {
   connection: redisConnection as any
+});
+
+subscriptionReminderQueue.on('error', (err) => {
+  // Catch queue level connection errors
 });
 
 export const setupJobs = async () => {
@@ -47,6 +60,10 @@ export const setupJobs = async () => {
 
   worker.on('failed', (job, err) => {
     console.error(`Job ${job?.id} failed with error:`, err.message);
+  });
+
+  worker.on('error', (err) => {
+    // Catch worker level connection errors
   });
 
   // Import the worker to instantiate it

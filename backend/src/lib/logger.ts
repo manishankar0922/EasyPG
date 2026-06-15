@@ -1,11 +1,22 @@
 import winston from 'winston';
 import DailyRotateFile from 'winston-daily-rotate-file';
+import { getRequestId } from './context';
+
+// Custom format to inject Request ID from AsyncLocalStorage context
+const appendRequestId = winston.format((info) => {
+  const reqId = getRequestId();
+  if (reqId) {
+    info.requestId = reqId;
+  }
+  return info;
+});
 
 const logger = winston.createLogger({
   level: 'info',
   format: winston.format.combine(
     winston.format.timestamp(),
     winston.format.errors({ stack: true }),
+    appendRequestId(),
     winston.format.json()
   ),
   defaultMeta: { service: 'easypg-api' },
@@ -26,11 +37,17 @@ const logger = winston.createLogger({
   ]
 });
 
-// Also log to console in development
+// Also log to console
 if (process.env.NODE_ENV !== 'production') {
   logger.add(new winston.transports.Console({
-    format: winston.format.simple()
+    format: winston.format.combine(
+      winston.format.timestamp(),
+      appendRequestId(),
+      winston.format.json()
+    )
   }));
+} else {
+  logger.add(new winston.transports.Console());
 }
 
 export default logger;
