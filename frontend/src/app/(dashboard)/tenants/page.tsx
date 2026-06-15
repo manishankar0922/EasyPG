@@ -7,6 +7,9 @@ import Image from 'next/image';
 import { Search, Plus, ChevronRight, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/auth-store';
+import { useLanguage } from '@/context/LanguageContext';
+
+import SearchingAnimation from '@/components/shared/SearchingAnimation';
 
 type FilterType = 'ALL' | 'PAID' | 'UNPAID' | 'NEW';
 
@@ -16,6 +19,7 @@ export default function TenantsMobilePage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterType>('ALL');
   const { user } = useAuthStore();
+  const { t } = useLanguage();
 
   useEffect(() => {
     async function fetchTenants() {
@@ -43,14 +47,19 @@ export default function TenantsMobilePage() {
       } catch (err) {
         console.error('Failed to fetch tenants', err);
       } finally {
-        setLoading(false);
+        // Add a fake delay ONLY if they are actively searching to show off the animation
+        if (searchQuery) {
+          setTimeout(() => setLoading(false), 800);
+        } else {
+          setLoading(false);
+        }
       }
     }
 
     // Debounce search slightly
     const timer = setTimeout(() => {
       fetchTenants();
-    }, 300);
+    }, 400);
     return () => clearTimeout(timer);
   }, [searchQuery, activeFilter, user]);
 
@@ -58,27 +67,27 @@ export default function TenantsMobilePage() {
     <div className="min-h-screen bg-slate-50 relative pb-20">
       {/* Header */}
       <div className="bg-white px-5 pt-6 pb-4 sticky top-0 z-10 shadow-sm space-y-4">
-        <h1 className="text-3xl font-black text-slate-900 tracking-tight">My Tenants</h1>
+        <h1 className="text-3xl font-black text-slate-900 tracking-tight">{t.myTenants}</h1>
         
         {/* Search Bar */}
         <div className="relative">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
           <input
             type="text"
-            placeholder="Search by name or room..."
+            placeholder={t.searchPlaceholder}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full h-12 bg-slate-100 border-none rounded-2xl pl-11 pr-4 text-base font-medium placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500 transition-all"
+            className="w-full h-12 bg-slate-100 border-none rounded-2xl pl-11 pr-4 text-slate-900 text-base font-medium placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500 transition-all"
           />
         </div>
 
         {/* Filter Chips */}
         <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-1">
           {[
-            { id: 'ALL', label: 'All' },
-            { id: 'PAID', label: 'Paid ✅' },
-            { id: 'UNPAID', label: 'Not Paid ❌' },
-            { id: 'NEW', label: 'New This Month' }
+            { id: 'ALL', label: t.all },
+            { id: 'PAID', label: `${t.paid} ✅` },
+            { id: 'UNPAID', label: `${t.notPaid} ❌` },
+            { id: 'NEW', label: t.newThisMonth }
           ].map(chip => (
             <button
               key={chip.id}
@@ -99,9 +108,7 @@ export default function TenantsMobilePage() {
       {/* Main List */}
       <div className="p-4">
         {loading ? (
-          <div className="flex justify-center py-20">
-            <div className="h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-blue-600"></div>
-          </div>
+          <SearchingAnimation />
         ) : tenants.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 px-4 text-center">
             <div className="h-24 w-24 bg-blue-50 rounded-full flex items-center justify-center mb-4">

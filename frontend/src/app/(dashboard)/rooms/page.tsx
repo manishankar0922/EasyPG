@@ -9,6 +9,7 @@ import { LayoutGrid, List, Plus, Users, User, ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/auth-store';
 import { useBranch } from '@/context/BranchContext';
+import { useLanguage } from '@/context/LanguageContext';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 
 import BranchSwitcher from '@/components/shared/BranchSwitcher';
@@ -17,6 +18,7 @@ import LoadingScreen from '@/components/shared/LoadingScreen';
 export default function MobileRoomsPage() {
   const { user } = useAuthStore();
   const { activeBranchId } = useBranch();
+  const { t, lang } = useLanguage();
   
   const { data: floors = [], isLoading: loading } = useQuery<any[]>({
     queryKey: ['rooms', activeBranchId],
@@ -41,12 +43,12 @@ export default function MobileRoomsPage() {
   const allRooms = floors.flatMap((f: any) => f.rooms);
   
   // Dynamic filter chips based on available floors
-  const floorChips = floors.map((f: any) => ({ id: `FLOOR_${f.floor}`, label: `Floor ${f.floor}` }));
+  const floorChips = floors.map((f: any) => ({ id: `FLOOR_${f.floor}`, label: lang === 'te' ? `అంతస్తు ${f.floor}` : `Floor ${f.floor}` }));
   const filterChips = [
-    { id: 'ALL', label: 'All' },
-    { id: 'EMPTY', label: 'Empty 🔴' },
-    { id: 'FULL', label: 'Full 🟢' },
-    { id: 'PARTIAL', label: 'Partial 🟡' },
+    { id: 'ALL', label: t.all },
+    { id: 'EMPTY', label: `${t.empty} 🔴` },
+    { id: 'FULL', label: `${t.full} 🟢` },
+    { id: 'PARTIAL', label: `${t.partial} 🟡` },
     ...floorChips
   ];
 
@@ -67,7 +69,7 @@ export default function MobileRoomsPage() {
   })).filter(f => f.rooms.length > 0);
 
   if (loading) {
-    return <LoadingScreen message="Loading rooms..." />;
+    return <LoadingScreen message={t.loading} />;
   }
 
   return (
@@ -75,7 +77,7 @@ export default function MobileRoomsPage() {
       {/* Header */}
       <div className="bg-white px-5 pt-6 pb-4 sticky top-0 z-10 shadow-sm space-y-4">
         <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-black text-slate-900 tracking-tight">Rooms</h1>
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight">{t.roomsTitle}</h1>
           
           <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
             <button 
@@ -98,18 +100,18 @@ export default function MobileRoomsPage() {
 
         {/* Filter Chips */}
         <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-1">
-          {filterChips.map(chip => (
+          {filterChips.map(c => (
             <button
-              key={chip.id}
-              onClick={() => setActiveFilter(chip.id)}
+              key={c.id}
+              onClick={() => setActiveFilter(c.id)}
               className={cn(
-                "h-12 px-5 rounded-2xl text-sm font-bold whitespace-nowrap transition-all flex-shrink-0 border-2",
-                activeFilter === chip.id
-                  ? "bg-slate-900 text-white border-slate-900 shadow-md shadow-slate-900/20"
-                  : "bg-white text-slate-600 border-slate-200 active:bg-slate-50"
+                "px-4 py-2 rounded-2xl whitespace-nowrap font-bold text-sm transition-all shadow-sm border",
+                activeFilter === c.id
+                  ? "bg-slate-900 text-white border-slate-900"
+                  : "bg-white text-slate-500 border-slate-100 hover:bg-slate-50"
               )}
             >
-              {chip.label}
+              {c.label}
             </button>
           ))}
         </div>
@@ -121,7 +123,7 @@ export default function MobileRoomsPage() {
             <div className="h-20 w-20 bg-slate-200 rounded-full mx-auto mb-4 flex items-center justify-center">
               <span className="text-2xl">🛏️</span>
             </div>
-            <h3 className="text-xl font-bold text-slate-900 mb-2">No rooms found</h3>
+            <h3 className="text-xl font-bold text-slate-900 mb-2">{t.noRoomsFound}</h3>
             <p className="text-slate-500 font-medium">Try changing your filters.</p>
           </div>
         ) : (
@@ -131,7 +133,9 @@ export default function MobileRoomsPage() {
               <div className="space-y-8">
                 {filteredFloors.map(floor => (
                   <div key={floor.floor}>
-                    <h2 className="text-lg font-black text-slate-400 uppercase tracking-widest mb-4 px-1">Floor {floor.floor}</h2>
+                    <h2 className="text-lg font-black text-slate-400 uppercase tracking-widest mb-4 px-1">
+                      {lang === 'te' ? `అంతస్తు ${floor.floor}` : `Floor ${floor.floor}`}
+                    </h2>
                     <div className="grid grid-cols-4 gap-3">
                       {floor.rooms.map((room: any) => {
                         const isFull = room.status === 'FULL';

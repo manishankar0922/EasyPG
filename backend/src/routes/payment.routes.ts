@@ -64,8 +64,8 @@ router.post('/', validate(z.object({
     invoiceId: z.string().min(5).optional(),
     tenantId: z.string().min(5).optional(),
     amount: z.number().min(1, 'Amount must be greater than 0').max(500000, 'Amount too large'),
-    mode: z.enum(['UPI', 'CASH', 'BANK_TRANSFER']).optional(),
-    paymentMode: z.enum(['UPI', 'CASH', 'BANK_TRANSFER']).optional(),
+    mode: z.enum(['UPI', 'CASH', 'BANK_TRANSFER', 'PHONEPE', 'GPAY']).optional(),
+    paymentMode: z.enum(['UPI', 'CASH', 'BANK_TRANSFER', 'PHONEPE', 'GPAY']).optional(),
     date: z.string().optional(),
     paymentDate: z.string().optional(),
     note: z.string().optional()
@@ -73,13 +73,21 @@ router.post('/', validate(z.object({
     message: "Either invoiceId or tenantId must be provided"
   })
 })), async (req, res) => {
-  const { invoiceId, tenantId, amount, mode, paymentMode, date, paymentDate, note } = req.body;
+  let { invoiceId, tenantId, amount, mode, paymentMode, date, paymentDate, note } = req.body;
   const orgId = req.user!.organizationId;
   const userRole = req.user!.role;
   const userBranchId = req.user!.branchId;
 
   // Normalize parameters
-  const finalPaymentMode = mode || paymentMode || 'CASH';
+  let finalPaymentMode = mode || paymentMode || 'CASH';
+  if (finalPaymentMode === 'PHONEPE') {
+    finalPaymentMode = 'UPI';
+    note = note ? `${note} (via PhonePe)` : 'via PhonePe';
+  } else if (finalPaymentMode === 'GPAY') {
+    finalPaymentMode = 'UPI';
+    note = note ? `${note} (via GPay)` : 'via GPay';
+  }
+
   const finalPaymentDate = new Date(date || paymentDate || new Date());
   
   try {
@@ -155,13 +163,9 @@ router.post('/', validate(z.object({
 
       const totalPaid = invoice.payments.reduce((acc, p) => acc + Number(p.amount), 0) + Number(amount);
       
-      if (totalPaid > Number(invoice.amount)) {
-        throw new Error('Payment amount exceeds the total due amount');
-      }
-
       let newStatus: 'PAID' | 'PARTIAL' | 'UNPAID' = 'PARTIAL';
       
-      if (totalPaid === Number(invoice.amount)) {
+      if (totalPaid >= Number(invoice.amount)) {
         newStatus = 'PAID';
       } else if (totalPaid === 0) {
         newStatus = 'UNPAID';
@@ -210,6 +214,9 @@ router.post('/', validate(z.object({
       }
 
       return payment;
+    }, {
+      maxWait: 15000, // 15s max wait to acquire transaction
+      timeout: 20000  // 20s timeout for transaction execution
     });
 
     res.status(201).json({ success: true, data: result });

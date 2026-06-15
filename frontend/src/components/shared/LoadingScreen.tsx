@@ -88,46 +88,42 @@ export default function LoadingScreen({
   const tip = tips[currentTip]
 
   if (!show) return (
-    <div className="min-h-screen bg-background" />
+    <div className="min-h-screen bg-slate-50" />
   )
 
   return (
-    <div className="min-h-screen bg-background flex flex-col
-      items-center justify-center px-8 gap-8">
+    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center px-8 gap-8">
 
       {/* Logo */}
       <div className="flex flex-col items-center gap-2">
-        <div className="w-16 h-16 bg-primary rounded-2xl
-          flex items-center justify-center shadow-lg">
+        <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center shadow-lg">
           <span className="text-white text-2xl font-bold">EP</span>
         </div>
-        <span className="text-xl font-bold text-foreground">
+        <span className="text-xl font-bold text-slate-900">
           EasyPG
         </span>
       </div>
 
       {/* Spinner */}
       <div className="flex flex-col items-center gap-3">
-        <div className="w-10 h-10 border-4 border-primary/20
-          border-t-primary rounded-full animate-spin" />
-        <p className="text-sm text-muted-foreground">
+        <div className="w-10 h-10 border-4 border-blue-600/20 border-t-blue-600 rounded-full animate-spin" />
+        <p className="text-sm font-semibold text-slate-500">
           {message || (lang === 'te' ? 'లోడ్ అవుతోంది...' : 'Loading...')}
         </p>
       </div>
 
       {/* Tip card */}
       <div
-        className="w-full max-w-sm bg-primary/10 border border-primary/20
-          rounded-2xl p-5 transition-opacity duration-300"
+        className="w-full max-w-sm bg-blue-50 border border-blue-100 rounded-2xl p-5 transition-opacity duration-300"
         style={{ opacity: visible ? 1 : 0 }}
       >
         <div className="flex items-start gap-3">
           <span className="text-2xl">💡</span>
           <div className="flex flex-col gap-1">
-            <p className="text-sm font-medium text-primary">
+            <p className="text-sm font-bold text-blue-800">
               {tip.en}
             </p>
-            <p className="text-sm text-primary/80 mt-1">
+            <p className="text-sm font-semibold text-blue-700/80 mt-1">
               {tip.te}
             </p>
           </div>
@@ -141,8 +137,8 @@ export default function LoadingScreen({
             key={i}
             className={`h-1.5 rounded-full transition-all duration-300
               ${i === currentTip
-                ? 'w-4 bg-primary'
-                : 'w-1.5 bg-muted'
+                ? 'w-4 bg-blue-600'
+                : 'w-1.5 bg-slate-300'
               }`}
           />
         ))}

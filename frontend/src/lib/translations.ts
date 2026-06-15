@@ -21,6 +21,7 @@ export const translations = {
     remind: "Remind",
     noTenantsFound: "No tenants found",
     loading: "Loading...",
+    searching: "Searching...",
 
     // Tenants
     myTenants: "My Tenants",
@@ -127,6 +128,7 @@ export const translations = {
     remind: "గుర్తు చేయి",
     noTenantsFound: "అద్దెదారులు కనుగొనబడలేదు",
     loading: "లోడ్ అవుతోంది...",
+    searching: "వెతుకుతోంది...",
 
     // Tenants
     myTenants: "నా అద్దెదారులు",

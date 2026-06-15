@@ -125,10 +125,19 @@ NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET="..."
 *   **Self-Serve Resets:** Built a secure `/auth/reset-password` flow equipped with bcrypt hashing for users directly on the login screen.
 *   **Emergency Interventions:** Outfitted the Super Admin `OrgTable` dashboard with a zero-knowledge "Key" action button. This allows developers to instantly force-reset locked-out Owner passwords to a secure default (`EasyPG@123`) without ever exposing plaintext data.
 
-### 6. Communication Automation
-*   **WhatsApp Receipts:** Integrated a dynamic WhatsApp share button on the Tenant Profile. When a tenant pays rent, Wardens can click a single button to auto-generate and send a pre-filled, professional rent receipt message instantly to the tenant's phone.
+### 6. Automated WhatsApp Ecosystem & UX
+*   **Onboarding Automation:** Generates a pre-filled WhatsApp welcome message instantly upon adding a new tenant (containing room & rent info).
+*   **Dynamic Payment Receipts:** Seamlessly integrated across both the global Invoices list and the Tenant Profile. Calculates exact paid amounts, payment modes (UPI/Cash), and automatically generates the remaining due balance. If the remaining due is zero, the system elegantly hides the pending text.
+*   **Farewell/Vacate Messages:** A final automated "Goodbye" message sequence during the successful vacate flow.
+*   **Localized Scalability:** Extracted hardcoded language ternaries (like "Searching...") into the unified `translations.ts` dictionary mapped to context, ensuring effortless additions for new languages.
+*   **Live Operations Dashboard:** Replaced static UI elements (like profile circles) with a live Date/Calendar widget dynamically bound to the selected localization (e.g., Telugu/English).
 
-### 7. Database Setup
+### 7. Advanced Payment Handling (Split & Partial)
+*   **Split Payments:** Re-engineered the backend validation block to natively support split payments (e.g., 2000 PhonePe and 3000 Cash) without crashing.
+*   **Partial Advanced Payments:** Eliminated strict rigid over-payment blocks, automatically recognizing and reconciling partial advanced payments (e.g., 4000 today, 1000 tomorrow), seamlessly updating from `PARTIAL` to `PAID` state in the Rent Ledger.
+*   **Database Transaction Resilience:** Re-configured Prisma's heavy `$transaction` blocks with robust timeout modifiers (`maxWait: 15s`, `timeout: 20s`), permanently rectifying timeout crashes and connection-drop errors (`Transaction not found`) during intensive ledger syncs.
+
+### 8. Database Setup
 ```bash
 cd backend
 npm install
