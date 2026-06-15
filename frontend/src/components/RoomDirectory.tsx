@@ -142,7 +142,7 @@ export default function RoomDirectory({ branchId }: { branchId: string }) {
 
       {/* Mobile-friendly Bottom Drawer for Room Details */}
       <Sheet open={!!selectedRoom} onOpenChange={(open) => !open && setSelectedRoom(null)}>
-        <SheetContent side="bottom" className="rounded-t-3xl h-[60vh]">
+        <SheetContent side="bottom" className="rounded-t-3xl h-[60vh] w-full max-w-md mx-auto bg-white">
           <SheetHeader className="text-left">
             <SheetTitle className="text-2xl font-black flex items-center justify-between">
               Room {selectedRoom?.roomNumber}

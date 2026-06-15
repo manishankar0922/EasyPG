@@ -39,8 +39,8 @@ export const validate = (schema: ZodSchema) =>
 export const createTenantSchema = z.object({
   name: z.string().min(2).max(100),
   phone: z.string().regex(/^[6-9]\d{9}$/, 'Invalid Indian phone number'),
-  branchId: z.string().uuid(),
-  bedId: z.string().uuid(),
+  branchId: z.string().cuid(),
+  bedId: z.string().cuid(),
   moveInDate: z.string().datetime(),
   monthlyRent: z.number().min(100).max(100000)
 });

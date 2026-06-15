@@ -506,9 +506,19 @@ router.post('/wardens', async (req, res) => {
     res.status(201).json({ success: true, data: { wardenId: warden.id, tempPassword } });
   } catch (error: any) {
     console.error('Warden creation failed:', error);
+    
+    if (error.code === 'P2002') {
+      const target = error.meta?.target;
+      const targetStr = Array.isArray(target) ? target.join(', ') : (target || 'record');
+      return res.status(400).json({
+        success: false,
+        error: `A user with this ${targetStr} already exists. Please use a different one.`
+      });
+    }
+
     res.status(500).json({ 
       success: false, 
-      error: error.errors ? error.errors[0]?.message : error.message || 'Failed to create warden'
+      error: error.errors ? error.errors[0]?.message : 'Failed to create warden. Please check your inputs.'
     });
   }
 });

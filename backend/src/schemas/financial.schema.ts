@@ -4,7 +4,7 @@ const InvoiceStatusEnum = z.enum(['PAID', 'PARTIAL', 'UNPAID']);
 
 export const createInvoiceSchema = z.object({
   body: z.object({
-    tenantId: z.string().uuid(),
+    tenantId: z.string().min(5),
     month: z.string(), // e.g., "June 2026"
     amount: z.number().positive(),
     dueDate: z.string().datetime().or(z.string().date()),
@@ -19,7 +19,7 @@ export const updateInvoiceSchema = z.object({
     status: InvoiceStatusEnum.optional(),
   }),
   params: z.object({
-    id: z.string().uuid(),
+    id: z.string().min(5),
   }),
 });
 
@@ -27,7 +27,7 @@ const PaymentModeEnum = z.enum(['UPI', 'CASH', 'BANK_TRANSFER']);
 
 export const addPaymentSchema = z.object({
   body: z.object({
-    invoiceId: z.string().uuid(),
+    invoiceId: z.string().min(5),
     amount: z.number().positive(),
     paymentMode: PaymentModeEnum,
     paymentDate: z.string().datetime().or(z.string().date()),

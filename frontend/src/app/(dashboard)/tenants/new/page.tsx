@@ -24,6 +24,9 @@ export default function AddTenantPage() {
 
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [parentPhone, setParentPhone] = useState('');
+  const [aadhaarLast4, setAadhaarLast4] = useState('');
+  const [collegeName, setCollegeName] = useState('');
   const [photoUrl, setPhotoUrl] = useState('');
   const [aadhaarPhotoUrl, setAadhaarPhotoUrl] = useState('');
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
@@ -120,6 +123,9 @@ export default function AddTenantPage() {
       const res = await api.post('/tenants', {
         name,
         phone,
+        parentPhone,
+        aadhaarLast4,
+        collegeName,
         photoUrl,
         aadhaarPhotoUrl,
         roomId: finalRoomId,
@@ -220,6 +226,50 @@ export default function AddTenantPage() {
                   placeholder="Enter 10 digit mobile number"
                   className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-4 text-slate-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition shadow-sm text-sm"
                   value={phone} onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))} 
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-600">Parent Phone Number (Optional)</label>
+              <div className="relative">
+                <Phone className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
+                <input 
+                  type="tel"
+                  inputMode="numeric"
+                  pattern="[6-9][0-9]{9}"
+                  maxLength={10}
+                  placeholder="Enter parent mobile number"
+                  className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-4 text-slate-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition shadow-sm text-sm"
+                  value={parentPhone} onChange={e => setParentPhone(e.target.value.replace(/\D/g, '').slice(0, 10))} 
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-600">Aadhaar Last 4 Digits (Optional)</label>
+              <div className="relative">
+                <UserPlus className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
+                <input 
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={4}
+                  placeholder="e.g. 1234"
+                  className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-4 text-slate-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition shadow-sm text-sm"
+                  value={aadhaarLast4} onChange={e => setAadhaarLast4(e.target.value.replace(/\D/g, '').slice(0, 4))} 
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-600">College / Workplace Name (Optional)</label>
+              <div className="relative">
+                <UserPlus className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
+                <input 
+                  type="text"
+                  placeholder="e.g. MIT College"
+                  className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-4 text-slate-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition shadow-sm text-sm"
+                  value={collegeName} onChange={e => setCollegeName(e.target.value)} 
                 />
               </div>
             </div>

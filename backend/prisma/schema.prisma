@@ -271,6 +271,8 @@ model Payment {
   balanceCarriedForward Decimal?     @default(0) @map("balance_carried_forward") @db.Decimal(10, 2)
   paymentMode           PaymentMode? @map("payment_mode")
   paymentDate           DateTime     @map("payment_date")
+  recordedById          String?      @map("recorded_by_id")
+  recordedBy            User?        @relation("PaymentRecordedBy", fields: [recordedById], references: [id])
   createdAt             DateTime     @default(now()) @map("created_at")
   updatedAt             DateTime     @updatedAt @map("updated_at")
 
@@ -427,6 +429,8 @@ model User {
   isActive       Boolean       @default(true)
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
+
+  recordedPayments Payment[]   @relation("PaymentRecordedBy")
 
   @@index([clerkId])
   @@index([organisationId])

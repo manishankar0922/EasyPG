@@ -35,7 +35,7 @@ api.interceptors.response.use(
     const method = error.config?.method?.toUpperCase()
 
     // Show FULL error details always
-    console.error('❌ API Error:', {
+    console.error('❌ API Error:', JSON.stringify({
       status,
       url: `${method} ${url}`,
       error: data?.error || data?.message || error.message,
@@ -45,7 +45,7 @@ api.interceptors.response.use(
           return JSON.parse(error.config?.data || '{}')
         } catch { return error.config?.data }
       })()
-    })
+    }, null, 2))
 
     // No response = backend not reachable
     if (!error.response) {
@@ -99,8 +99,25 @@ api.interceptors.response.use(
       )
     }
 
+    // Extract detailed validation messages if available
+    let errorMessage = data?.error || error.message;
+    if (data?.details) {
+      if (Array.isArray(data.details)) {
+        const detailsMsg = data.details.map((d: any) => `${d.field?.replace('body.', '') || 'Field'}: ${d.message || d}`).join(', ');
+        errorMessage = `${errorMessage} - ${detailsMsg}`;
+      } else if (typeof data.details === 'object') {
+        const detailsMsg = Object.entries(data.details)
+          .map(([field, messages]) => {
+            const msgs = Array.isArray(messages) ? messages.join(', ') : messages;
+            return `${field.replace('body.', '')}: ${msgs}`;
+          })
+          .join(' | ');
+        errorMessage = `${errorMessage} - ${detailsMsg}`;
+      }
+    }
+
     return Promise.reject(
-      new Error(data?.error || error.message)
+      new Error(errorMessage)
     )
   }
 )

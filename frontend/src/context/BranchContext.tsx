@@ -19,6 +19,7 @@ interface BranchContextType {
   branches: Branch[];
   switchBranch: (branchId: string) => void;
   loading: boolean;
+  error: string | null;
 }
 
 const BranchContext = createContext<BranchContextType>({
@@ -26,7 +27,8 @@ const BranchContext = createContext<BranchContextType>({
   activeBranch: null,
   branches: [],
   switchBranch: () => {},
-  loading: true
+  loading: true,
+  error: null
 });
 
 export function BranchProvider({ children }: { children: React.ReactNode }) {
@@ -35,6 +37,7 @@ export function BranchProvider({ children }: { children: React.ReactNode }) {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [activeBranch, setActiveBranch] = useState<Branch | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) {
@@ -74,6 +77,7 @@ export function BranchProvider({ children }: { children: React.ReactNode }) {
         }
       }).catch(err => {
         console.error('Failed to fetch branches', err);
+        setError(err.message || 'Failed to fetch branches. Network Error.');
       }).finally(() => setLoading(false));
     } else {
       setLoading(false);
@@ -92,7 +96,7 @@ export function BranchProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <BranchContext.Provider value={{ activeBranchId, activeBranch, branches, switchBranch, loading }}>
+    <BranchContext.Provider value={{ activeBranchId, activeBranch, branches, switchBranch, loading, error }}>
       {children}
     </BranchContext.Provider>
   );

@@ -88,17 +88,28 @@ export default function SubscriptionPage() {
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
     const file = e.target.files[0];
-    
     setUploading(true);
+
+    const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+    if (!cloudName || cloudName === 'your_cloud_name' || cloudName === 'demo_cloud_name') {
+      console.warn('⚠️ Mocking Cloudinary upload because NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME is not set correctly.');
+      setTimeout(() => {
+        setScreenshotUrl('https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=400&h=400&fit=crop');
+        setUploading(false);
+      }, 1500);
+      return;
+    }
+
     const formData = new FormData();
     formData.append('file', file);
     formData.append('upload_preset', process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || 'easypg_unsigned');
     
     try {
-      const res = await fetch(`https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`, {
+      const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
         method: 'POST',
         body: formData,
       });
+      if (!res.ok) throw new Error('Cloudinary error');
       const data = await res.json();
       if (data.secure_url) setScreenshotUrl(data.secure_url);
     } catch (err) {
@@ -272,7 +283,7 @@ export default function SubscriptionPage() {
       </div>
 
       <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
-        <SheetContent side="bottom" className="rounded-t-3xl pb-safe">
+        <SheetContent side="bottom" className="rounded-t-3xl pb-safe w-full max-w-md mx-auto bg-white">
           <SheetHeader className="mb-4">
             <SheetTitle className="text-xl font-black">Pay ₹{selectedPlan ? PLANS[selectedPlan].price : ''} via UPI</SheetTitle>
           </SheetHeader>

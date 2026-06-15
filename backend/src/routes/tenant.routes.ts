@@ -130,7 +130,7 @@ router.get('/search', async (req, res) => {
 });
 
 // Get single tenant profile and history
-router.get('/:id', validate(z.object({ params: z.object({ id: z.string().uuid() }) })), async (req, res) => {
+router.get('/:id', validate(z.object({ params: z.object({ id: z.string().min(5) }) })), async (req, res) => {
   const tenantId = req.params.id as string;
   const { role, branchId: userBranchId, organizationId: orgId } = req.user!;
 
@@ -154,10 +154,23 @@ router.get('/:id', validate(z.object({ params: z.object({ id: z.string().uuid() 
         orderBy: { createdAt: 'desc' }
       },
       invoices: {
-        include: { payments: true },
+        include: { 
+          payments: {
+            include: { 
+              recordedBy: { 
+                select: { 
+                  name: true, 
+                  role: true,
+                  branch: { select: { name: true } }
+                } 
+              } 
+            },
+            orderBy: { createdAt: 'desc' }
+          }
+        },
         orderBy: { createdAt: 'desc' }
       },
-      vacateNotices: {
+      vacateNotice: {
         where: { status: 'PENDING' }
       }
     }
@@ -169,7 +182,7 @@ router.get('/:id', validate(z.object({ params: z.object({ id: z.string().uuid() 
 });
 
 // GET /tenants/:id/history
-router.get('/:id/history', validate(z.object({ params: z.object({ id: z.string().uuid() }) })), async (req, res) => {
+router.get('/:id/history', validate(z.object({ params: z.object({ id: z.string().min(5) }) })), async (req, res) => {
   const tenantId = req.params.id as string;
   const { role, branchId: userBranchId, organizationId: orgId } = req.user!;
 
@@ -190,7 +203,7 @@ router.get('/:id/history', validate(z.object({ params: z.object({ id: z.string()
 });
 
 // GET /tenants/:id/ledger
-router.get('/:id/ledger', validate(z.object({ params: z.object({ id: z.string().uuid() }) })), async (req, res) => {
+router.get('/:id/ledger', validate(z.object({ params: z.object({ id: z.string().min(5) }) })), async (req, res) => {
   const tenantId = req.params.id as string;
   const { organizationId: orgId } = req.user!;
 
@@ -216,7 +229,7 @@ router.get('/:id/ledger', validate(z.object({ params: z.object({ id: z.string().
 
 // POST /tenants/:id/vacate-notice
 router.post('/:id/vacate-notice', validate(z.object({
-  params: z.object({ id: z.string().uuid() }),
+  params: z.object({ id: z.string().min(5) }),
   body: z.object({
     plannedVacateDate: z.string(),
     reason: z.string().optional()
@@ -413,7 +426,7 @@ router.patch('/:id/vacate', async (req, res) => {
 });
 
 // Delete tenant
-router.delete('/:id', validate(z.object({ params: z.object({ id: z.string().uuid() }) })), async (req, res) => {
+router.delete('/:id', validate(z.object({ params: z.object({ id: z.string().min(5) }) })), async (req, res) => {
   const tenantId = req.params.id as string;
   const orgId = req.user!.organizationId;
 
@@ -454,7 +467,7 @@ router.delete('/:id', validate(z.object({ params: z.object({ id: z.string().uuid
 // Auto-Assign Bed
 router.post('/auto-assign', validate(z.object({
   body: z.object({
-    branchId: z.string().uuid()
+    branchId: z.string().min(5)
   })
 })), async (req, res) => {
   try {

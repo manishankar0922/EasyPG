@@ -29,8 +29,10 @@ export default function ProfilePage() {
             </span>
           )}
         </div>
-        <h1 className="text-2xl font-black text-slate-900 leading-tight">{user?.name || 'Owner'}</h1>
-        <p className="text-sm font-semibold text-slate-500">{user?.role === 'SUPER_ADMIN' ? 'System Administrator' : 'Hostel Owner'}</p>
+        <h1 className="text-2xl font-black text-slate-900 leading-tight">{user?.name || 'User'}</h1>
+        <p className="text-sm font-semibold text-slate-500">
+          {user?.role === 'SUPERADMIN' ? 'System Administrator' : user?.role === 'OWNER' ? 'Hostel Owner' : 'Branch Warden'}
+        </p>
       </div>
 
       <div className="px-4 space-y-6">
@@ -100,12 +102,18 @@ export default function ProfilePage() {
           
           <div className="space-y-4">
             <div className="flex justify-between items-center py-2 border-b border-slate-50">
-              <span className="text-slate-500 font-medium">Branch</span>
-              <span className="font-bold text-slate-900">{user?.branchName || 'Main Branch'}</span>
+              <span className="text-slate-500 font-medium">Access Level</span>
+              <span className="font-bold text-slate-900">
+                {user?.role === 'SUPERADMIN' ? 'Global Admin' : user?.role === 'OWNER' ? 'All Branches' : 'Assigned Branch Only'}
+              </span>
+            </div>
+            <div className="flex justify-between items-center py-2 border-b border-slate-50">
+              <span className="text-slate-500 font-medium">Email</span>
+              <span className="font-bold text-slate-900">{user?.email || 'N/A'}</span>
             </div>
             <div className="flex justify-between items-center py-2 border-b border-slate-50">
               <span className="text-slate-500 font-medium">Phone</span>
-              <span className="font-bold text-slate-900">{user?.phone || '+91 XXXX XXXX'}</span>
+              <span className="font-bold text-slate-900">{user?.phone || 'Not Provided'}</span>
             </div>
           </div>
         </div>

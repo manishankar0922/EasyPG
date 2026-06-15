@@ -22,12 +22,14 @@ export default function LoginPage() {
       setLoading(true);
 
       // Log what we're calling
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-      console.log('Calling:', `${apiUrl}/api/auth/login`);
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+      // apiUrl already includes /api, so we just append /auth/login
+      const endpoint = apiUrl.endsWith('/api') ? '/auth/login' : '/api/auth/login';
+      console.log('Calling:', `${apiUrl}${endpoint}`);
       console.log('Email:', email);
 
       const response = await fetch(
-        `${apiUrl}/api/auth/login`,
+        `${apiUrl}${endpoint}`,
         {
           method: 'POST',
           headers: {
@@ -126,7 +128,16 @@ export default function LoginPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Password</label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400">Password</label>
+                <button 
+                  type="button" 
+                  onClick={() => setShowResetModal(true)}
+                  className="text-xs font-bold text-blue-400 hover:text-blue-300 transition-colors"
+                >
+                  Forgot Password?
+                </button>
+              </div>
               <input
                 type="password"
                 required
@@ -148,6 +159,55 @@ export default function LoginPage() {
           </button>
         </form>
       </div>
+
+      {/* Reset Password Modal */}
+      {showResetModal && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700 w-full max-w-sm rounded-3xl p-6 shadow-2xl">
+            <h3 className="text-xl font-bold text-white mb-2">Reset Password</h3>
+            <p className="text-slate-400 text-sm mb-6">Enter your email and a new password to reset your account.</p>
+            
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Email</label>
+                <input
+                  type="email"
+                  className="block w-full rounded-xl border border-slate-700 bg-slate-800/50 px-4 py-3 text-white placeholder-slate-500 focus:border-blue-500 focus:bg-slate-800 focus:outline-none"
+                  value={resetEmail}
+                  onChange={(e) => setResetEmail(e.target.value)}
+                  placeholder="you@example.com"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">New Password</label>
+                <input
+                  type="password"
+                  className="block w-full rounded-xl border border-slate-700 bg-slate-800/50 px-4 py-3 text-white placeholder-slate-500 focus:border-blue-500 focus:bg-slate-800 focus:outline-none"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="••••••••"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button 
+                onClick={() => setShowResetModal(false)}
+                className="flex-1 py-3 bg-slate-800 text-slate-300 font-bold rounded-xl hover:bg-slate-700 transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleResetPassword}
+                disabled={resetting || !resetEmail || !newPassword}
+                className="flex-1 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-500 transition-colors disabled:opacity-50 flex items-center justify-center"
+              >
+                {resetting ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Reset'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

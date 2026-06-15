@@ -207,9 +207,29 @@ export default function TenantDetailPage() {
                 ₹{Number(rentAmount).toLocaleString()}
               </div>
               {isPaidThisMonth ? (
-                <div className="flex items-center gap-1.5 text-emerald-600 font-bold text-sm">
-                  <CheckCircle2 className="h-4 w-4" />
-                  <span>Paid on {paidDateThisMonth ? paidDateThisMonth.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : 'recently'}</span>
+                <div className="flex flex-col gap-0.5 mt-1">
+                  <div className="flex items-center gap-1.5 text-emerald-600 font-bold text-sm">
+                    <CheckCircle2 className="h-4 w-4" />
+                    <span>Paid on {paidDateThisMonth ? paidDateThisMonth.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : 'recently'}</span>
+                  </div>
+                  {currentMonthInvoice?.payments?.[0]?.recordedBy && (
+                    <div className="text-[11px] font-semibold text-slate-400 ml-5">
+                      Accepted by <span className="text-slate-600">{currentMonthInvoice.payments[0].recordedBy.name}</span>
+                      <span className="opacity-75">
+                        {currentMonthInvoice.payments[0].recordedBy.role === 'OWNER' || currentMonthInvoice.payments[0].recordedBy.role === 'SUPERADMIN'
+                          ? ' (Owner)'
+                          : ` (${currentMonthInvoice.payments[0].recordedBy.branch?.name || 'Unknown Branch'} Warden)`}
+                      </span>
+                    </div>
+                  )}
+                  <a 
+                    href={`https://wa.me/91${tenant.phone}?text=${encodeURIComponent(`Hello *${tenant.name}*,\n\nThis is to confirm that we have successfully received your rent payment of *₹${paidAmountThisMonth.toLocaleString()}* for the month of *${new Date().toLocaleString('en-IN', { month: 'long', year: 'numeric' })}*.\n\nThank you!\n- EasyPG Management`)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="ml-5 mt-2 inline-flex items-center gap-1.5 text-[11px] font-bold text-[#25D366] hover:text-[#1ead51] transition-colors bg-[#25D366]/10 px-2 py-1 rounded-md w-fit"
+                  >
+                    <MessageCircle className="h-3.5 w-3.5" /> Share WhatsApp Receipt
+                  </a>
                 </div>
               ) : (
                 <div className="text-rose-600 font-bold text-sm">
@@ -240,25 +260,49 @@ export default function TenantDetailPage() {
             {tenant.invoices && tenant.invoices.slice(0, 6).map((inv: any) => {
               const invMonth = new Date(inv.createdAt);
               const isInvPaid = inv.status === 'PAID';
+              const latestPayment = inv.payments?.[0];
+              const recordedBy = latestPayment?.recordedBy;
+
               return (
-                <div key={inv.id} className="flex items-center justify-between">
+                <div key={inv.id} className="flex items-center justify-between border-b border-slate-50 last:border-0 pb-3 last:pb-0">
                   <div className="flex items-center gap-3">
                     <div className={cn(
-                      "h-10 w-10 rounded-full flex items-center justify-center font-bold text-xs",
+                      "h-11 w-11 rounded-full flex flex-col items-center justify-center font-bold",
                       isInvPaid ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600"
                     )}>
-                      {invMonth.toLocaleString('en-IN', { month: 'short' })}
+                      <span className="text-xs uppercase">{invMonth.toLocaleString('en-IN', { month: 'short' })}</span>
+                      <span className="text-[10px] opacity-70 leading-none">{invMonth.getFullYear()}</span>
                     </div>
                     <div>
-                      <p className="font-bold text-slate-900">₹{Number(inv.amount).toLocaleString()}</p>
-                      <p className="text-xs font-semibold text-slate-400">{invMonth.getFullYear()}</p>
+                      <p className="font-bold text-slate-900 text-base">₹{Number(inv.amount).toLocaleString()}</p>
+                      {isInvPaid && recordedBy ? (
+                        <p className="text-[11px] font-semibold text-slate-400 mt-0.5">
+                          Accepted by <span className="text-slate-600">{recordedBy.name}</span>
+                          <span className="opacity-75">
+                            {recordedBy.role === 'OWNER' || recordedBy.role === 'SUPERADMIN' 
+                              ? ' (Owner)' 
+                              : ` (${recordedBy.branch?.name || 'Unknown Branch'} Warden)`}
+                          </span>
+                        </p>
+                      ) : (
+                        <p className="text-[11px] font-semibold text-slate-400 mt-0.5">
+                          {isInvPaid ? 'Paid' : 'Awaiting payment'}
+                        </p>
+                      )}
                     </div>
                   </div>
-                  <div className={cn(
-                    "text-sm font-bold px-2.5 py-1 rounded-lg",
-                    isInvPaid ? "text-emerald-600 bg-emerald-50" : "text-rose-600 bg-rose-50"
-                  )}>
-                    {isInvPaid ? 'Paid ✅' : 'Pending'}
+                  <div className="text-right">
+                    <div className={cn(
+                      "text-xs font-bold px-2.5 py-1 rounded-md inline-block",
+                      isInvPaid ? "text-emerald-700 bg-emerald-100" : "text-rose-700 bg-rose-100"
+                    )}>
+                      {isInvPaid ? 'Paid ✅' : 'Pending'}
+                    </div>
+                    {latestPayment?.paymentMode && (
+                      <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wider">
+                        {latestPayment.paymentMode}
+                      </p>
+                    )}
                   </div>
                 </div>
               );
@@ -283,7 +327,7 @@ export default function TenantDetailPage() {
 
       {/* Record Payment Bottom Sheet */}
       <Sheet open={isPaymentSheetOpen} onOpenChange={setIsPaymentSheetOpen}>
-        <SheetContent side="bottom" className="rounded-t-3xl pb-safe">
+        <SheetContent side="bottom" className="rounded-t-3xl pb-safe w-full max-w-md mx-auto bg-white">
           <SheetHeader className="mb-6">
             <SheetTitle className="text-2xl font-black text-slate-900">Record Payment</SheetTitle>
           </SheetHeader>

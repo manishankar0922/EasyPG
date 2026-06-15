@@ -101,6 +101,7 @@ router.post('/login',
           id: user.id,
           name: user.name,
           email: user.email,
+          phone: user.phone,
           role: user.role,
           organisationId: user.organisationId,
           branchId: user.branchId

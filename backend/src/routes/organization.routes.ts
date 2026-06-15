@@ -27,7 +27,7 @@ router.post('/', validate(z.object({
 });
 
 // Get organization by ID
-router.get('/:id', validate(z.object({ params: z.object({ id: z.string().uuid() }) })), async (req, res) => {
+router.get('/:id', validate(z.object({ params: z.object({ id: z.string().min(5) }) })), async (req, res) => {
   const { organizationId } = req.user!;
   const targetId = req.params.id as string;
 
@@ -47,7 +47,7 @@ router.get('/:id', validate(z.object({ params: z.object({ id: z.string().uuid() 
 });
 
 // Update organization details
-router.patch('/:id', validate(z.object({ params: z.object({ id: z.string().uuid() }) })), validate(updateOrganizationSchema), async (req, res) => {
+router.patch('/:id', validate(z.object({ params: z.object({ id: z.string().min(5) }) })), validate(updateOrganizationSchema), async (req, res) => {
   const { organizationId, role } = req.user!;
   const targetId = req.params.id as string;
   
