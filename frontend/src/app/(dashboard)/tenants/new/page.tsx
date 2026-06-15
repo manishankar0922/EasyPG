@@ -34,6 +34,12 @@ export default function AddTenantPage() {
   const [checkinDate, setCheckinDate] = useState(new Date().toISOString().split('T')[0]);
   const [monthlyRent, setMonthlyRent] = useState<number | ''>('');
   
+  // OTP Verification state
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpVerified, setOtpVerified] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
+
   // Bed Assignment State
   const [autoAssign, setAutoAssign] = useState(true);
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -98,6 +104,28 @@ export default function AddTenantPage() {
       if (room) setMonthlyRent(Number(room.rentAmount));
     }
   }, [autoAssign, bestBed, selectedRoomId, rooms]);
+
+  const handleSendOtp = () => {
+    if (!phone || phone.length < 10) {
+      alert('Please enter a valid 10-digit phone number first.');
+      return;
+    }
+    setVerifyingOtp(true);
+    setTimeout(() => {
+      setVerifyingOtp(false);
+      setOtpSent(true);
+      alert(`Dummy OTP sent to ${phone}`);
+    }, 1000);
+  };
+
+  const handleVerifyOtp = () => {
+    setVerifyingOtp(true);
+    setTimeout(() => {
+      setVerifyingOtp(false);
+      setOtpVerified(true);
+      alert('Phone number verified successfully!');
+    }, 1000);
+  };
 
   // Derive final selection
   const finalRoomId = autoAssign ? bestBed?.room.id : selectedRoomId;
@@ -271,7 +299,7 @@ export default function AddTenantPage() {
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-600">Phone Number</label>
+              <label className="text-xs font-semibold text-slate-600">Phone Number (OTP Verification)</label>
               <div className="relative">
                 <Phone className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
                 <input 
@@ -281,10 +309,46 @@ export default function AddTenantPage() {
                   maxLength={10}
                   required 
                   placeholder="Enter 10 digit mobile number"
-                  className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-4 text-slate-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition shadow-sm text-sm"
+                  className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-4 text-slate-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition shadow-sm text-sm disabled:opacity-50"
                   value={phone} onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))} 
+                  disabled={otpVerified}
                 />
               </div>
+              
+              {!otpVerified && (
+                <div className="flex gap-2 mt-2">
+                  {otpSent ? (
+                    <>
+                      <input 
+                        type="text" 
+                        maxLength={6} 
+                        placeholder="OTP" 
+                        className="flex-1 max-w-[120px] rounded-lg border border-slate-200 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none tracking-widest"
+                        value={otpCode}
+                        onChange={(e) => setOtpCode(e.target.value)}
+                      />
+                      <button 
+                        type="button" 
+                        onClick={handleVerifyOtp}
+                        disabled={verifyingOtp || otpCode.length < 4}
+                        className="rounded-lg bg-emerald-600 px-4 py-1.5 text-xs font-bold text-white hover:bg-emerald-700 transition disabled:opacity-50"
+                      >
+                        {verifyingOtp ? 'Verifying...' : 'Verify'}
+                      </button>
+                    </>
+                  ) : (
+                    <button 
+                      type="button" 
+                      onClick={handleSendOtp}
+                      disabled={verifyingOtp || phone.length < 10}
+                      className="rounded-lg bg-blue-100 text-blue-700 px-4 py-1.5 text-xs font-bold hover:bg-blue-200 transition disabled:opacity-50"
+                    >
+                      {verifyingOtp ? <Loader2 className="h-4 w-4 animate-spin inline" /> : 'Send OTP'}
+                    </button>
+                  )}
+                </div>
+              )}
+              {otpVerified && <div className="text-xs font-bold text-emerald-500 mt-1 flex items-center gap-1"><CheckCircle2 className="h-3 w-3" /> Verified</div>}
             </div>
 
             <div className="space-y-1.5">

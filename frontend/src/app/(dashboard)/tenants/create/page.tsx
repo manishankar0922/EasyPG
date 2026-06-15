@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import api from '@/lib/api';
 import { useRouter } from 'next/navigation';
-import { User, Phone, School, CreditCard, Loader2, ArrowLeft, Bed, Calendar, Coins } from 'lucide-react';
+import { User, Phone, School, CreditCard, Loader2, ArrowLeft, Bed, Calendar, Coins, CheckCircle2 } from 'lucide-react';
 import Link from 'next/link';
 import MobileCameraCapture from '@/components/shared/MobileCameraCapture';
 import { format } from 'date-fns';
@@ -28,6 +28,12 @@ export default function CreateTenantPage() {
   // Available Rooms state
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loadingRooms, setLoadingRooms] = useState(true);
+
+  // OTP Verification state
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpVerified, setOtpVerified] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -69,10 +75,39 @@ export default function CreateTenantPage() {
     }));
   };
 
+  const handleSendOtp = () => {
+    if (!formData.phone || formData.phone.length < 10) {
+      alert('Please enter a valid 10-digit phone number first.');
+      return;
+    }
+    setVerifyingOtp(true);
+    setTimeout(() => {
+      setVerifyingOtp(false);
+      setOtpSent(true);
+      alert(`Dummy OTP sent to ${formData.phone}`);
+    }, 1000);
+  };
+
+  const handleVerifyOtp = () => {
+    setVerifyingOtp(true);
+    setTimeout(() => {
+      setVerifyingOtp(false);
+      setOtpVerified(true);
+      alert('Phone number verified successfully!');
+    }, 1000);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
+
+    // Optional: enforce OTP verification
+    // if (!otpVerified) {
+    //   setError('Please verify the phone number using OTP before proceeding.');
+    //   setLoading(false);
+    //   return;
+    // }
 
     if (!formData.roomId) {
       setError('Please assign a room/bed.');
@@ -171,7 +206,7 @@ export default function CreateTenantPage() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-semibold text-slate-700">Phone Number</label>
+              <label className="text-sm font-semibold text-slate-700">Phone Number (OTP Verification)</label>
               <div className="relative">
                 <Phone className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
                 <input
@@ -184,8 +219,44 @@ export default function CreateTenantPage() {
                   className="w-full rounded-xl border border-slate-200 py-2.5 pl-10 pr-4 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value.replace(/\D/g, '').slice(0, 10) })}
+                  disabled={otpVerified}
                 />
               </div>
+              
+              {!otpVerified && (
+                <div className="flex gap-2 mt-2">
+                  {otpSent ? (
+                    <>
+                      <input 
+                        type="text" 
+                        maxLength={6} 
+                        placeholder="Enter OTP" 
+                        className="flex-1 rounded-lg border border-slate-200 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none tracking-widest"
+                        value={otpCode}
+                        onChange={(e) => setOtpCode(e.target.value)}
+                      />
+                      <button 
+                        type="button" 
+                        onClick={handleVerifyOtp}
+                        disabled={verifyingOtp || otpCode.length < 4}
+                        className="rounded-lg bg-green-600 px-4 py-1.5 text-xs font-bold text-white hover:bg-green-700 transition disabled:opacity-50"
+                      >
+                        {verifyingOtp ? 'Verifying...' : 'Verify'}
+                      </button>
+                    </>
+                  ) : (
+                    <button 
+                      type="button" 
+                      onClick={handleSendOtp}
+                      disabled={verifyingOtp || formData.phone.length < 10}
+                      className="rounded-lg bg-blue-100 text-blue-700 px-4 py-1.5 text-xs font-bold hover:bg-blue-200 transition disabled:opacity-50"
+                    >
+                      {verifyingOtp ? <Loader2 className="h-4 w-4 animate-spin inline" /> : 'Send OTP'}
+                    </button>
+                  )}
+                </div>
+              )}
+              {otpVerified && <div className="text-xs font-bold text-green-600 mt-1 flex items-center gap-1"><CheckCircle2 className="h-3 w-3" /> Phone Verified</div>}
             </div>
 
             <div className="space-y-2">

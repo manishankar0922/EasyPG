@@ -49,3 +49,7 @@ export const subscriptionReminderWorker = new Worker(
   },
   { connection: redisConnection as any }
 );
+
+subscriptionReminderWorker.on('error', (err) => {
+  // Catch worker level connection errors
+});

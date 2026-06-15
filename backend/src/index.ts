@@ -4,6 +4,8 @@ import cors from 'cors';
 import helmet from 'helmet';
 import { json } from 'express';
 import dotenv from 'dotenv';
+import swaggerUi from 'swagger-ui-express';
+import swaggerJsdoc from 'swagger-jsdoc';
 import { errorHandler } from './middlewares/error.middleware';
 import { requestLogger } from './middlewares/requestLogger';
 import { startWorkers, serverAdapter } from './config/queue';
@@ -65,14 +67,46 @@ if (process.env.NODE_ENV !== 'test') {
 }
 
 // Queue Monitor
-app.use('/api/admin/queues', serverAdapter.getRouter());
+app.use('/api/v1/admin/queues', serverAdapter.getRouter());
+
+// OpenAPI Swagger Documentation
+const swaggerOptions = {
+  definition: {
+    openapi: '3.0.0',
+    info: {
+      title: 'EasyPG SaaS API Documentation',
+      version: '1.0.0',
+      description: 'Production API specification for EasyPG property management solutions.',
+    },
+    servers: [
+      {
+        url: 'http://localhost:4000/api/v1',
+        description: 'Development Server',
+      },
+    ],
+    components: {
+      securitySchemes: {
+        bearerAuth: {
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'JWT',
+        },
+      },
+    },
+    security: [{ bearerAuth: [] }],
+  },
+  apis: ['./src/routes/*.ts', './src/routes/*.js'],
+};
+
+const swaggerSpec = swaggerJsdoc(swaggerOptions);
+app.use('/api/v1/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // Health endpoints
-app.get('/api/health', (req: Request, res: Response) => {
+app.get('/api/v1/health', (req: Request, res: Response) => {
   res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
-app.get('/api/health/db', async (req: Request, res: Response) => {
+app.get('/api/v1/health/db', async (req: Request, res: Response) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
     const counts = {
@@ -98,24 +132,24 @@ app.get('/api/health/db', async (req: Request, res: Response) => {
 });
 
 // STEP 6 — Public routes (no auth needed)
-app.use('/api/auth', authRoutes);
+app.use('/api/v1/auth', authRoutes);
 
 // STEP 7 — Protected routes (auth required)
-app.use('/api/users', userRoutes);
-app.use('/api/organizations', organizationRoutes);
-app.use('/api/branches', branchRoutes);
-app.use('/api/rooms', roomRoutes);
-app.use('/api/tenants', tenantRoutes);
-app.use('/api/admissions', admissionRoutes);
-app.use('/api/invoices', invoiceRoutes);
-app.use('/api/payments', paymentRoutes);
-app.use('/api/dashboard', dashboardRoutes);
-app.use('/api/admin', adminRoutes);
-app.use('/api/upload', uploadRoutes);
-app.use('/api/superadmin', superadminRoutes);
-app.use('/api/rent-ledger', rentLedgerRoutes);
-app.use('/api/vacate-notices', vacateNoticeRoutes);
-app.use('/api/subscription', subscriptionRoutes);
+app.use('/api/v1/users', userRoutes);
+app.use('/api/v1/organizations', organizationRoutes);
+app.use('/api/v1/branches', branchRoutes);
+app.use('/api/v1/rooms', roomRoutes);
+app.use('/api/v1/tenants', tenantRoutes);
+app.use('/api/v1/admissions', admissionRoutes);
+app.use('/api/v1/invoices', invoiceRoutes);
+app.use('/api/v1/payments', paymentRoutes);
+app.use('/api/v1/dashboard', dashboardRoutes);
+app.use('/api/v1/admin', adminRoutes);
+app.use('/api/v1/upload', uploadRoutes);
+app.use('/api/v1/superadmin', superadminRoutes);
+app.use('/api/v1/rent-ledger', rentLedgerRoutes);
+app.use('/api/v1/vacate-notices', vacateNoticeRoutes);
+app.use('/api/v1/subscription', subscriptionRoutes);
 
 // STEP 8 — 404 handler (after all routes)
 app.use('*', (req, res) => {
@@ -123,14 +157,14 @@ app.use('*', (req, res) => {
     success: false,
     error: `Route not found: ${req.method} ${req.originalUrl}`,
     availableRoutes: [
-      'POST /api/auth/login',
-      'GET /api/health',
-      'GET /api/health/db',
-      'POST /api/superadmin/organisations',
-      'GET /api/dashboard/:branchId',
-      'GET /api/tenants',
-      'POST /api/tenants',
-      'POST /api/payments/record',
+      'POST /api/v1/auth/login',
+      'GET /api/v1/health',
+      'GET /api/v1/health/db',
+      'POST /api/v1/superadmin/organisations',
+      'GET /api/v1/dashboard/:branchId',
+      'GET /api/v1/tenants',
+      'POST /api/v1/tenants',
+      'POST /api/v1/payments/record',
     ]
   });
 });
@@ -139,18 +173,20 @@ app.use('*', (req, res) => {
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
-  console.log(`
-  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  🚀 EasyPG Server Running
-  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Port:     ${PORT}
-  Mode:     ${process.env.NODE_ENV}
-  DB:       ${process.env.DATABASE_URL ? '✅ Connected' : '❌ Missing'}
-  JWT:      ${process.env.JWT_SECRET ? '✅ Set' : '❌ Missing'}
-  Frontend: ${process.env.FRONTEND_URL}
-  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  `);
-});
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(PORT, () => {
+    console.log(`
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    🚀 EasyPG Server Running
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    Port:     ${PORT}
+    Mode:     ${process.env.NODE_ENV}
+    DB:       ${process.env.DATABASE_URL ? '✅ Connected' : '❌ Missing'}
+    JWT:      ${process.env.JWT_SECRET ? '✅ Set' : '❌ Missing'}
+    Frontend: ${process.env.FRONTEND_URL}
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    `);
+  });
+}
 
 export default app;
