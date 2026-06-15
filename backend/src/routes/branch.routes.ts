@@ -10,9 +10,27 @@ const router = Router();
 router.use(authMiddleware);
 router.use(checkSubscription);
 
+// SuperAdmin mock middleware to prevent Prisma crashes when testing
+router.use((req, res, next) => {
+  const orgId = req.user!.organizationId || req.user!.organisationId;
+  if (!orgId) {
+    if (req.method === 'GET') {
+      if (req.path === '/') return res.json({ success: true, data: [] });
+      return res.json({ success: true, data: null });
+    }
+    return res.status(403).json({ success: false, error: 'SuperAdmin cannot perform this action' });
+  }
+  next();
+});
+
 // Get all branches with basic occupancy data
 router.get('/', async (req, res) => {
-  const orgId = req.user!.organizationId as string;
+  const orgId = req.user!.organizationId || req.user!.organisationId;
+  
+  if (!orgId) {
+    return res.json({ success: true, data: [] });
+  }
+
   const branches = await prisma.branch.findMany({
     where: { organizationId: orgId },
     include: {
@@ -47,7 +65,7 @@ router.get('/', async (req, res) => {
 });
 
 // Get single branch with detailed occupancy
-router.get('/:id', validate(z.object({ params: z.object({ id: z.string().uuid() }) })), async (req, res) => {
+router.get('/:id', validate(z.object({ params: z.object({ id: z.string().min(5) }) })), async (req, res) => {
   const orgId = req.user!.organizationId as string;
   const branchId = req.params.id as string;
 
@@ -75,7 +93,7 @@ router.get('/:id', validate(z.object({ params: z.object({ id: z.string().uuid() 
 });
 
 // GET /branches/:id/stats
-router.get('/:id/stats', validate(z.object({ params: z.object({ id: z.string().uuid() }) })), async (req, res) => {
+router.get('/:id/stats', validate(z.object({ params: z.object({ id: z.string().min(5) }) })), async (req, res) => {
   const orgId = req.user!.organizationId as string;
   const branchId = req.params.id as string;
 
@@ -103,7 +121,7 @@ router.get('/:id/stats', validate(z.object({ params: z.object({ id: z.string().u
 });
 
 // GET /branches/:id/pending-rent
-router.get('/:id/pending-rent', validate(z.object({ params: z.object({ id: z.string().uuid() }) })), async (req, res) => {
+router.get('/:id/pending-rent', validate(z.object({ params: z.object({ id: z.string().min(5) }) })), async (req, res) => {
   const orgId = req.user!.organizationId as string;
   const branchId = req.params.id as string;
   const now = new Date();
@@ -307,7 +325,7 @@ router.get('/:id/monthly-report', async (req, res) => {
 });
 
 // GET /branches/:id/upcoming-vacancies
-router.get('/:id/upcoming-vacancies', validate(z.object({ params: z.object({ id: z.string().uuid() }) })), async (req, res) => {
+router.get('/:id/upcoming-vacancies', validate(z.object({ params: z.object({ id: z.string().min(5) }) })), async (req, res) => {
   const orgId = req.user!.organizationId as string;
   const branchId = req.params.id as string;
 
@@ -455,7 +473,7 @@ router.patch('/:id', validate(updateBranchSchema), async (req, res) => {
 });
 
 // Delete branch
-router.delete('/:id', validate(z.object({ params: z.object({ id: z.string().uuid() }) })), async (req, res) => {
+router.delete('/:id', validate(z.object({ params: z.object({ id: z.string().min(5) }) })), async (req, res) => {
   const branchId = req.params.id as string;
   const orgId = req.user!.organizationId as string;
 

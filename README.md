@@ -113,7 +113,22 @@ NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET="..."
 *   **Zod Alignment:** The Super Admin creation flow completely aligns with strict validation. The backend dynamically maps legacy inputs (`name` → `orgName`) ensuring backwards compatibility while safely injecting the hierarchy (Organizations → Branches → Floors → Rooms → Beds) in a single Prisma transaction.
 *   **Authentication Speller Guard:** Implemented a unified `req.user` spelling guard in `auth.middleware.ts`. This safely maps the Prisma token return `organisationId` to the standard application expectation `organizationId`, preventing `undefined` Prisma failures on route execution.
 
-### 4. Database Setup
+### 3. Payment Stabilization & Audit Trails
+*   **Timezone-Safe Rent Ledgers:** Fixed critical Node.js `toISOString()` UTC conversion bugs. Ledger and invoice generations now rigorously enforce local `YYYY-MM` string bucket allocations, ensuring payments made late at night in IST aren't mistakenly attributed to the previous month.
+*   **Accountability Tracing:** Upgraded the `Payment` and `User` relational models. Every payment explicitly tracks the `recordedById`, enabling the dashboard to display an immutable "Accepted by [Name] (Branch Warden)" audit trail.
+
+### 4. UI/UX Polishing & Constraints
+*   **Mobile-Frame Architecture:** Implemented a unified `w-full max-w-md mx-auto` boundary constraint across all Radix UI Bottom Sheets (Rooms, Tenants, and Subscriptions) ensuring full-screen web components beautifully respect the mobile-first bounding box on ultra-wide desktop monitors.
+*   **Profile Enhancements:** Completely dynamic Profile displays. Eliminated hardcoded fallback variables to accurately display hierarchical access levels ("All Branches" vs "Assigned Branch Only"), registered emails, and synced phone numbers directly from the `useAuthStore`.
+
+### 5. Account Recovery & Password Management
+*   **Self-Serve Resets:** Built a secure `/auth/reset-password` flow equipped with bcrypt hashing for users directly on the login screen.
+*   **Emergency Interventions:** Outfitted the Super Admin `OrgTable` dashboard with a zero-knowledge "Key" action button. This allows developers to instantly force-reset locked-out Owner passwords to a secure default (`EasyPG@123`) without ever exposing plaintext data.
+
+### 6. Communication Automation
+*   **WhatsApp Receipts:** Integrated a dynamic WhatsApp share button on the Tenant Profile. When a tenant pays rent, Wardens can click a single button to auto-generate and send a pre-filled, professional rent receipt message instantly to the tenant's phone.
+
+### 7. Database Setup
 ```bash
 cd backend
 npm install
@@ -138,6 +153,8 @@ The platform uses a custom JWT authentication system. For local development, the
 - [x] Vacate Notice Tracking System
 - [x] Manual SaaS Subscription & Approval Workflow
 - [x] Enterprise Security Hardening & Performance Audits
+- [x] Whatsapp Auto-Receipts & Payment Accountability
+- [ ] **Tenant Self-Service App:** OTP-based mobile login for tenants to view rent history and raise complaints.
 - [ ] Offline PWA Support (Service Workers for Dashboard caching)
 - [ ] Automated WhatsApp/SMS Notification Engine for Rent Reminders
 - [ ] OCR-based Tenant ID Verification

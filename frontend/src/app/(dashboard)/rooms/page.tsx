@@ -8,21 +8,24 @@ import Image from 'next/image';
 import { LayoutGrid, List, Plus, Users, User, ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/auth-store';
+import { useBranch } from '@/context/BranchContext';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 
+import BranchSwitcher from '@/components/shared/BranchSwitcher';
 import LoadingScreen from '@/components/shared/LoadingScreen';
 
 export default function MobileRoomsPage() {
   const { user } = useAuthStore();
+  const { activeBranchId } = useBranch();
   
   const { data: floors = [], isLoading: loading } = useQuery<any[]>({
-    queryKey: ['rooms', user?.branchId],
+    queryKey: ['rooms', activeBranchId],
     queryFn: async () => {
-      if (!user?.branchId) return [];
-      const res = await api.get(`/branches/${user.branchId}/heatmap`);
+      if (!activeBranchId) return [];
+      const res = await api.get(`/branches/${activeBranchId}/heatmap`);
       return res.data.success ? res.data.data : [];
     },
-    enabled: !!user?.branchId,
+    enabled: !!activeBranchId,
     staleTime: 30 * 1000,
     gcTime: 5 * 60 * 1000,
   });
@@ -89,6 +92,9 @@ export default function MobileRoomsPage() {
             </button>
           </div>
         </div>
+
+        {/* Branch Switcher */}
+        <BranchSwitcher />
 
         {/* Filter Chips */}
         <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-1">
@@ -216,7 +222,11 @@ export default function MobileRoomsPage() {
 
       {/* Room Details Bottom Sheet */}
       <Sheet open={!!selectedRoom} onOpenChange={(open) => !open && setSelectedRoom(null)}>
-        <SheetContent side="bottom" className="rounded-t-3xl pb-safe px-4 pt-6 max-h-[85vh] overflow-y-auto custom-scrollbar">
+        <SheetContent side="bottom" className="rounded-t-3xl pb-safe px-4 pt-6 max-h-[85vh] overflow-y-auto custom-scrollbar w-full max-w-md mx-auto bg-white">
+          <SheetHeader className="sr-only">
+            <SheetTitle>Room Details</SheetTitle>
+          </SheetHeader>
+          
           {selectedRoom && (
             <div>
               <div className="text-center mb-6">

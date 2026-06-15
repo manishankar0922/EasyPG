@@ -21,7 +21,7 @@ router.get('/', async (req, res) => {
 });
 
 // Get user by ID
-router.get('/:id', validate(z.object({ params: z.object({ id: z.string().uuid() }) })), async (req, res) => {
+router.get('/:id', validate(z.object({ params: z.object({ id: z.string().min(5) }) })), async (req, res) => {
   const userId = req.params.id as string;
   const user = await prisma.profile.findFirst({
     where: { id: userId, organizationId: req.user!.organizationId },
@@ -102,7 +102,7 @@ router.post('/', validate(createProfileSchema), async (req, res) => {
 
 // Update user status
 router.patch('/:id/status', validate(z.object({ 
-  params: z.object({ id: z.string().uuid() }),
+  params: z.object({ id: z.string().min(5) }),
   body: z.object({ status: z.enum(['ACTIVE', 'INACTIVE', 'SUSPENDED']) }) 
 })), async (req, res) => {
   const { organizationId, role: currentUserRole } = req.user!;
@@ -125,7 +125,7 @@ router.patch('/:id/status', validate(z.object({
 
 // Admin Password Reset
 router.post('/:id/reset-password', validate(z.object({ 
-  params: z.object({ id: z.string().uuid() }),
+  params: z.object({ id: z.string().min(5) }),
   body: z.object({ newPassword: z.string().min(6) }) 
 })), async (req, res) => {
   const { organizationId, role: currentUserRole } = req.user!;
@@ -158,8 +158,8 @@ router.post('/:id/reset-password', validate(z.object({
 
 // Assign Branch
 router.patch('/:id/assign-branch', validate(z.object({ 
-  params: z.object({ id: z.string().uuid() }),
-  body: z.object({ branchId: z.string().uuid().nullable() }) 
+  params: z.object({ id: z.string().min(5) }),
+  body: z.object({ branchId: z.string().min(5).nullable() }) 
 })), async (req, res) => {
   const { organizationId, role: currentUserRole } = req.user!;
   const targetId = req.params.id as string;
@@ -209,7 +209,7 @@ router.patch('/:id', validate(updateProfileSchema), async (req, res) => {
 });
 
 // Delete user
-router.delete('/:id', validate(z.object({ params: z.object({ id: z.string().uuid() }) })), async (req, res) => {
+router.delete('/:id', validate(z.object({ params: z.object({ id: z.string().min(5) }) })), async (req, res) => {
   const { organizationId, role: currentUserRole } = req.user!;
   const targetId = req.params.id as string;
 

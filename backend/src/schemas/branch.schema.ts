@@ -18,6 +18,6 @@ export const updateBranchSchema = z.object({
     address: z.string().optional(),
   }),
   params: z.object({
-    id: z.string().uuid(),
+    id: z.string().min(5),
   }),
 });

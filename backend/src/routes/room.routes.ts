@@ -107,7 +107,7 @@ router.get('/occupancy', async (req, res) => {
 });
 
 // Get single room details
-router.get('/:id', validate(z.object({ params: z.object({ id: z.string().uuid() }) })), async (req, res) => {
+router.get('/:id', validate(z.object({ params: z.object({ id: z.string().min(5) }) })), async (req, res) => {
   const roomId = req.params.id as string;
   const { role, branchId: userBranchId, organizationId: orgId } = req.user!;
 
@@ -226,7 +226,7 @@ router.patch('/:id', validate(updateRoomSchema), async (req, res) => {
 });
 
 // Block room
-router.patch('/:id/block', validate(z.object({ params: z.object({ id: z.string().uuid() }) })), async (req, res) => {
+router.patch('/:id/block', validate(z.object({ params: z.object({ id: z.string().min(5) }) })), async (req, res) => {
   const roomId = req.params.id as string;
   const room = await prisma.room.updateMany({
     where: { id: roomId, organizationId: req.user!.organizationId as string },
@@ -239,7 +239,7 @@ router.patch('/:id/block', validate(z.object({ params: z.object({ id: z.string()
 });
 
 // Activate room
-router.patch('/:id/activate', validate(z.object({ params: z.object({ id: z.string().uuid() }) })), async (req, res) => {
+router.patch('/:id/activate', validate(z.object({ params: z.object({ id: z.string().min(5) }) })), async (req, res) => {
   const roomId = req.params.id as string;
   const room = await prisma.room.updateMany({
     where: { id: roomId, organizationId: req.user!.organizationId as string },
@@ -252,7 +252,7 @@ router.patch('/:id/activate', validate(z.object({ params: z.object({ id: z.strin
 });
 
 // Delete room
-router.delete('/:id', validate(z.object({ params: z.object({ id: z.string().uuid() }) })), async (req, res) => {
+router.delete('/:id', validate(z.object({ params: z.object({ id: z.string().min(5) }) })), async (req, res) => {
   const roomId = req.params.id as string;
   const orgId = req.user!.organizationId as string;
 

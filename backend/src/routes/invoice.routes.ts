@@ -102,7 +102,7 @@ router.patch('/:id', validate(updateInvoiceSchema), async (req, res) => {
 });
 
 // Delete invoice
-router.delete('/:id', validate(z.object({ params: z.object({ id: z.string().uuid() }) })), async (req, res) => {
+router.delete('/:id', validate(z.object({ params: z.object({ id: z.string().min(5) }) })), async (req, res) => {
   const invoiceId = req.params.id as string;
   const orgId = req.user!.organizationId;
 
@@ -127,7 +127,7 @@ router.delete('/:id', validate(z.object({ params: z.object({ id: z.string().uuid
 });
 
 // GET /invoices/tenant/:tenantId/pending - Get pending invoices for a tenant (for payment recording)
-router.get('/tenant/:tenantId/pending', validate(z.object({ params: z.object({ tenantId: z.string().uuid() }) })), async (req, res) => {
+router.get('/tenant/:tenantId/pending', validate(z.object({ params: z.object({ tenantId: z.string().min(5) }) })), async (req, res) => {
   const tenantId = req.params.tenantId as string;
   const orgId = req.user!.organizationId;
   const { role, branchId: userBranchId } = req.user!;

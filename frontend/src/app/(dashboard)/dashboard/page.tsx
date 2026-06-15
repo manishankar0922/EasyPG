@@ -13,29 +13,40 @@ import LoadingScreen from '@/components/shared/LoadingScreen';
 export default function MobileDashboard() {
   const { user } = useAuthStore();
   const { t } = useLanguage();
-  const { activeBranchId, loading: branchLoading } = useBranch();
+  const { activeBranchId, loading: branchLoading, error: branchError } = useBranch();
   const [data, setData] = useState<any>(null);
   const [vacancies, setVacancies] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dashboardError, setDashboardError] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchData() {
       if (!activeBranchId) return;
       try {
         setLoading(true);
-        const [dashboardRes, vacanciesRes] = await Promise.all([
-          api.get(`/dashboard/mobile-home?branchId=${activeBranchId}`),
-          api.get(`/branches/${activeBranchId}/upcoming-vacancies`)
-        ]);
+        setDashboardError(null);
         
-        if (dashboardRes.data.success) {
-          setData(dashboardRes.data.data);
+        // Fetch dashboard data
+        try {
+          const dashboardRes = await api.get(`/dashboard/mobile-home?branchId=${activeBranchId}`);
+          if (dashboardRes.data?.success) {
+            setData(dashboardRes.data.data);
+          }
+        } catch (err: any) {
+          console.error('Failed to load dashboard stats:', err);
+          setDashboardError(err.message || 'Failed to load dashboard stats. Server unreachable.');
         }
-        if (vacanciesRes.data.success) {
-          setVacancies(vacanciesRes.data.data);
+
+        // Fetch vacancies separately so it doesn't break the whole dashboard if it fails
+        try {
+          const vacanciesRes = await api.get(`/branches/${activeBranchId}/upcoming-vacancies`);
+          if (vacanciesRes.data?.success) {
+            setVacancies(vacanciesRes.data.data);
+          }
+        } catch (err) {
+          console.error('Failed to load upcoming vacancies:', err);
         }
-      } catch (err) {
-        console.error('Failed to load dashboard', err);
+
       } finally {
         setLoading(false);
       }
@@ -43,8 +54,30 @@ export default function MobileDashboard() {
     fetchData();
   }, [activeBranchId]);
 
-  if (branchLoading || (loading && activeBranchId)) {
+  if (branchLoading || (loading && activeBranchId && !data && !dashboardError)) {
     return <LoadingScreen message="Loading your dashboard..." />;
+  }
+
+  if (branchError || dashboardError) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-center space-y-4">
+        <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mb-2">
+          <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+        <h2 className="text-xl font-bold text-slate-900">Connection Error</h2>
+        <p className="text-slate-500 font-medium">
+          {branchError || dashboardError}
+        </p>
+        <button 
+          onClick={() => window.location.reload()} 
+          className="mt-4 px-6 py-3 bg-blue-600 text-white rounded-xl font-bold shadow-lg shadow-blue-600/20 active:scale-95 transition-all"
+        >
+          Try Again
+        </button>
+      </div>
+    );
   }
 
   // Fallback defaults if data is missing

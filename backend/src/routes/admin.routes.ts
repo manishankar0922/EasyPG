@@ -380,7 +380,7 @@ const editRoomSchema = z.object({
     bedCount: z.number().int().min(1).max(8),
     rentPerBed: z.number().min(0),
   }),
-  params: z.object({ roomId: z.string().uuid() }),
+  params: z.object({ roomId: z.string().min(5) }),
 });
 
 router.patch('/rooms/:roomId', validate(editRoomSchema), async (req, res) => {

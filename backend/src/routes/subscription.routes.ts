@@ -9,6 +9,20 @@ router.use(authMiddleware);
 router.get('/status', async (req, res) => {
   const orgId = req.user!.organisationId || req.user!.organizationId;
 
+  if (!orgId) {
+    // If SuperAdmin accesses this page, return a mock active subscription so it doesn't crash
+    return res.json({
+      success: true,
+      data: {
+        id: 'superadmin-mock',
+        organizationId: 'superadmin',
+        plan: 'PRO',
+        status: 'ACTIVE',
+        trialEndsAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 365),
+      }
+    });
+  }
+
   try {
     let subscription = await prisma.subscription.findUnique({
       where: { organizationId: orgId }
@@ -40,6 +54,15 @@ router.get('/status', async (req, res) => {
 router.post('/request', async (req, res) => {
   const orgId = req.user!.organisationId || req.user!.organizationId;
   const { plan, upiRefNumber, screenshotUrl, amount } = req.body;
+
+  if (!orgId) {
+    // If SuperAdmin tests the form, mock a success response
+    return res.json({ 
+      success: true, 
+      data: { id: 'mock-req' }, 
+      message: 'Mock payment request submitted (SuperAdmin)' 
+    });
+  }
 
   try {
     const request = await prisma.paymentRequest.create({

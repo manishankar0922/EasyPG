@@ -6,7 +6,7 @@ const RoomStatusEnum = z.enum(['ACTIVE', 'BLOCKED', 'MAINTENANCE']);
 
 export const createRoomSchema = z.object({
   body: z.object({
-    branchId: z.string().uuid(),
+    branchId: z.string().min(5),
     roomNumber: z.string().min(1).max(20),
     roomType: RoomTypeEnum.optional(),
     totalCapacity: z.number().int().positive(),
@@ -26,6 +26,6 @@ export const updateRoomSchema = z.object({
     status: RoomStatusEnum.optional(),
   }),
   params: z.object({
-    id: z.string().uuid(),
+    id: z.string().min(5),
   }),
 });

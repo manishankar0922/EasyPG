@@ -47,7 +47,7 @@ router.get('/history', async (req, res) => {
 });
 
 // Get single payment
-router.get('/:id', validate(z.object({ params: z.object({ id: z.string().uuid() }) })), async (req, res) => {
+router.get('/:id', validate(z.object({ params: z.object({ id: z.string().min(5) }) })), async (req, res) => {
   const paymentId = req.params.id as string;
   const payment = await prisma.payment.findFirst({
     where: { id: paymentId, organizationId: req.user!.organizationId },
@@ -61,8 +61,8 @@ router.get('/:id', validate(z.object({ params: z.object({ id: z.string().uuid() 
 // Add payment
 router.post('/', validate(z.object({
   body: z.object({
-    invoiceId: z.string().uuid().optional(),
-    tenantId: z.string().uuid().optional(),
+    invoiceId: z.string().min(5).optional(),
+    tenantId: z.string().min(5).optional(),
     amount: z.number().min(1, 'Amount must be greater than 0').max(500000, 'Amount too large'),
     mode: z.enum(['UPI', 'CASH', 'BANK_TRANSFER']).optional(),
     paymentMode: z.enum(['UPI', 'CASH', 'BANK_TRANSFER']).optional(),
@@ -88,8 +88,11 @@ router.post('/', validate(z.object({
 
       // If tenantId is provided instead of invoiceId, find/create the current month's invoice
       if (tenantId && !targetInvoiceId) {
-        const currentMonthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-        const currentMonthString = currentMonthStart.toISOString().substring(0, 7); // e.g. "2024-05"
+        const dateObj = new Date();
+        const currentYear = dateObj.getFullYear();
+        const currentMonthNum = dateObj.getMonth() + 1;
+        const currentMonthString = `${currentYear}-${currentMonthNum.toString().padStart(2, '0')}`;
+        const currentMonthStart = new Date(currentYear, currentMonthNum - 1, 1);
 
         let invoice = await tx.invoice.findFirst({
           where: { tenantId, organizationId: orgId, createdAt: { gte: currentMonthStart } },
@@ -146,7 +149,7 @@ router.post('/', validate(z.object({
           amount,
           paymentMode: finalPaymentMode,
           paymentDate: finalPaymentDate,
-          // note is not in schema but can be added if needed, omitting for now
+          recordedById: req.user!.id
         }
       });
 
@@ -168,6 +171,43 @@ router.post('/', validate(z.object({
         where: { id: targetInvoiceId },
         data: { status: newStatus }
       });
+
+      // Synchronize with RentLedger so Dashboard accurately reflects payment
+      const invoiceYear = parseInt(invoice.month.substring(0, 4));
+      const invoiceMonth = parseInt(invoice.month.substring(5, 7));
+      
+      const rentLedger = await tx.rentLedger.findFirst({
+        where: {
+          tenantId: invoice.tenantId,
+          month: invoiceMonth,
+          year: invoiceYear
+        }
+      });
+
+      const ledgerStatus = newStatus === 'UNPAID' ? 'PENDING' : newStatus;
+
+      if (rentLedger) {
+        await tx.rentLedger.update({
+          where: { id: rentLedger.id },
+          data: {
+            paidAmount: { increment: amount },
+            status: ledgerStatus as any
+          }
+        });
+      } else {
+        await tx.rentLedger.create({
+          data: {
+            tenantId: invoice.tenantId,
+            month: invoiceMonth,
+            year: invoiceYear,
+            expectedRent: Number(invoice.amount),
+            totalDue: Number(invoice.amount),
+            paidAmount: amount,
+            dueDate: invoice.dueDate,
+            status: ledgerStatus as any
+          }
+        });
+      }
 
       return payment;
     });

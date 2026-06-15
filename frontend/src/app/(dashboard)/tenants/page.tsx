@@ -169,12 +169,16 @@ export default function TenantsMobilePage() {
       </div>
 
       {/* FAB - Floating Action Button */}
-      <Link
-        href="/tenants/new"
-        className="fixed bottom-24 right-5 h-[60px] w-[60px] bg-blue-600 text-white rounded-full flex items-center justify-center shadow-xl shadow-blue-600/30 active:scale-90 transition-transform z-40"
-      >
-        <Plus className="h-8 w-8" strokeWidth={2.5} />
-      </Link>
+      <div className="fixed bottom-24 left-0 right-0 z-40 pointer-events-none flex justify-center">
+        <div className="w-full max-w-md relative">
+          <Link
+            href="/tenants/new"
+            className="absolute bottom-0 right-5 h-[60px] w-[60px] bg-blue-600 text-white rounded-full flex items-center justify-center shadow-xl shadow-blue-600/30 active:scale-90 transition-transform pointer-events-auto"
+          >
+            <Plus className="h-8 w-8" strokeWidth={2.5} />
+          </Link>
+        </div>
+      </div>
     </div>
   );
 }
