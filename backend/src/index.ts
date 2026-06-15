@@ -11,6 +11,14 @@ import { requestLogger } from './middlewares/requestLogger';
 import { startWorkers, serverAdapter } from './config/queue';
 import prisma from './config/db';
 
+process.on('unhandledRejection', (reason: any) => {
+  console.error('⚠️ Unhandled Promise Rejection:', reason?.message || reason);
+});
+
+process.on('uncaughtException', (error: any) => {
+  console.error('⚠️ Uncaught Exception:', error?.message || error);
+});
+
 // Import all routers
 import authRoutes from './routes/auth.routes';
 import userRoutes from './routes/user.routes';
