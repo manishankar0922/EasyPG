@@ -2,7 +2,7 @@ import axios from 'axios'
 
 const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL
-    || 'http://localhost:4000/api/v1',
+    || 'http://localhost:3001/api/v1',
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json'
@@ -134,7 +134,7 @@ export const apiCall = async (
   options: RequestInit = {}
 ) => {
   const token = getToken();
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 
   const response = await fetch(`${apiUrl}${endpoint}`, {
     ...options,

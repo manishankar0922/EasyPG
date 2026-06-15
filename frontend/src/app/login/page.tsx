@@ -52,7 +52,7 @@ export default function LoginPage() {
       setError('');
       setLoading(true);
 
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
       // apiUrl already includes /api/v1, so we just append /auth/login
       const endpoint = apiUrl.endsWith('/api/v1') ? '/auth/login' : '/api/v1/auth/login';
 
