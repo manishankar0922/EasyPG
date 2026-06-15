@@ -12,7 +12,11 @@ import { startWorkers, serverAdapter } from './config/queue';
 import prisma from './config/db';
 
 process.on('unhandledRejection', (reason: any) => {
-  console.error('⚠️ Unhandled Promise Rejection:', reason?.message || reason);
+  const msg = reason?.message || String(reason);
+  if (msg.includes('Connection is closed') || msg.includes('ECONNREFUSED')) {
+    return;
+  }
+  console.error('⚠️ Unhandled Promise Rejection:', msg);
 });
 
 process.on('uncaughtException', (error: any) => {

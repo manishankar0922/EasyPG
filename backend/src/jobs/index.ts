@@ -7,9 +7,12 @@ export const redisConnection = new Redis(process.env.REDIS_URL || 'redis://local
   lazyConnect: true
 });
 
+let hasLoggedRedisError = false;
 redisConnection.on('error', (err) => {
-  // Log a warning instead of letting the process crash
-  console.warn('⚠️ Redis Connection Error: Caching/Background workers will not function until Redis is started.', err.message);
+  if (!hasLoggedRedisError) {
+    console.warn('⚠️ Redis Connection Error: Caching/Background workers will not function until Redis is started.', err.message);
+    hasLoggedRedisError = true;
+  }
 });
 
 export const rentQueue = new Queue('rent-generation', { 
