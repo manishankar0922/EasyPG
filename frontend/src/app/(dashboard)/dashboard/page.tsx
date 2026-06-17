@@ -9,6 +9,7 @@ import BranchSwitcher from '@/components/shared/BranchSwitcher';
 import { Bed, Users, IndianRupee, MessageCircle, Wallet } from 'lucide-react';
 import Image from 'next/image';
 import LoadingScreen from '@/components/shared/LoadingScreen';
+import TenantDashboard from '@/components/tenant/TenantDashboard';
 
 export default function MobileDashboard() {
   const { user } = useAuthStore();
@@ -21,7 +22,7 @@ export default function MobileDashboard() {
 
   useEffect(() => {
     async function fetchData() {
-      if (!activeBranchId) return;
+      if (!activeBranchId || user?.role === 'TENANT') return;
       try {
         setLoading(true);
         setDashboardError(null);
@@ -54,8 +55,12 @@ export default function MobileDashboard() {
     fetchData();
   }, [activeBranchId]);
 
-  if (branchLoading || (loading && activeBranchId && !data && !dashboardError)) {
+  if (branchLoading || (loading && activeBranchId && !data && !dashboardError && user?.role !== 'TENANT')) {
     return <LoadingScreen message="Loading your dashboard..." />;
+  }
+
+  if (user?.role === 'TENANT') {
+    return <TenantDashboard />;
   }
 
   if (branchError || dashboardError) {
@@ -91,13 +96,13 @@ export default function MobileDashboard() {
 
   return (
     <div className="min-h-screen bg-slate-50 pb-20">
-      <div className="bg-white px-5 py-4 shadow-sm sticky top-0 z-10 flex flex-col gap-3">
-        <div className="flex items-center justify-between">
+      <div className="bg-white px-5 py-4 shadow-sm sticky top-0 z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-3 md:gap-6">
+        <div className="flex items-center justify-between flex-1">
           <div>
-            <h1 className="text-xl font-bold text-slate-900 tracking-tight">EasyPG</h1>
+            <h1 className="text-xl font-bold text-slate-900 tracking-tight">U9PGs</h1>
             <p className="text-sm font-semibold text-slate-500">{user?.name || 'Owner'}</p>
           </div>
-          <div className="flex flex-col items-end justify-center text-right bg-slate-50 px-3 py-1.5 rounded-2xl border border-slate-100">
+          <div className="flex flex-col items-end justify-center text-right bg-slate-50 px-3 py-1.5 rounded-2xl border border-slate-100 md:hidden">
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">
               {new Date().toLocaleDateString(lang === 'te' ? 'te-IN' : 'en-US', { weekday: 'short' })}
             </p>
@@ -106,12 +111,23 @@ export default function MobileDashboard() {
             </p>
           </div>
         </div>
-        <BranchSwitcher />
+        
+        <div className="flex items-center gap-4">
+          <BranchSwitcher />
+          <div className="hidden md:flex flex-col items-end justify-center text-right bg-slate-50 px-4 py-2 rounded-2xl border border-slate-100">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">
+              {new Date().toLocaleDateString(lang === 'te' ? 'te-IN' : 'en-US', { weekday: 'long' })}
+            </p>
+            <p className="text-lg font-black text-blue-600 leading-none">
+              {new Date().toLocaleDateString(lang === 'te' ? 'te-IN' : 'en-US', { day: '2-digit', month: 'long', year: 'numeric' })}
+            </p>
+          </div>
+        </div>
       </div>
 
-      <div className="p-4 space-y-4">
-        {/* 4 Summary Cards (2x2 Grid) */}
-        <div className="grid grid-cols-2 gap-3">
+      <div className="p-4 md:p-8 space-y-4 md:space-y-8">
+        {/* Summary Cards */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-6">
           {/* Card 1: Rent Pending */}
           <div className={`bg-white rounded-2xl p-4 shadow-sm border flex flex-col justify-center min-h-[100px] active:scale-95 transition-transform ${
             d.rentPending.status === 'OVERDUE' ? 'border-rose-200' : 
@@ -181,47 +197,48 @@ export default function MobileDashboard() {
           </div>
         </div>
 
-        {/* Upcoming Vacancies List */}
-        {vacancies.length > 0 && (
-          <div className="mt-8">
-            <h2 className="text-lg font-black text-slate-900 mb-4 px-1">🚪 Upcoming Vacancies</h2>
-            
-            <div className="bg-white rounded-3xl shadow-sm border border-orange-200 overflow-hidden">
-              <div className="divide-y divide-orange-100">
-                {vacancies.map((notice: any) => {
-                  const admission = notice.tenant?.admissions?.[0];
-                  const roomNumber = admission?.room?.roomNumber || 'N/A';
-                  const bedName = admission?.bed?.bedNumber || 'N/A';
-                  const vacateDate = new Date(notice.vacateDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+        <div className={`grid grid-cols-1 ${vacancies.length > 0 ? 'lg:grid-cols-2' : ''} gap-8 items-start mt-8`}>
+          {/* Upcoming Vacancies List */}
+          {vacancies.length > 0 && (
+            <div className="w-full">
+              <h2 className="text-lg font-black text-slate-900 mb-4 px-1">🚪 Upcoming Vacancies</h2>
+              
+              <div className="bg-white rounded-3xl shadow-sm border border-orange-200 overflow-hidden">
+                <div className="divide-y divide-orange-100">
+                  {vacancies.map((notice: any) => {
+                    const admission = notice.tenant?.admissions?.[0];
+                    const roomNumber = admission?.room?.roomNumber || 'N/A';
+                    const bedName = admission?.bed?.bedNumber || 'N/A';
+                    const vacateDate = new Date(notice.vacateDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 
-                  return (
-                    <div key={notice.id} className="p-4 flex flex-col gap-3 min-h-[72px] bg-orange-50/30">
-                      <div>
-                        <p className="font-bold text-slate-900 leading-tight text-base mb-0.5">
-                          Room {roomNumber} · {bedName}
-                        </p>
-                        <p className="text-sm font-semibold text-orange-600 leading-none">
-                          {notice.tenant?.name} leaving on {vacateDate}
-                        </p>
+                    return (
+                      <div key={notice.id} className="p-4 flex flex-col gap-3 min-h-[72px] bg-orange-50/30">
+                        <div>
+                          <p className="font-bold text-slate-900 leading-tight text-base mb-0.5">
+                            Room {roomNumber} · {bedName}
+                          </p>
+                          <p className="text-sm font-semibold text-orange-600 leading-none">
+                            {notice.tenant?.name} leaving on {vacateDate}
+                          </p>
+                        </div>
+                        
+                        <button 
+                          onClick={() => window.location.href = `/tenants/new?roomId=${admission?.room?.id}`}
+                          className="w-full bg-white border border-orange-200 text-orange-600 font-bold text-sm py-2 rounded-xl active:bg-orange-100 transition-colors"
+                        >
+                          Find New Tenant
+                        </button>
                       </div>
-                      
-                      <button 
-                        onClick={() => window.location.href = `/tenants/new?roomId=${admission?.room?.id}`}
-                        className="w-full bg-white border border-orange-200 text-orange-600 font-bold text-sm py-2 rounded-xl active:bg-orange-100 transition-colors"
-                      >
-                        Find New Tenant
-                      </button>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Pending Rent List */}
-        <div className="mt-8">
-          <h2 className="text-lg font-black text-slate-900 mb-4 px-1">{t.pendingRent}</h2>
+          {/* Pending Rent List */}
+          <div className="w-full">
+            <h2 className="text-lg font-black text-slate-900 mb-4 px-1">{t.pendingRent}</h2>
           
           <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
             {d.pendingTenants.length === 0 ? (
@@ -266,6 +283,7 @@ export default function MobileDashboard() {
               </div>
             )}
 
+          </div>
           </div>
         </div>
       </div>

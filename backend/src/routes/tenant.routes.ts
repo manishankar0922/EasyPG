@@ -275,7 +275,7 @@ router.post('/:id/vacate-notice', validate(z.object({
 router.post('/', validate(createTenantSchema), async (req, res) => {
   const { 
     name, phone, parentPhone, aadhaarLast4, photoUrl, aadhaarPhotoUrl, collegeName, status,
-    roomId, bedId, monthlyRent, checkinDate, depositAmount 
+    roomId, bedId, monthlyRent, checkinDate, depositAmount, pastDues, isVerified
   } = req.body;
   const orgId = req.user!.organizationId;
 
@@ -287,11 +287,17 @@ router.post('/', validate(createTenantSchema), async (req, res) => {
       if (bed.roomId !== roomId) throw new Error("Bed does not belong to the specified room");
       if (bed.isOccupied) throw new Error("Bed is already occupied");
 
+      // Calculate total opening balance for record keeping
+      const totalOpeningBalance = pastDues && Array.isArray(pastDues) 
+        ? pastDues.reduce((sum, due) => sum + Number(due.amount || 0), 0)
+        : 0;
+
       // 2. Create Tenant
       const tenant = await tx.tenant.create({
         data: {
           name, phone, parentPhone, aadhaarLast4, photoUrl, aadhaarPhotoUrl, collegeName,
           status: status || 'ACTIVE',
+          isVerified: isVerified || false,
           organizationId: orgId,
         }
       });
@@ -306,9 +312,28 @@ router.post('/', validate(createTenantSchema), async (req, res) => {
           checkinDate: new Date(checkinDate),
           monthlyRent,
           depositAmount: depositAmount || 0,
+          openingBalance: totalOpeningBalance,
           status: 'ACTIVE'
         }
       });
+
+      // 3b. Create Arrears Invoices for each past due month
+      if (pastDues && Array.isArray(pastDues)) {
+        for (const due of pastDues) {
+          if (due.amount && Number(due.amount) > 0) {
+            await tx.invoice.create({
+              data: {
+                organizationId: orgId,
+                tenantId: tenant.id,
+                month: due.month || 'PREVIOUS_ARREARS',
+                amount: Number(due.amount),
+                dueDate: new Date(),
+                status: 'UNPAID'
+              }
+            });
+          }
+        }
+      }
 
       // 4. Update Bed and Room Occupancy
       await tx.bed.update({

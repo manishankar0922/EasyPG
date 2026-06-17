@@ -13,9 +13,6 @@ import prisma from './config/db';
 
 process.on('unhandledRejection', (reason: any) => {
   const msg = reason?.message || String(reason);
-  if (msg.includes('Connection is closed') || msg.includes('ECONNREFUSED')) {
-    return;
-  }
   console.error('⚠️ Unhandled Promise Rejection:', msg);
 });
 
@@ -40,6 +37,8 @@ import superadminRoutes from './routes/superadmin.routes';
 import rentLedgerRoutes from './routes/rent-ledger.routes';
 import vacateNoticeRoutes from './routes/vacate-notice.routes';
 import subscriptionRoutes from './routes/subscription.routes';
+import tenantAuthRoutes from './routes/tenant-auth.routes';
+import tenantPortalRoutes from './routes/tenant-portal.routes';
 
 dotenv.config();
 
@@ -52,12 +51,37 @@ app.set('trust proxy', 1);
 app.use(helmet());
 
 // STEP 2 — CORS (must be before routes)
+const allowedOrigins = [
+  process.env.FRONTEND_URL || 'http://localhost:3000',
+  'http://localhost:3000',
+  'http://localhost:3001'
+];
+
 app.use(cors({
-  origin: [
-    process.env.FRONTEND_URL || 'http://localhost:3000',
-    'http://localhost:3000',
-    'http://localhost:3001'
-  ],
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    // Check exact matches
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      return callback(null, true);
+    }
+    
+    // Allow dynamic subdomains (e.g., https://admin.u9pgs.in, https://tenant.u9pgs.in)
+    const baseDomain = process.env.BASE_DOMAIN || 'u9pgs.in';
+    const originUrl = new URL(origin);
+    
+    if (originUrl.hostname.endsWith(`.${baseDomain}`) || originUrl.hostname === baseDomain) {
+      return callback(null, true);
+    }
+
+    // Allow *.localhost for local testing
+    if (originUrl.hostname.endsWith('.localhost') || originUrl.hostname === 'localhost') {
+      return callback(null, true);
+    }
+    
+    callback(new Error('Not allowed by CORS'));
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
@@ -66,29 +90,59 @@ app.use(cors({
 // STEP 3 — Handle preflight OPTIONS requests
 app.options('*', cors());
 
+import compression from 'compression';
+
 // STEP 4 — Body parsers (must be before routes)
 app.use(json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// STEP 4.5 — Response compression
+app.use(compression({ threshold: 1024 }));
 
 // STEP 5 — Request logger
 app.use(requestLogger);
 
 // Initialize Background Workers
-if (process.env.NODE_ENV !== 'test') {
+if (process.env.NODE_ENV === 'production') {
   startWorkers();
 }
 
 // Queue Monitor
 app.use('/api/v1/admin/queues', serverAdapter.getRouter());
 
+// Prometheus Metrics
+import client from 'prom-client';
+const collectDefaultMetrics = client.collectDefaultMetrics;
+collectDefaultMetrics({ prefix: 'u9pgs_' });
+
+export const httpRequestDurationMicroseconds = new client.Histogram({
+  name: 'u9pgs_http_request_duration_seconds',
+  help: 'Duration of HTTP requests in seconds',
+  labelNames: ['method', 'route', 'code'],
+  buckets: [0.1, 0.3, 0.5, 1, 1.5, 2, 5]
+});
+
+app.use((req, res, next) => {
+  const end = httpRequestDurationMicroseconds.startTimer();
+  res.on('finish', () => {
+    end({ route: req.route ? req.route.path : req.path, code: res.statusCode, method: req.method });
+  });
+  next();
+});
+
+app.get('/metrics', async (req, res) => {
+  res.set('Content-Type', client.register.contentType);
+  res.end(await client.register.metrics());
+});
+
 // OpenAPI Swagger Documentation
 const swaggerOptions = {
   definition: {
     openapi: '3.0.0',
     info: {
-      title: 'EasyPG SaaS API Documentation',
+      title: 'U9PGs SaaS API Documentation',
       version: '1.0.0',
-      description: 'Production API specification for EasyPG property management solutions.',
+      description: 'Production API specification for U9PGs property management solutions.',
     },
     servers: [
       {
@@ -145,6 +199,9 @@ app.get('/api/v1/health/db', async (req: Request, res: Response) => {
 
 // STEP 6 — Public routes (no auth needed)
 app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/admissions', admissionRoutes);
+app.use('/api/v1/tenant-auth', tenantAuthRoutes);
+app.use('/api/v1/tenant-portal', tenantPortalRoutes);
 
 // STEP 7 — Protected routes (auth required)
 app.use('/api/v1/users', userRoutes);
@@ -189,7 +246,7 @@ if (process.env.NODE_ENV !== 'test') {
   app.listen(PORT, () => {
     console.log(`
     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    🚀 EasyPG Server Running
+    🚀 U9PGs Server Running
     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     Port:     ${PORT}
     Mode:     ${process.env.NODE_ENV}
@@ -201,4 +258,5 @@ if (process.env.NODE_ENV !== 'test') {
   });
 }
 
-export default app;
+export default app; 
+

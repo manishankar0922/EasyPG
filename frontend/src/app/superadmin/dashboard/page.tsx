@@ -3,13 +3,15 @@
 import { useEffect, useState } from 'react';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/auth-store';
-import { Building2, Layers, Users, IndianRupee, Plus, ShieldAlert } from 'lucide-react';
+import { Building2, Layers, Users, IndianRupee, Plus, ShieldAlert, LogOut } from 'lucide-react';
 import OrgTable from '@/components/superadmin/OrgTable';
-import LoadingScreen from '@/components/shared/LoadingScreen';
+import DevLoader from '@/components/superadmin/DevLoader';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 export default function SuperAdminDashboard() {
-  const { user } = useAuthStore();
+  const { user, logout } = useAuthStore();
+  const router = useRouter();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -30,7 +32,7 @@ export default function SuperAdminDashboard() {
   }, []);
 
   if (!user || loading) {
-    return <LoadingScreen message="Loading administrative view..." />;
+    return <DevLoader message="Loading administrative view..." />;
   }
 
   const summary = data?.summary || {
@@ -52,7 +54,7 @@ export default function SuperAdminDashboard() {
             <span className="text-white font-bold text-lg">EP</span>
           </div>
           <div>
-            <h1 className="text-xl font-bold text-white tracking-tight leading-none">EasyPG Admin</h1>
+            <h1 className="text-xl font-bold text-white tracking-tight leading-none">U9PGs Admin</h1>
             <span className="text-xs font-semibold text-slate-400">Global Command Center</span>
           </div>
         </div>
@@ -67,6 +69,16 @@ export default function SuperAdminDashboard() {
           <div className="h-10 w-10 rounded-full bg-rose-100 flex items-center justify-center border-2 border-rose-500">
             <ShieldAlert className="h-5 w-5 text-rose-600" />
           </div>
+          <button 
+            onClick={() => {
+              logout();
+              router.push('/login');
+            }}
+            className="flex items-center justify-center h-10 w-10 rounded-xl bg-slate-800 border border-slate-700 text-slate-400 hover:text-rose-400 hover:border-rose-900/50 hover:bg-rose-950/20 transition-all shrink-0 ml-1"
+            title="Log Out"
+          >
+            <LogOut className="h-5 w-5" />
+          </button>
         </div>
       </header>
 

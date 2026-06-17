@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import Image from 'next/image';
-import { Phone, MessageCircle, IndianRupee, ArrowLeft, Loader2, CheckCircle2 } from 'lucide-react';
+import { Phone, MessageCircle, IndianRupee, ArrowLeft, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { useAuthStore } from '@/store/auth-store';
 import { cn } from '@/lib/utils';
@@ -16,6 +16,7 @@ export default function TenantDetailPage() {
   const { id } = useParams();
   const { t, lang } = useLanguage();
   const router = useRouter();
+  const { user } = useAuthStore();
   const [tenant, setTenant] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -36,6 +37,9 @@ export default function TenantDetailPage() {
 
   // Vacate Notice State
   const [isVacateNoticeSheetOpen, setIsVacateNoticeSheetOpen] = useState(false);
+
+  // Document Viewer State
+  const [viewImage, setViewImage] = useState<string | null>(null);
 
   const fetchTenant = async () => {
     try {
@@ -92,7 +96,26 @@ export default function TenantDetailPage() {
     }
   }
 
-  const rentPending = isPaidThisMonth ? 0 : (Number(rentAmount) - paidAmountThisMonth);
+  // Calculate total rent pending from ALL unpaid/partial invoices
+  let totalPendingRent = 0;
+  let hasInvoices = false;
+
+  if (tenant.invoices && tenant.invoices.length > 0) {
+    hasInvoices = true;
+    totalPendingRent = tenant.invoices.reduce((total: number, inv: any) => {
+      if (inv.status !== 'PAID') {
+        const invAmount = Number(inv.amount);
+        const paidSoFar = inv.payments?.reduce((acc: number, p: any) => acc + Number(p.amount), 0) || 0;
+        return total + Math.max(0, invAmount - paidSoFar);
+      }
+      return total;
+    }, 0);
+  }
+
+  // Default to rentAmount if no invoices exist yet
+  const rentPending = hasInvoices 
+    ? totalPendingRent 
+    : (isPaidThisMonth ? 0 : (Number(rentAmount) - paidAmountThisMonth));
 
   const handleRecordPayment = async () => {
     if (!paymentAmount || isNaN(Number(paymentAmount)) || Number(paymentAmount) <= 0) return;
@@ -117,6 +140,16 @@ export default function TenantDetailPage() {
     } finally {
       setSubmittingPayment(false);
     }
+  };
+
+  const handleWhatsAppReceipt = (url: string) => {
+    if (user?.plan === 'BASIC') {
+      alert(lang === 'te' 
+        ? '🔒 ఆటోమేటెడ్ వాట్సాప్ రసీదులు PRO ఫీచర్. దయచేసి అప్‌గ్రేడ్ చేయండి.' 
+        : '🔒 Automated WhatsApp Receipts are a PRO feature. Please upgrade your plan to unlock instant messaging.');
+      return;
+    }
+    window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   const handleVacate = async () => {
@@ -146,14 +179,25 @@ export default function TenantDetailPage() {
         <h1 className="text-xl font-bold text-slate-900 flex-1">Tenant Profile</h1>
       </div>
 
-      <div className="p-4 space-y-6">
+      <div className="p-4 space-y-6 max-w-2xl mx-auto">
         {/* Profile Card */}
         <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 flex flex-col items-center text-center relative">
-          <div className="h-20 w-20 rounded-full bg-slate-100 flex items-center justify-center overflow-hidden mb-4 border-4 border-white shadow-md">
+          <div 
+            className={cn(
+              "h-20 w-20 rounded-full bg-slate-100 flex items-center justify-center overflow-hidden mb-4 border-4 border-white shadow-md relative",
+              tenant.photoUrl && "cursor-pointer hover:scale-105 active:scale-95 transition-transform"
+            )}
+            onClick={() => tenant.photoUrl && setViewImage(tenant.photoUrl)}
+          >
             {tenant.photoUrl ? (
               <Image src={tenant.photoUrl} alt={tenant.name} fill className="object-cover" />
             ) : (
               <span className="text-2xl font-bold text-slate-400">{tenant.name.substring(0, 1)}</span>
+            )}
+            {tenant.photoUrl && (
+              <div className="absolute inset-0 bg-black/10 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                <span className="text-white text-xs font-bold drop-shadow-md">View</span>
+              </div>
             )}
           </div>
           
@@ -163,6 +207,13 @@ export default function TenantDetailPage() {
             <p className="text-xs font-medium text-slate-400 bg-slate-50 px-3 py-1 rounded-full">
               {t.stayingSince} {checkinDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
             </p>
+          )}
+
+          {!tenant.isVerified && (
+            <div className="mt-3 bg-red-50 text-red-600 px-3 py-1.5 rounded-lg text-xs font-bold border border-red-200 flex items-center gap-1.5 shadow-sm">
+              <AlertCircle className="h-3.5 w-3.5" />
+              Pending Verification
+            </div>
           )}
 
           {tenant.vacateNotices?.some((n: any) => n.status === 'PENDING') ? (
@@ -231,14 +282,12 @@ export default function TenantDetailPage() {
                       </span>
                     </div>
                   )}
-                  <a 
-                    href={`https://wa.me/91${tenant.phone}?text=${encodeURIComponent(`Hello *${tenant.name}*,\n\nThis is to confirm that we have successfully received your rent payment of *₹${paidAmountThisMonth.toLocaleString()}* for the month of *${new Date().toLocaleString('en-IN', { month: 'long', year: 'numeric' })}*.\n\nThank you!\n- EasyPG Management`)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <button 
+                    onClick={() => handleWhatsAppReceipt(`https://wa.me/91${tenant.phone}?text=${encodeURIComponent(`Hello *${tenant.name}*,\n\nThis is to confirm that we have successfully received your rent payment of *₹${paidAmountThisMonth.toLocaleString()}* for the month of *${new Date().toLocaleString('en-IN', { month: 'long', year: 'numeric' })}*.\n\nThank you!\n- U9PGs Management`)}`)}
                     className="ml-5 mt-2 inline-flex items-center gap-1.5 text-[11px] font-bold text-[#25D366] hover:text-[#1ead51] transition-colors bg-[#25D366]/10 px-2 py-1 rounded-md w-fit"
                   >
                     <MessageCircle className="h-3.5 w-3.5" /> {lang === 'te' ? 'WhatsApp రసీదు షేర్ చేయండి' : 'Share WhatsApp Receipt'}
-                  </a>
+                  </button>
                 </div>
               ) : (
                 <div className="text-rose-600 font-bold text-sm">
@@ -322,14 +371,12 @@ export default function TenantDetailPage() {
                 </div>
                 
                 {tenant.aadhaarPhotoUrl && (
-                  <a 
-                    href={tenant.aadhaarPhotoUrl} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="h-8 px-3 bg-blue-50 text-blue-600 rounded-lg text-xs font-bold flex items-center justify-center border border-blue-100"
+                  <button 
+                    onClick={() => setViewImage(tenant.aadhaarPhotoUrl)}
+                    className="h-8 px-3 bg-blue-50 text-blue-600 rounded-lg text-xs font-bold flex items-center justify-center border border-blue-100 hover:bg-blue-100 active:scale-95 transition-all"
                   >
                     {lang === 'te' ? 'చూడండి' : 'View'}
-                  </a>
+                  </button>
                 )}
               </div>
             )}
@@ -426,18 +473,16 @@ export default function TenantDetailPage() {
             <div className="py-8 flex flex-col items-center">
               <SuccessAnimation message={t.paymentRecorded} />
               <div className="mt-8 w-full space-y-3">
-                <a 
-                  href={`https://wa.me/91${tenant.phone}?text=${encodeURIComponent(
+                <button 
+                  onClick={() => handleWhatsAppReceipt(`https://wa.me/91${tenant.phone}?text=${encodeURIComponent(
                     `Hello *${tenant.name}*,\n\nWe have successfully received your payment of *₹${paymentAmount}* via *${paymentMode.replace('_', ' ')}*.\n\n` + 
                     (rentPending - Number(paymentAmount) > 0 ? `Remaining Due: *₹${rentPending - Number(paymentAmount)}*\n\n` : '') +
-                    `Thank you!\n- EasyPG Management`
-                  )}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                    `Thank you!\n- U9PGs Management`
+                  )}`)}
                   className="w-full h-14 bg-[#25D366] text-white rounded-2xl font-bold text-lg active:scale-95 transition-transform flex items-center justify-center gap-2 shadow-lg shadow-[#25D366]/20"
                 >
                   <MessageCircle className="h-5 w-5" /> {lang === 'te' ? 'రసీదు పంపండి' : 'Send Receipt'}
-                </a>
+                </button>
                 <button 
                   onClick={() => setIsPaymentSheetOpen(false)}
                   className="w-full h-14 bg-white border-2 border-slate-200 text-slate-700 rounded-2xl font-bold text-lg active:bg-slate-50 transition-colors"
@@ -565,6 +610,33 @@ export default function TenantDetailPage() {
         onClose={() => setIsVacateNoticeSheetOpen(false)}
         onSuccess={fetchTenant}
       />
+
+      {/* Full-Screen Document Viewer */}
+      {viewImage && (
+        <div 
+          className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black/95 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+          onClick={() => setViewImage(null)}
+        >
+          <div className="relative w-full max-w-3xl flex flex-col items-center">
+            {/* Using standard img for external URLs, skipping next/image constraints */}
+            <img 
+              src={viewImage.replace('w_1200', 'w_auto').replace('c_limit', 'c_scale')} 
+              alt="Document Full View" 
+              className="max-w-full max-h-[80vh] object-contain rounded-xl shadow-2xl"
+              onClick={(e) => e.stopPropagation()} // Prevent closing when clicking the image itself
+            />
+            
+            <div className="mt-6 flex flex-col items-center gap-3">
+              <button 
+                onClick={(e) => { e.stopPropagation(); setViewImage(null); }}
+                className="h-12 px-8 bg-white/10 hover:bg-white/20 active:bg-white/30 text-white rounded-full font-bold transition-colors"
+              >
+                {lang === 'te' ? 'మూసివేయు' : 'Close Viewer'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -12,7 +12,7 @@ const api = axios.create({
 // Attach token to every request
 api.interceptors.request.use((config) => {
   if (typeof window !== 'undefined') {
-    const token = localStorage.getItem('easypg_token') || localStorage.getItem('u9-auth-token')
+    const token = localStorage.getItem('u9pgs_token') || localStorage.getItem('u9-auth-token')
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
@@ -58,8 +58,8 @@ api.interceptors.response.use(
     }
 
     if (status === 401) {
-      localStorage.removeItem('easypg_token')
-      localStorage.removeItem('easypg_user')
+      localStorage.removeItem('u9pgs_token')
+      localStorage.removeItem('u9pgs_user')
       if (typeof window !== 'undefined') {
         window.location.href = '/login'
       }
@@ -126,7 +126,7 @@ export default api
 
 export const getToken = () => {
   if (typeof window === 'undefined') return null;
-  return localStorage.getItem('easypg_token') || localStorage.getItem('u9-auth-token');
+  return localStorage.getItem('u9pgs_token') || localStorage.getItem('u9-auth-token');
 };
 
 export const apiCall = async (
@@ -147,7 +147,7 @@ export const apiCall = async (
 
   if (response.status === 401) {
     if (typeof window !== 'undefined') {
-      localStorage.removeItem('easypg_token');
+      localStorage.removeItem('u9pgs_token');
       localStorage.removeItem('u9-auth-token');
       window.location.href = '/login';
     }

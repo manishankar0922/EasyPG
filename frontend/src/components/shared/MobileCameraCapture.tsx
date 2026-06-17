@@ -9,9 +9,11 @@ interface Props {
   onUploadComplete: (url: string) => void;
   onUploadStart?: () => void;
   value?: string;
+  folderPath?: string;
+  docType?: string;
 }
 
-export default function MobileCameraCapture({ label, onUploadComplete, onUploadStart, value }: Props) {
+export default function MobileCameraCapture({ label, onUploadComplete, onUploadStart, value, folderPath, docType }: Props) {
   const [loading, setLoading] = useState(false);
   const [preview, setPreview] = useState<string | null>(value || null);
   const [error, setError] = useState<string | null>(null);
@@ -20,37 +22,100 @@ export default function MobileCameraCapture({ label, onUploadComplete, onUploadS
 
   const { lang } = useLanguage();
 
+  const compressImage = async (file: File): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.src = URL.createObjectURL(file);
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        // Max width to keep files tiny but readable
+        const MAX_WIDTH = 1200;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > MAX_WIDTH) {
+          height = height * (MAX_WIDTH / width);
+          width = MAX_WIDTH;
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return resolve(file);
+
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        // Export as WebP for hyperfast network transfer
+        canvas.toBlob(
+          (blob) => {
+            if (blob) resolve(blob);
+            else resolve(file);
+          },
+          'image/webp',
+          0.85
+        );
+      };
+      img.onerror = (e) => reject(e);
+    });
+  };
+
   const uploadToCloudinary = async (blob: Blob): Promise<string> => {
     const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
     const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
 
-    // DEV MOCK: If using default placeholder env vars, bypass actual upload
     if (!cloudName || cloudName === 'your_cloud_name' || cloudName === 'demo_cloud_name') {
       console.warn('⚠️ Mocking Cloudinary upload because NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME is not set correctly.');
-      await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate network delay
+      await new Promise(resolve => setTimeout(resolve, 1500));
       return 'https://images.unsplash.com/photo-1511367461989-f85a21fda167?w=400&h=400&fit=crop';
     }
 
     const formData = new FormData()
     formData.append('file', blob)
-    formData.append('upload_preset', uploadPreset || 'easypg_unsigned')
-    formData.append('folder', 'easypg/tenants')
+    formData.append('upload_preset', uploadPreset || 'u9pgs_unsigned')
+    formData.append('folder', folderPath || 'U9PGs/uncategorized')
+    if (docType) formData.append('public_id', docType)
 
-    const response = await fetch(
+    // Robust API pattern: Exponential Backoff & Timeout Handling
+    const fetchWithRetry = async (url: string, options: RequestInit, retries = 3, backoff = 1000): Promise<Response> => {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s timeout
+        
+        const res = await fetch(url, { ...options, signal: controller.signal });
+        clearTimeout(timeoutId);
+
+        // Retry on server errors (5xx) or rate limits (429)
+        if (!res.ok && (res.status >= 500 || res.status === 429) && retries > 0) {
+          throw new Error(`Server returned ${res.status}`);
+        }
+        return res;
+      } catch (err: any) {
+        if (retries > 0 && err.name !== 'AbortError') {
+          console.warn(`Upload failed: ${err.message}. Retrying in ${backoff}ms...`);
+          await new Promise(r => setTimeout(r, backoff));
+          return fetchWithRetry(url, options, retries - 1, backoff * 2);
+        }
+        throw new Error(err.name === 'AbortError' ? 'Upload timed out. Please check your connection.' : err.message);
+      }
+    };
+
+    const response = await fetchWithRetry(
       `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
       { method: 'POST', body: formData }
-    )
+    );
 
     if (!response.ok) {
-      const errorBody = await response.json()
-      console.error('Cloudinary error detail:', errorBody)
-      throw new Error(
-        errorBody?.error?.message || 'Cloudinary upload failed'
-      )
+      const errorBody = await response.json();
+      console.error('Cloudinary error detail:', errorBody);
+      throw new Error(errorBody?.error?.message || 'Cloudinary upload failed');
     }
 
     const data = await response.json()
-    return data.secure_url as string
+    // Inject auto-optimization flags for hyperfast loading everywhere!
+    const secureUrl = data.secure_url as string;
+    const optimizedUrl = secureUrl.replace('/upload/', '/upload/f_auto,q_auto,w_1200,c_limit/');
+    
+    return optimizedUrl;
   }
 
   const executeUpload = async (file: File) => {
@@ -64,7 +129,8 @@ export default function MobileCameraCapture({ label, onUploadComplete, onUploadS
     setPendingFile(file);
 
     try {
-      const secureUrl = await uploadToCloudinary(file);
+      const compressedBlob = await compressImage(file);
+      const secureUrl = await uploadToCloudinary(compressedBlob);
       onUploadComplete(secureUrl);
       setPreview(secureUrl);
       setPendingFile(null); // Clear pending file on success

@@ -46,8 +46,8 @@ export const requireAuth = async (
       branchId: string;
     };
 
-    // Mock bypass for dev accounts
-    if (decoded.userId === 'mock-admin' || decoded.userId === 'mock-dev') {
+    // Mock bypass for dev accounts (Strictly limited to non-production)
+    if (process.env.NODE_ENV !== 'production' && (decoded.userId === 'mock-admin' || decoded.userId === 'mock-dev')) {
       req.user = {
         id: decoded.userId,
         role: 'SUPERADMIN',
@@ -67,7 +67,10 @@ export const requireAuth = async (
         role: true,
         isActive: true,
         organisationId: true,
-        branchId: true
+        branchId: true,
+        organisation: {
+          select: { subscription: true }
+        }
       }
     });
 
@@ -88,7 +91,8 @@ export const requireAuth = async (
     // Attach user to request
     req.user = {
       ...user,
-      organizationId: user.organisationId
+      organizationId: user.organisationId,
+      plan: user.organisation?.subscription?.plan || 'PRO'
     };
     next();
 

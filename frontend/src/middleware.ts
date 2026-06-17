@@ -22,9 +22,9 @@ function decodeJwt(token: string) {
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  const token = request.cookies.get('easypg_token')?.value;
+  const token = request.cookies.get('u9pgs_token')?.value;
   const decoded = token ? decodeJwt(token) : null;
-  const role = decoded?.role || request.cookies.get('easypg_role')?.value;
+  const role = decoded?.role || request.cookies.get('u9pgs_role')?.value;
 
   const isAuthRoute = pathname.startsWith('/login');
   
@@ -43,12 +43,73 @@ export function middleware(request: NextRequest) {
     pathname.startsWith('/profile') ||
     pathname.startsWith('/setup');
 
+  // Subdomain Logic (dev., admin., tenant.)
+  const hostname = request.headers.get('host') || '';
+  let subdomain = '';
+  // Check if there is a subdomain (works for .u9pgs.in or .localhost)
+  if (hostname.split('.').length >= 3 || hostname.includes('localhost:')) {
+    subdomain = hostname.split('.')[0];
+  }
+
+  // --- Subdomain Isolation Shields ---
+  
+  // 1. Tenant Subdomain Shield
+  if (subdomain === 'tenant') {
+    // Hard Lock: ONLY Tenants allowed on this subdomain
+    if (token && role && role !== 'TENANT') {
+      return NextResponse.redirect(new URL('/unauthorized', request.url));
+    }
+    // Tenants cannot access Admin/Staff routes
+    if (
+      isSuperAdminRoute || 
+      pathname.startsWith('/branches') || 
+      pathname.startsWith('/rooms') || 
+      pathname.startsWith('/tenants') || 
+      pathname.startsWith('/admissions') || 
+      pathname.startsWith('/users')
+    ) {
+      return NextResponse.redirect(new URL('/unauthorized', request.url));
+    }
+  }
+
+  // 2. Dev Subdomain Shield
+  if (subdomain === 'dev') {
+    // Hard Lock: ONLY SuperAdmins allowed on this subdomain
+    if (token && role && role !== 'SUPERADMIN' && role !== 'SUPER_ADMIN') {
+      return NextResponse.redirect(new URL('/unauthorized', request.url));
+    }
+    // Devs should strictly be in SuperAdmin routes
+    if (isDashboardRoute) {
+      return NextResponse.redirect(new URL('/superadmin/dashboard', request.url));
+    }
+  }
+
+  // 3. Admin Subdomain Shield (for PG Owners/Clients)
+  if (subdomain === 'admin') {
+    // Hard Lock: ONLY Owners and Wardens allowed on this subdomain
+    if (token && role && role === 'TENANT') {
+      return NextResponse.redirect(new URL('/unauthorized', request.url));
+    }
+    // Clients cannot access SuperAdmin routes
+    if (isSuperAdminRoute) {
+      return NextResponse.redirect(new URL('/unauthorized', request.url));
+    }
+  }
+
+  // --- Standard Auth Routing ---
+
   // If trying to access protected routes without a token
   if (!token && (isSuperAdminRoute || isDashboardRoute)) {
     const loginUrl = new URL('/login', request.url);
-    // Optional: save redirect URL
     loginUrl.searchParams.set('redirect', pathname);
     return NextResponse.redirect(loginUrl);
+  }
+
+  // Rewrite /login based on subdomain so each has a unique UI
+  if (isAuthRoute && pathname === '/login') {
+    if (subdomain === 'tenant') return NextResponse.rewrite(new URL('/login/tenant', request.url));
+    if (subdomain === 'admin') return NextResponse.rewrite(new URL('/login/admin', request.url));
+    if (subdomain === 'dev') return NextResponse.rewrite(new URL('/login/dev', request.url));
   }
 
   // If logged in and trying to access login

@@ -84,7 +84,7 @@ export default function ProfilePage() {
               </div>
               <div>
                 <h2 className="font-black text-slate-900">Subscription Plans</h2>
-                <p className="text-xs font-semibold text-slate-500">Manage your EasyPG access</p>
+                <p className="text-xs font-semibold text-slate-500">Manage your U9PGs access</p>
               </div>
             </div>
             <div className="h-8 px-3 bg-slate-100 rounded-full flex items-center justify-center">

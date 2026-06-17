@@ -34,3 +34,16 @@ input:-webkit-autofill:focus {
   -webkit-box-shadow: 0 0 0px 1000px var(--background) inset !important;
   -webkit-text-fill-color: var(--foreground) !important;
 }
+
+@keyframes loading-bar {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(250%);
+  }
+}
+
+.animate-loading-bar {
+  animation: loading-bar 1.5s infinite linear;
+}

@@ -22,7 +22,7 @@ export const checkSubscription = async (req: Request, res: Response, next: NextF
       sub = await prisma.subscription.create({
         data: {
           organizationId: req.user.organizationId,
-          plan: 'STARTER',
+          plan: 'PRO',
           status: 'TRIAL',
           trialEndsAt: trialEnd
         }
@@ -87,4 +87,26 @@ export const checkSubscription = async (req: Request, res: Response, next: NextF
     console.error('Subscription check error', error);
     res.status(500).json({ success: false, error: 'Internal server error checking subscription' });
   }
+};
+
+export const requireProPlan = async (req: Request, res: Response, next: NextFunction) => {
+  const sub = (req as any).subscription;
+  
+  if (req.user?.role === 'SUPERADMIN' || req.user?.role === 'superadmin' || req.user?.role === 'SUPER_ADMIN') {
+    return next();
+  }
+
+  if (!sub) {
+    return res.status(403).json({ success: false, error: 'Subscription required' });
+  }
+
+  if (sub.plan === 'BASIC') {
+    return res.status(403).json({ 
+      success: false, 
+      error: 'This feature requires the Pro plan.',
+      code: 'UPGRADE_REQUIRED_PRO'
+    });
+  }
+
+  next();
 };

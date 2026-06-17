@@ -89,7 +89,7 @@ export default function VacateNoticeSheet({ tenantId, tenantName, isOpen, onClos
                 onChange={(e) => setReason(e.target.value)}
                 placeholder="Why is the tenant leaving?"
                 rows={3}
-                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 focus:bg-white transition-all text-sm font-medium resize-none"
+                className="w-full p-4 mt-1 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 focus:bg-white transition-all text-sm font-medium resize-none text-slate-900"
               />
             </div>
           </div>

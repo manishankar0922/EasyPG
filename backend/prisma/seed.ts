@@ -4,7 +4,7 @@ import bcrypt from 'bcryptjs';
 const prisma = new PrismaClient();
 
 async function main() {
-  const defaultPasswordHash = await bcrypt.hash('easypg123', 12);
+  const defaultPasswordHash = await bcrypt.hash('u9pgs123', 12);
 
   // Clear existing
   await prisma.systemLog.deleteMany();
@@ -32,9 +32,8 @@ async function main() {
   // 1. Superadmin User
   await prisma.user.create({
     data: {
-      clerkId: 'superadmin_1',
       name: 'Super Admin',
-      email: 'admin@easypg.com',
+      email: 'admin@u9pgs.com',
       passwordHash: defaultPasswordHash,
       role: 'SUPERADMIN'
     }
@@ -54,7 +53,7 @@ async function main() {
     await prisma.paymentRequest.create({
       data: {
         organizationId: org.id,
-        plan: 'STARTER',
+        plan: 'PRO',
         amount: 499,
         upiRefNumber: `UPI${o}00000`,
         status: 'PENDING'
@@ -74,7 +73,6 @@ async function main() {
       for (let w = 1; w <= 2; w++) {
         await prisma.user.create({
           data: {
-            clerkId: `warden_${o}_${b}_${w}`,
             name: `Warden ${w}`,
             email: `warden${w}@org${o}branch${b}.com`,
             passwordHash: defaultPasswordHash,

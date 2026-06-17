@@ -19,7 +19,7 @@ U9 Solutions is a high-scale, multi-tenant SaaS application designed to automate
 *   **Storage:** Cloudinary (Direct secure signed uploads).
 
 ### 2. Multi-Tenant Branch Architecture
-EasyPG uses a strict hierarchical data model to support large-scale property owners:
+U9PGs uses a strict hierarchical data model to support large-scale property owners:
 *   **Organization:** Represents the business owner (e.g., "Skyline Hostels"). Tied to the Owner's billing and subscription plan.
 *   **Branch:** Physical properties/buildings under an Organization. An owner can manage multiple isolated Branches.
 *   **Rooms & Floors:** Fully dynamic setup. Rooms are assigned to a Branch, Floors, and have configurable bed capacities and rent prices.
@@ -113,9 +113,9 @@ Once seeded, you can log in using these official accounts:
 
 | Role | Email Address | Password |
 | :--- | :--- | :--- |
-| **SuperAdmin** | `admin@easypg.com` | `easypg123` |
-| **Warden (Org 1)** | `warden1@org1branch1.com` | `easypg123` |
-| **Warden (Org 2)** | `warden1@org2branch1.com` | `easypg123` |
+| **SuperAdmin** | `admin@u9pgs.com` | `u9pgs123` |
+| **Warden (Org 1)** | `warden1@org1branch1.com` | `u9pgs123` |
+| **Warden (Org 2)** | `warden1@org2branch1.com` | `u9pgs123` |
 
 ### 2. Verify Database Write Persistence
 To verify read/write database operations are fully functional on your machine:

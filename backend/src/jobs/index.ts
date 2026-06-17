@@ -1,35 +1,50 @@
 import { Queue, Worker } from 'bullmq';
 import Redis from 'ioredis';
+import Redlock from 'redlock';
 import { generateMonthlyRentJob } from './generateMonthlyRent';
 
-export const redisConnection = new Redis(process.env.REDIS_URL || 'redis://localhost:6379', {
+const isProd = process.env.NODE_ENV === 'production';
+
+export const redisConnection = isProd ? new Redis(process.env.REDIS_URL || 'redis://localhost:6379', {
   maxRetriesPerRequest: null,
-  lazyConnect: true
-});
+  lazyConnect: true,
+  enableReadyCheck: false,
+  keepAlive: 10000,
+}) : {} as any;
 
-let hasLoggedRedisError = false;
-redisConnection.on('error', (err) => {
-  if (!hasLoggedRedisError) {
-    console.warn('⚠️ Redis Connection Error: Caching/Background workers will not function until Redis is started.', err.message);
-    hasLoggedRedisError = true;
-  }
-});
+// @ts-ignore
+export const redlock = isProd ? new Redlock([redisConnection], {
+  driftFactor: 0.01,
+  retryCount: 10,
+  retryDelay: 200,
+  retryJitter: 200
+}) : {} as any;
 
-export const rentQueue = new Queue('rent-generation', { 
+if (isProd) {
+  let hasLoggedRedisError = false;
+  redisConnection.on('error', (err: any) => {
+    if (!hasLoggedRedisError) {
+      console.warn('⚠️ Redis Connection Error: Caching/Background workers will not function until Redis is started.', err.message);
+      hasLoggedRedisError = true;
+    }
+  });
+}
+
+export const rentQueue = isProd ? new Queue('rent-generation', { 
   connection: redisConnection as any 
-});
+}) : { add: async () => {}, on: () => {} } as any;
 
-rentQueue.on('error', (err) => {
-  // Catch queue level connection errors
-});
+if (isProd) {
+  rentQueue.on('error', (err: any) => {});
+}
 
-export const subscriptionReminderQueue = new Queue('subscription-reminder-queue', {
+export const subscriptionReminderQueue = isProd ? new Queue('subscription-reminder-queue', {
   connection: redisConnection as any
-});
+}) : { add: async () => {}, on: () => {} } as any;
 
-subscriptionReminderQueue.on('error', (err) => {
-  // Catch queue level connection errors
-});
+if (isProd) {
+  subscriptionReminderQueue.on('error', (err: any) => {});
+}
 
 export const setupJobs = async () => {
   // Add recurring job
@@ -71,4 +86,5 @@ export const setupJobs = async () => {
 
   // Import the worker to instantiate it
   require('./subscriptionReminder');
+  require('./orgSetup');
 };

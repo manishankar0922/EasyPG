@@ -119,7 +119,7 @@ export default function SetupWizardPage() {
         {step === 1 && (
           <div className="space-y-6 animate-in slide-in-from-right duration-300">
             <div>
-              <h1 className="text-2xl font-black text-slate-900">Welcome to EasyPG!</h1>
+              <h1 className="text-2xl font-black text-slate-900">Welcome to U9PGs!</h1>
               <p className="text-slate-500 mt-1">Let's set up your organisation infrastructure.</p>
             </div>
             

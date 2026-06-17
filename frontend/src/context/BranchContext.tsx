@@ -66,13 +66,13 @@ export function BranchProvider({ children }: { children: React.ReactNode }) {
           const fetchedBranches = res.data.data;
           setBranches(fetchedBranches);
 
-          const saved = localStorage.getItem('easypg_branch');
+          const saved = localStorage.getItem('u9pgs_branch');
           const defaultBranch = fetchedBranches.find((b: Branch) => b.id === saved) || fetchedBranches[0];
 
           if (defaultBranch) {
             setActiveBranchId(defaultBranch.id);
             setActiveBranch(defaultBranch);
-            if (!saved) localStorage.setItem('easypg_branch', defaultBranch.id);
+            if (!saved) localStorage.setItem('u9pgs_branch', defaultBranch.id);
           }
         }
       }).catch(err => {
@@ -89,7 +89,7 @@ export function BranchProvider({ children }: { children: React.ReactNode }) {
     if (branch) {
       setActiveBranchId(branchId);
       setActiveBranch(branch);
-      localStorage.setItem('easypg_branch', branchId);
+      localStorage.setItem('u9pgs_branch', branchId);
       // Force reload to fetch fresh data for the new branch if needed
       // window.location.reload(); // Optional depending on how reactive the components are
     }

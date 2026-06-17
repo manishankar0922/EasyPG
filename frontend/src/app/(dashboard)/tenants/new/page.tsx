@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import MobileCameraCapture from '@/components/shared/MobileCameraCapture';
 import LoadingScreen from '@/components/shared/LoadingScreen';
-import { Loader2, UserPlus, Phone, Calendar, Banknote, BedDouble, AlertCircle, CheckCircle2, MessageCircle, User } from 'lucide-react';
+import { Loader2, UserPlus, Phone, Calendar, Banknote, BedDouble, AlertCircle, CheckCircle2, MessageCircle, User, CreditCard, School } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/auth-store';
 
@@ -33,6 +33,9 @@ export default function AddTenantPage() {
   const [isUploadingAadhaar, setIsUploadingAadhaar] = useState(false);
   const [checkinDate, setCheckinDate] = useState(new Date().toISOString().split('T')[0]);
   const [monthlyRent, setMonthlyRent] = useState<number | ''>('');
+  const [depositAmount, setDepositAmount] = useState<number | ''>('');
+  const [hasPreviousDues, setHasPreviousDues] = useState(false);
+  const [pastDues, setPastDues] = useState<{month: string, amount: number | ''}[]>([]);
   
   // OTP Verification state
   const [otpSent, setOtpSent] = useState(false);
@@ -55,6 +58,17 @@ export default function AddTenantPage() {
   const [success, setSuccess] = useState(false);
   const [createdTenantData, setCreatedTenantData] = useState<any>(null);
   const [error, setError] = useState('');
+
+  // Calculate past 6 months for previous dues
+  const pastMonths = React.useMemo(() => {
+    const options = [];
+    const d = new Date();
+    for(let i=1; i<=6; i++) {
+      const past = new Date(d.getFullYear(), d.getMonth() - i, 1);
+      options.push(past.toLocaleString('en-IN', { month: 'long', year: 'numeric' }));
+    }
+    return options;
+  }, []);
 
   // Fetch rooms with beds
   useEffect(() => {
@@ -135,6 +149,17 @@ export default function AddTenantPage() {
     e.preventDefault();
     setError('');
 
+    let isPhoneVerified = otpVerified;
+    if (!otpVerified) {
+      const confirmBypass = window.confirm(
+        "Phone number is not verified with OTP.\n\nDo you want to admit this tenant provisionally? They will be marked as 'Pending Verification'."
+      );
+      if (!confirmBypass) {
+        return;
+      }
+      isPhoneVerified = false;
+    }
+
     if (!photoUrl) {
       setError('Tenant photo is required.');
       return;
@@ -162,7 +187,10 @@ export default function AddTenantPage() {
         bedId: finalBedId,
         monthlyRent: Number(monthlyRent),
         checkinDate,
-        status: 'ACTIVE'
+        depositAmount: depositAmount ? Number(depositAmount) : 0,
+        pastDues: hasPreviousDues ? pastDues.filter(d => d.amount && Number(d.amount) > 0) : [],
+        status: 'ACTIVE',
+        isVerified: isPhoneVerified
       });
 
       if (res.data.success) {
@@ -249,7 +277,7 @@ export default function AddTenantPage() {
 
             <div className="w-full space-y-4">
               <a 
-                href={`https://wa.me/91${createdTenantData?.phone}?text=${encodeURIComponent(`Welcome to EasyPG, *${createdTenantData?.name}*!\n\nYour profile has been successfully created.\n*Room:* ${createdTenantData?.room}\n*Rent:* ₹${createdTenantData?.rent}\n\nWe are happy to have you!\n- Management`)}`}
+                href={`https://wa.me/91${createdTenantData?.phone}?text=${encodeURIComponent(`Welcome to U9PGs, *${createdTenantData?.name}*!\n\nYour profile has been successfully created.\n*Room:* ${createdTenantData?.room}\n*Rent:* ₹${createdTenantData?.rent}\n\nWe are happy to have you!\n- Management`)}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-full h-14 bg-[#25D366] text-white rounded-2xl font-bold text-lg active:scale-95 transition-transform flex items-center justify-center gap-2 shadow-lg shadow-[#25D366]/20"
@@ -323,7 +351,7 @@ export default function AddTenantPage() {
                         type="text" 
                         maxLength={6} 
                         placeholder="OTP" 
-                        className="flex-1 max-w-[120px] rounded-lg border border-slate-200 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none tracking-widest"
+                        className="w-24 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 focus:border-blue-500 focus:outline-none tracking-widest"
                         value={otpCode}
                         onChange={(e) => setOtpCode(e.target.value)}
                       />
@@ -370,7 +398,7 @@ export default function AddTenantPage() {
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-slate-600">Aadhaar Last 4 Digits (Optional)</label>
               <div className="relative">
-                <UserPlus className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
+                <CreditCard className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
                 <input 
                   type="text"
                   inputMode="numeric"
@@ -385,7 +413,7 @@ export default function AddTenantPage() {
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-slate-600">College / Workplace Name (Optional)</label>
               <div className="relative">
-                <UserPlus className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
+                <School className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
                 <input 
                   type="text"
                   placeholder="e.g. MIT College"
@@ -530,16 +558,114 @@ export default function AddTenantPage() {
               </div>
               
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-600">Monthly Rent (₹)</label>
+                <label className="text-xs font-semibold text-slate-600">Security Deposit (₹)</label>
                 <div className="relative">
-                  <Banknote className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
+                  <span className="absolute left-3 top-3.5 text-slate-400 font-bold">₹</span>
                   <input 
-                    type="number" required min="0"
-                    className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-4 text-slate-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition shadow-sm text-sm font-bold"
-                    value={monthlyRent} onChange={e => setMonthlyRent(Number(e.target.value))} 
+                    type="number" 
+                    placeholder="e.g. 5000"
+                    className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-8 pr-4 text-slate-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition shadow-sm text-sm"
+                    value={depositAmount} onChange={e => setDepositAmount(e.target.value ? Number(e.target.value) : '')} 
                   />
                 </div>
               </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-600">Monthly Rent (₹)</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-3.5 text-slate-400 font-bold">₹</span>
+                  <input 
+                    type="number" 
+                    placeholder="e.g. 4000"
+                    className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-8 pr-4 text-slate-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition shadow-sm text-sm"
+                    value={monthlyRent} onChange={e => setMonthlyRent(e.target.value ? Number(e.target.value) : '')} 
+                  />
+                </div>
+              </div>
+
+            </div>
+
+            {/* FULL WIDTH PAST DUES */}
+            <div className="mt-4 space-y-3 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-semibold text-slate-700 flex items-center gap-2 cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500"
+                    checked={hasPreviousDues}
+                    onChange={(e) => {
+                      setHasPreviousDues(e.target.checked);
+                      if (!e.target.checked) {
+                        setPastDues([]);
+                      } else if (pastDues.length === 0) {
+                        setPastDues([{ month: pastMonths[0], amount: '' }]);
+                      }
+                    }}
+                  />
+                  Carrying Past Dues?
+                </label>
+                <span className="text-[10px] text-slate-400">If they owe rent for multiple past months</span>
+              </div>
+
+              {hasPreviousDues && (
+                <div className="space-y-3 pt-2 animate-in fade-in slide-in-from-top-2">
+                  {pastDues.map((due, index) => (
+                    <div key={index} className="flex gap-3 items-end">
+                      <div className="space-y-1.5 flex-1">
+                        <label className="text-xs font-semibold text-slate-600">Which Month?</label>
+                        <select 
+                          className="w-full rounded-xl border border-slate-200 bg-white py-3 px-3 text-slate-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition shadow-sm text-sm"
+                          value={due.month}
+                          onChange={e => {
+                            const newDues = [...pastDues];
+                            newDues[index].month = e.target.value;
+                            setPastDues(newDues);
+                          }}
+                        >
+                          {pastMonths.map(m => (
+                            <option key={m} value={m}>{m}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="space-y-1.5 flex-1">
+                        <label className="text-xs font-semibold text-slate-600">Amount (₹)</label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-3.5 text-slate-400 font-bold">₹</span>
+                          <input 
+                            type="number" 
+                            placeholder="e.g. 2000"
+                            className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-8 pr-4 text-slate-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition shadow-sm text-sm"
+                            value={due.amount} 
+                            onChange={e => {
+                              const newDues = [...pastDues];
+                              newDues[index].amount = e.target.value ? Number(e.target.value) : '';
+                              setPastDues(newDues);
+                            }} 
+                          />
+                        </div>
+                      </div>
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          const newDues = pastDues.filter((_, i) => i !== index);
+                          setPastDues(newDues);
+                          if (newDues.length === 0) setHasPreviousDues(false);
+                        }}
+                        className="p-3 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setPastDues([...pastDues, { month: pastMonths[0], amount: '' }])}
+                    className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                  >
+                    + Add Another Month
+                  </button>
+                </div>
+              )}
             </div>
           </section>
 

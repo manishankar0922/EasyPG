@@ -31,7 +31,7 @@ router.post('/signature', validate(signatureSchema), (req, res) => {
   // Security: only allow images & pdfs, limit file size, enforce folder
   const paramsToSign = {
     timestamp,
-    folder: `easypg/${req.user!.organizationId}/${folder}`,
+    folder: `u9pgs/${req.user!.organizationId}/${folder}`,
     // max_file_size limit is not directly supported in the signature by default unless passed explicitly, but we can set constraints here.
   };
 

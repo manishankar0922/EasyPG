@@ -6,6 +6,7 @@ import api from '@/lib/api';
 import { ArrowLeft, Pencil, Loader2, BedDouble, AlertCircle, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
+import DevLoader from '@/components/superadmin/DevLoader';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 type Bed = { id: string; bedNumber: string; isOccupied: boolean };
@@ -240,6 +241,10 @@ export default function OrgRoomsPage() {
   const totalRooms = floorGroups.reduce((a, fg) => a + fg.rooms.length, 0);
   const totalBeds = floorGroups.reduce((a, fg) => a + fg.rooms.reduce((b, r) => b + r.totalCapacity, 0), 0);
 
+  if (loading) {
+    return <DevLoader message="Loading rooms config..." />;
+  }
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans">
       {/* Header */}
@@ -259,30 +264,23 @@ export default function OrgRoomsPage() {
                 <p className="text-xs text-slate-400">{orgName || 'Organisation'} · Super Admin</p>
               </div>
             </div>
-            {!loading && (
-              <div className="ml-auto flex items-center gap-3">
-                <span className="hidden sm:inline-flex text-xs text-slate-400 bg-slate-800 border border-slate-700 px-3 py-1.5 rounded-lg">
-                  {totalRooms} rooms · {totalBeds} beds
-                </span>
-                <Link
-                  href={`/superadmin/organisations/${orgId}/heatmap`}
-                  className="flex items-center gap-1.5 rounded-lg border border-emerald-700/50 bg-emerald-950/30 hover:bg-emerald-950/50 px-3 py-1.5 text-xs font-semibold text-emerald-400 transition"
-                >
-                  View Heatmap →
-                </Link>
-              </div>
-            )}
+            <div className="ml-auto flex items-center gap-3">
+              <span className="hidden sm:inline-flex text-xs text-slate-400 bg-slate-800 border border-slate-700 px-3 py-1.5 rounded-lg">
+                {totalRooms} rooms · {totalBeds} beds
+              </span>
+              <Link
+                href={`/superadmin/organisations/${orgId}/heatmap`}
+                className="flex items-center gap-1.5 rounded-lg border border-emerald-700/50 bg-emerald-950/30 hover:bg-emerald-950/50 px-3 py-1.5 text-xs font-semibold text-emerald-400 transition"
+              >
+                View Heatmap →
+              </Link>
+            </div>
           </div>
         </div>
       </header>
 
       <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6 space-y-8">
-        {loading ? (
-          <div className="flex items-center justify-center py-24 gap-3 text-slate-400">
-            <Loader2 className="h-6 w-6 animate-spin" />
-            <span>Loading rooms...</span>
-          </div>
-        ) : error ? (
+        {error ? (
           <div className="flex items-center gap-3 rounded-xl border border-red-900/50 bg-red-950/20 p-4 text-red-400">
             <AlertCircle className="h-5 w-5" />
             <p className="text-sm">{error}</p>

@@ -1,10 +1,11 @@
 import { Router } from 'express';
 import prisma from '../config/db';
 import { authMiddleware } from '../middlewares/auth.middleware';
-import { checkSubscription } from '../middlewares/subscription.middleware';
+import { checkSubscription, requireProPlan } from '../middlewares/subscription.middleware';
 import { validate } from '../middlewares/validation.middleware';
 import { createBranchSchema, updateBranchSchema } from '../schemas/branch.schema';
 import { z } from 'zod';
+import { CacheService } from '../services/cache';
 
 const router = Router();
 router.use(authMiddleware);
@@ -552,8 +553,8 @@ router.get('/:id/rooms', async (req, res) => {
   }
 });
 
-// Owner Dashboard Heatmap
-router.get('/:id/heatmap', async (req, res) => {
+// Owner Dashboard Heatmap (PRO Feature)
+router.get('/:id/heatmap', requireProPlan, async (req, res) => {
   try {
     const orgId = req.user!.organizationId;
     const branchId = req.params.id as string;
@@ -562,21 +563,42 @@ router.get('/:id/heatmap', async (req, res) => {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
+    const cacheKey = `heatmap:${orgId}:${branchId}`;
+    const cachedData = await CacheService.get(cacheKey);
+    if (cachedData) {
+      return res.json({ success: true, data: cachedData });
+    }
+
     const rooms = await prisma.room.findMany({
       where: { organizationId: orgId, branchId: branchId },
-      include: { 
-        beds: true, 
-        admissions: { 
-          where: { status: 'ACTIVE' }, 
-          include: { 
+      select: {
+        id: true,
+        roomNumber: true,
+        floor: true,
+        totalCapacity: true,
+        occupiedCapacity: true,
+        status: true,
+        hasAC: true,
+        admissions: {
+          where: { status: 'ACTIVE' },
+          select: {
             tenant: {
-              include: {
-                vacateNotice: true
+              select: {
+                id: true,
+                name: true,
+                phone: true,
+                photoUrl: true,
+                vacateNotice: {
+                  where: { status: 'PENDING' },
+                  select: { status: true, vacateDate: true }
+                }
               }
-            }, 
-            bed: true 
-          } 
-        } 
+            },
+            bed: {
+              select: { name: true, bedNumber: true }
+            }
+          }
+        }
       },
       orderBy: [{ floor: 'asc' }, { roomNumber: 'asc' }]
     });
@@ -601,7 +623,7 @@ router.get('/:id/heatmap', async (req, res) => {
         tenants: (room as any).admissions.map((a: any) => ({
           ...a.tenant,
           bedName: a.bed?.name || a.bed?.bedNumber || '',
-          vacateNotice: a.tenant.vacateNotice || null
+          vacateNotice: a.tenant.vacateNotice && a.tenant.vacateNotice.length > 0 ? a.tenant.vacateNotice[0] : null
         }))
       });
       return acc;
@@ -611,6 +633,8 @@ router.get('/:id/heatmap', async (req, res) => {
       floor: Number(floor),
       rooms: heatmapData[floor]
     }));
+
+    await CacheService.set(cacheKey, floorsArray, 300); // Cache for 5 minutes
 
     res.json({ success: true, data: floorsArray });
   } catch (error) {

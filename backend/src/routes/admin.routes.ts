@@ -48,7 +48,7 @@ router.post('/organizations/:id/impersonate', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Owner profile not found for this organization.' });
     }
 
-    const JWT_SECRET = process.env.JWT_SECRET || 'easypg-super-secret-key-123';
+    const JWT_SECRET = process.env.JWT_SECRET || 'u9pgs-super-secret-key-123';
     // Generate a temporary JWT token valid for 2 hours
     const token = jwt.sign({ id: profile.id, role: profile.role, organizationId: profile.organizationId }, JWT_SECRET, { expiresIn: '2h' });
 

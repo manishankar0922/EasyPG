@@ -36,7 +36,7 @@ router.get('/status', async (req, res) => {
       subscription = await prisma.subscription.create({
         data: {
           organizationId: orgId,
-          plan: 'STARTER',
+          plan: 'PRO',
           status: 'TRIAL',
           trialEndsAt: trialEnd
         }
@@ -64,12 +64,22 @@ router.post('/request', async (req, res) => {
     });
   }
 
+  // Security Check: Hardcode prices to prevent payload manipulation
+  const PLAN_PRICES: Record<string, number> = {
+    BASIC: 499,
+    PRO: 799,
+    ENTERPRISE: 1199
+  };
+
+  const validPlan = PLAN_PRICES[plan] ? plan : 'BASIC';
+  const secureAmount = PLAN_PRICES[validPlan];
+
   try {
     const request = await prisma.paymentRequest.create({
       data: {
         organizationId: orgId,
-        plan,
-        amount,
+        plan: validPlan,
+        amount: secureAmount,
         upiRefNumber,
         screenshotUrl,
         status: 'PENDING'

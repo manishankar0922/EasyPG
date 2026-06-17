@@ -7,6 +7,7 @@ import { User, Phone, School, CreditCard, Loader2, ArrowLeft, Bed, Calendar, Coi
 import Link from 'next/link';
 import MobileCameraCapture from '@/components/shared/MobileCameraCapture';
 import { format } from 'date-fns';
+import { useAuthStore } from '@/store/auth-store';
 
 interface Room {
   id: string;
@@ -22,6 +23,7 @@ interface Room {
 
 export default function CreateTenantPage() {
   const router = useRouter();
+  const { user } = useAuthStore();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   
@@ -177,11 +179,15 @@ export default function CreateTenantPage() {
               label="Tenant Photo"
               value={formData.photoUrl}
               onUploadComplete={(url) => setFormData(prev => ({ ...prev, photoUrl: url }))}
+              folderPath={`U9PGs/${user?.organizationId || 'uncategorized'}/tenants/${formData.phone || 'pending'}`}
+              docType="profile_photo"
             />
             <MobileCameraCapture 
               label="Aadhaar Card Photo"
               value={formData.aadhaarPhotoUrl}
               onUploadComplete={(url) => setFormData(prev => ({ ...prev, aadhaarPhotoUrl: url }))}
+              folderPath={`U9PGs/${user?.organizationId || 'uncategorized'}/tenants/${formData.phone || 'pending'}`}
+              docType="aadhaar_front"
             />
           </div>
         </div>
