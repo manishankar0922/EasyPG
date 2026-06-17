@@ -34,7 +34,7 @@ export const idempotencyMiddleware = async (req: Request, res: Response, next: N
           body
         };
         // Cache for 24 hours
-        redisConnection.setex(key, 86400, JSON.stringify(responseToCache)).catch(err => {
+        redisConnection.setex(key, 86400, JSON.stringify(responseToCache)).catch((err: any) => {
           console.error('[Idempotency] Failed to cache response', err);
         });
       }

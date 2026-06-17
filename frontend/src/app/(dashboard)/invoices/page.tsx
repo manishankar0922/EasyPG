@@ -282,7 +282,7 @@ export default function QuickPaymentPage() {
               href={`https://wa.me/91${selectedTenant?.phone}?text=${encodeURIComponent(
                 `Hello *${selectedTenant?.name}*,\n\nWe have successfully received your payment of *₹${paymentAmount}* via *${paymentMode.replace('_', ' ')}*.\n\n` + 
                 ((selectedTenant?.rentPending || 0) - Number(paymentAmount) > 0 ? `Remaining Due: *₹${(selectedTenant?.rentPending || 0) - Number(paymentAmount)}*\n\n` : '') +
-                `Thank you!\n- EasyPG Management`
+                `Thank you!\n- U9PGs Management`
               )}`}
               target="_blank"
               rel="noopener noreferrer"

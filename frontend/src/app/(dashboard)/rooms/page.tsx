@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
+import { VariableSizeList as WindowList } from 'react-window';
+import { useRef, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { LayoutGrid, List, Plus, Users, User, ArrowRight } from 'lucide-react';
@@ -130,55 +132,72 @@ export default function MobileRoomsPage() {
           <div className="animate-in fade-in duration-300">
             {/* HEATMAP VIEW */}
             {viewMode === 'heatmap' && (
-              <div className="space-y-8">
-                {filteredFloors.map(floor => (
-                  <div key={floor.floor}>
-                    <h2 className="text-lg font-black text-slate-400 uppercase tracking-widest mb-4 px-1">
-                      {lang === 'te' ? `అంతస్తు ${floor.floor}` : `Floor ${floor.floor}`}
-                    </h2>
-                    <div className="grid grid-cols-4 gap-3">
-                      {floor.rooms.map((room: any) => {
-                        const isFull = room.status === 'FULL';
-                        const isEmpty = room.status === 'VACANT';
-                        const isPartial = room.status === 'PARTIAL';
+              <div style={{ height: '75vh', width: '100%' }}>
+                <WindowList
+                  height={typeof window !== 'undefined' ? window.innerHeight * 0.75 : 800}
+                  itemCount={filteredFloors.length}
+                  itemSize={(index) => {
+                    if (typeof window === 'undefined') return 300;
+                    const floor = filteredFloors[index];
+                    const columns = window.innerWidth >= 1024 ? 8 : window.innerWidth >= 768 ? 6 : 4;
+                    const rows = Math.ceil(floor.rooms.length / columns);
+                    const cellHeight = window.innerWidth >= 1024 ? 140 : window.innerWidth >= 768 ? 120 : 90;
+                    return (rows * cellHeight) + 80; // header height + margins
+                  }}
+                  width="100%"
+                >
+                  {({ index, style }) => {
+                    const floor = filteredFloors[index];
+                    return (
+                      <div style={style} key={floor.floor}>
+                        <h2 className="text-lg font-black text-slate-400 uppercase tracking-widest mb-4 px-1">
+                          {lang === 'te' ? `అంతస్తు ${floor.floor}` : `Floor ${floor.floor}`}
+                        </h2>
+                        <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3 md:gap-4 lg:gap-5">
+                          {floor.rooms.map((room: any) => {
+                            const isFull = room.status === 'FULL';
+                            const isEmpty = room.status === 'VACANT';
+                            const isPartial = room.status === 'PARTIAL';
 
-                        return (
-                          <button
-                            key={room.roomId}
-                            onClick={() => setSelectedRoom(room)}
-                            className={cn(
-                              "aspect-square rounded-2xl flex flex-col items-center justify-center border-2 transition-transform active:scale-90 shadow-sm relative overflow-hidden",
-                              isFull ? "bg-emerald-500 border-emerald-600 text-white" :
-                              isPartial ? "bg-yellow-400 border-yellow-500 text-slate-900" :
-                              "bg-rose-50 border-rose-300 text-rose-600"
-                            )}
-                          >
-                            <span className="text-xl font-black tracking-tighter">{room.roomName}</span>
-                            <span className={cn("text-[10px] font-bold mt-0.5 opacity-90", isFull ? "text-emerald-100" : isPartial ? "text-yellow-900" : "text-rose-400")}>
-                              {room.occupiedBeds}/{room.totalBeds}
-                            </span>
-                            
-                            {/* Visual indicator bar for partial */}
-                            {isPartial && (
-                              <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-yellow-500/30">
-                                <div 
-                                  className="h-full bg-slate-900/40" 
-                                  style={{ width: `${(room.occupiedBeds / room.totalBeds) * 100}%` }}
-                                />
-                              </div>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
+                            return (
+                              <button
+                                key={room.roomId}
+                                onClick={() => setSelectedRoom(room)}
+                                className={cn(
+                                  "aspect-square rounded-2xl flex flex-col items-center justify-center border-2 transition-transform active:scale-90 shadow-sm relative overflow-hidden",
+                                  isFull ? "bg-emerald-500 border-emerald-600 text-white" :
+                                  isPartial ? "bg-yellow-400 border-yellow-500 text-slate-900" :
+                                  "bg-rose-50 border-rose-300 text-rose-600"
+                                )}
+                              >
+                                <span className="text-xl font-black tracking-tighter">{room.roomName}</span>
+                                <span className={cn("text-[10px] font-bold mt-0.5 opacity-90", isFull ? "text-emerald-100" : isPartial ? "text-yellow-900" : "text-rose-400")}>
+                                  {room.occupiedBeds}/{room.totalBeds}
+                                </span>
+                                
+                                {/* Visual indicator bar for partial */}
+                                {isPartial && (
+                                  <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-yellow-500/30">
+                                    <div 
+                                      className="h-full bg-slate-900/40" 
+                                      style={{ width: `${(room.occupiedBeds / room.totalBeds) * 100}%` }}
+                                    />
+                                  </div>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  }}
+                </WindowList>
               </div>
             )}
 
             {/* LIST VIEW */}
             {viewMode === 'list' && (
-              <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {filteredRooms.map(room => (
                   <button 
                     key={room.roomId}

@@ -4,7 +4,7 @@ import { translations } from '../lib/translations';
 export function useTranslation() {
   const [lang, setLang] = useState<'en' | 'te'>(() => {
     if (typeof window !== 'undefined') {
-      return (localStorage.getItem('easypg_lang') as 'en' | 'te') || 'en';
+      return (localStorage.getItem('u9pgs_lang') as 'en' | 'te') || 'en';
     }
     return 'en';
   });
@@ -12,7 +12,7 @@ export function useTranslation() {
   const switchLanguage = (newLang: 'en' | 'te') => {
     setLang(newLang);
     if (typeof window !== 'undefined') {
-      localStorage.setItem('easypg_lang', newLang);
+      localStorage.setItem('u9pgs_lang', newLang);
     }
   };
 

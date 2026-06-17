@@ -69,7 +69,7 @@ export default function LoadingScreen({
 
   // Read language preference
   useEffect(() => {
-    const savedLang = localStorage.getItem('easypg_lang') as 'en' | 'te'
+    const savedLang = localStorage.getItem('u9pgs_lang') as 'en' | 'te'
     if (savedLang) setLang(savedLang)
   }, [])
 
@@ -100,7 +100,7 @@ export default function LoadingScreen({
           <span className="text-white text-2xl font-bold">EP</span>
         </div>
         <span className="text-xl font-bold text-slate-900">
-          EasyPG
+          U9PGs
         </span>
       </div>
 

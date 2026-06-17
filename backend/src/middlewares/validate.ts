@@ -7,7 +7,7 @@ export const validate = (schema: ZodSchema) =>
     // Determine if the schema expects the full req object or just body
     let dataToValidate = req.body;
     
-    // Most existing EasyPG schemas use the { body: z.object(...) } pattern
+    // Most existing U9PGs schemas use the { body: z.object(...) } pattern
     // We sniff it out by checking if it's an object schema with a 'body' property
     // (ZodObject has a shape property)
     if ((schema as any).shape && ((schema as any).shape.body || (schema as any).shape.params || (schema as any).shape.query)) {

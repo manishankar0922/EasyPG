@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import api from '@/lib/api';
 import { ArrowLeft, Building2, Layers, Users, IndianRupee, ShieldCheck, Mail, Phone, Calendar, Loader2, Trash2, Power, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
+import DevLoader from '@/components/superadmin/DevLoader';
 
 export default function OrgDetailsPage() {
   const { orgId } = useParams() as { orgId: string };
@@ -64,11 +65,7 @@ export default function OrgDetailsPage() {
   };
 
   if (loading) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-slate-950">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
-      </div>
-    );
+    return <DevLoader message="Fetching organization data..." />;
   }
 
   if (!org) {
@@ -187,30 +184,34 @@ export default function OrgDetailsPage() {
              <h2 className="text-sm font-black uppercase tracking-widest text-slate-500">Configured Branches</h2>
           </div>
           <div className="divide-y divide-slate-700/50">
-            {org.branches.map((branch: any) => (
-              <div key={branch.id} className="p-6 flex flex-col sm:flex-row gap-6 items-start sm:items-center justify-between hover:bg-slate-800/20 transition-colors">
-                <div className="flex items-start gap-4">
-                  <div className="h-10 w-10 rounded-xl bg-blue-900/20 border border-blue-800/30 flex items-center justify-center text-blue-400 shrink-0">
-                    <Layers className="h-5 w-5" />
+            {org.branches.map((branch: any) => {
+              const uniqueFloors = new Set(branch.rooms?.map((r: any) => r.floor) || []).size;
+              const displayFloors = Math.max(branch.floors || 0, uniqueFloors);
+              return (
+                <div key={branch.id} className="p-6 flex flex-col sm:flex-row gap-6 items-start sm:items-center justify-between hover:bg-slate-800/20 transition-colors">
+                  <div className="flex items-start gap-4">
+                    <div className="h-10 w-10 rounded-xl bg-blue-900/20 border border-blue-800/30 flex items-center justify-center text-blue-400 shrink-0">
+                      <Layers className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-bold text-white leading-tight">{branch.name}</h3>
+                      <p className="text-sm text-slate-400 mt-1 max-w-sm leading-snug">{branch.address}</p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="text-base font-bold text-white leading-tight">{branch.name}</h3>
-                    <p className="text-sm text-slate-400 mt-1 max-w-sm leading-snug">{branch.address}</p>
-                  </div>
-                </div>
-                
-                <div className="flex gap-4">
-                  <div className="text-center bg-slate-800/50 px-4 py-2 rounded-xl border border-slate-700/50">
-                     <p className="text-xs font-bold text-slate-500 uppercase">Floors</p>
-                     <p className="text-lg font-black text-white leading-none mt-1">{branch.floors || 0}</p>
-                  </div>
+                  
+                  <div className="flex gap-4">
+                    <div className="text-center bg-slate-800/50 px-4 py-2 rounded-xl border border-slate-700/50">
+                       <p className="text-xs font-bold text-slate-500 uppercase">Floors</p>
+                       <p className="text-lg font-black text-white leading-none mt-1">{displayFloors}</p>
+                    </div>
                   <div className="text-center bg-slate-800/50 px-4 py-2 rounded-xl border border-slate-700/50">
                      <p className="text-xs font-bold text-slate-500 uppercase">Rooms</p>
                      <p className="text-lg font-black text-white leading-none mt-1">{branch.rooms?.length || 0}</p>
                   </div>
                 </div>
               </div>
-            ))}
+              );
+            })}
             
             {org.branches.length === 0 && (
               <div className="p-12 text-center">

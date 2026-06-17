@@ -25,7 +25,7 @@ export function LanguageProvider({
   const [lang, setLang] = useState<Lang>('en')
 
   useEffect(() => {
-    const saved = localStorage.getItem('easypg_lang') as Lang
+    const saved = localStorage.getItem('u9pgs_lang') as Lang
     if (saved === 'en' || saved === 'te') {
       setLang(saved)
     }
@@ -33,7 +33,7 @@ export function LanguageProvider({
 
   const switchLanguage = (newLang: Lang) => {
     setLang(newLang)
-    localStorage.setItem('easypg_lang', newLang)
+    localStorage.setItem('u9pgs_lang', newLang)
   }
 
   return (

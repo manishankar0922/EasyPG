@@ -195,9 +195,12 @@ export function AdminHeatmap({ orgId }: { orgId: string }) {
   const totalRooms = Object.values(counts).reduce((a, b) => a + b, 0);
 
   if (loading) return (
-    <div className="flex items-center justify-center py-20 gap-3 text-slate-400">
-      <Loader2 className="h-5 w-5 animate-spin" />
-      <span className="text-sm">Building heatmap...</span>
+    <div className="flex flex-col items-center justify-center py-20 gap-4 text-slate-400 font-mono">
+      <div className="relative flex items-center justify-center h-12 w-12">
+        <div className="absolute inset-0 rounded-full border-2 border-indigo-500/20 border-t-indigo-500 animate-spin" />
+        <div className="absolute inset-1.5 rounded-full border-2 border-violet-500/20 border-b-violet-500 animate-spin" style={{ animationDirection: 'reverse' }} />
+      </div>
+      <span className="text-xs uppercase tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-cyan-400 font-bold animate-pulse">Building heatmap matrices...</span>
     </div>
   );
 

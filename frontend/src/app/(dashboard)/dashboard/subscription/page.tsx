@@ -8,9 +8,9 @@ import { Loader2, CheckCircle2, AlertTriangle, Upload, X } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 
 const PLANS = {
-  STARTER: {
-    name: 'Starter',
-    nameTE: 'స్టార్టర్',
+  BASIC: {
+    name: 'Basic',
+    nameTE: 'బేసిక్',
     price: 499,
     maxBranches: 1,
     maxBeds: 50,
@@ -19,34 +19,36 @@ const PLANS = {
       'Up to 50 beds',
       'Tenant management',
       'Payment tracking',
-      'Telugu support'
-    ]
-  },
-  GROWTH: {
-    name: 'Growth',
-    nameTE: 'గ్రోత్',
-    price: 999,
-    maxBranches: 3,
-    maxBeds: 150,
-    features: [
-      'Up to 3 Branches',
-      'Up to 150 beds',
-      'All Starter features',
-      'Monthly P&L report',
-      'Vacate notice tracker'
+      'Basic Support'
     ]
   },
   PRO: {
     name: 'Pro',
     nameTE: 'ప్రో',
-    price: 1999,
+    price: 799,
+    maxBranches: 2,
+    maxBeds: 180,
+    features: [
+      'Up to 2 Branches',
+      'Up to 180 beds',
+      'Automated WhatsApp Receipts',
+      'Heatmap Analytics',
+      'Telugu Support',
+      'Multi-Warden Access'
+    ]
+  },
+  ENTERPRISE: {
+    name: 'Enterprise',
+    nameTE: 'ఎంటర్ప్రైజ్',
+    price: 1199,
     maxBranches: 999,
     maxBeds: 999,
     features: [
       'Unlimited Branches',
       'Unlimited Beds',
-      'All Growth features',
-      'Priority WhatsApp support'
+      'Unlimited Wardens',
+      'Priority Support',
+      'All Pro features'
     ]
   }
 };
@@ -102,7 +104,7 @@ export default function SubscriptionPage() {
 
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('upload_preset', process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || 'easypg_unsigned');
+    formData.append('upload_preset', process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || 'u9pgs_unsigned');
     
     try {
       const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
@@ -159,7 +161,7 @@ export default function SubscriptionPage() {
                 {lang === 'te' ? 'మీ ఉచిత ట్రయల్ ముగిసింది' : 'Your free trial has ended'}
               </h2>
               <p className="text-slate-500 font-medium mb-8">
-                {lang === 'te' ? 'EasyPG వాడటం కొనసాగించడానికి సబ్స్క్రయిబ్ చేయండి.' : 'Subscribe now to continue managing your hostel on EasyPG.'}
+                {lang === 'te' ? 'U9PGs వాడటం కొనసాగించడానికి సబ్స్క్రయిబ్ చేయండి.' : 'Subscribe now to continue managing your hostel on U9PGs.'}
               </p>
             </>
           ) : blockCode === 'SUSPENDED' ? (
@@ -218,7 +220,7 @@ export default function SubscriptionPage() {
             <h3 className="font-bold text-emerald-800 mb-1">Request Submitted!</h3>
             <p className="text-sm text-emerald-600 mb-4">We will activate your account within 2 hours. Contact us on WhatsApp if urgent.</p>
             <a 
-              href={`https://wa.me/91XXXXXXXXXX?text=Hi, I have submitted payment for EasyPG ${selectedPlan} Plan. UPI Ref: ${upiRef}`}
+              href={`https://wa.me/91XXXXXXXXXX?text=Hi, I have submitted payment for U9PGs ${selectedPlan} Plan. UPI Ref: ${upiRef}`}
               className="px-6 py-2 bg-[#25D366] text-white rounded-full font-bold text-sm"
             >
               Send WhatsApp Message
@@ -238,7 +240,7 @@ export default function SubscriptionPage() {
         <div className="space-y-4">
           {(Object.keys(PLANS) as Array<keyof typeof PLANS>).map(key => {
             const plan = PLANS[key];
-            const isPopular = key === 'GROWTH';
+            const isPopular = key === 'PRO';
             
             return (
               <div key={key} className={`bg-white rounded-3xl p-6 border-2 relative ${isPopular ? 'border-orange-500 shadow-orange-100 shadow-xl' : 'border-slate-100'}`}>
@@ -291,7 +293,7 @@ export default function SubscriptionPage() {
           <div className="space-y-6 pb-6 max-h-[80vh] overflow-y-auto">
             <div className="bg-slate-50 p-4 rounded-2xl text-center border border-slate-100">
               <p className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-2">UPI ID</p>
-              <p className="text-xl font-black text-slate-900">easypg@upi</p>
+              <p className="text-xl font-black text-slate-900">u9pgs@upi</p>
             </div>
 
             <div className="relative flex py-2 items-center">

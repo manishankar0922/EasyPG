@@ -154,7 +154,7 @@ export default function OrgTable({ organisations }: OrgTableProps) {
                     <button 
                       onClick={async (e) => {
                         e.stopPropagation();
-                        if (!confirm(`Are you sure you want to reset the owner password for ${org.name} to the default (EasyPG@123)?`)) return;
+                        if (!confirm(`Are you sure you want to reset the owner password for ${org.name} to the default (U9PGs@123)?`)) return;
                         try {
                           const res = await api.patch(`/superadmin/organisations/${org.id}/reset-owner-password`);
                           if (res.data.success) {

@@ -138,6 +138,7 @@ model Room {
 
   @@index([branchId])
   @@index([organizationId])
+  @@index([organizationId, branchId, status])
   @@map("rooms")
 }
 
@@ -172,10 +173,11 @@ model Tenant {
   phone           String        @db.VarChar(20)
   parentPhone     String?       @map("parent_phone") @db.VarChar(20)
   aadhaarLast4    String?       @map("aadhaar_last4") @db.VarChar(4)
-  photoUrl        String?       @map("photo_url") @db.VarChar(255)
-  aadhaarPhotoUrl String?       @map("aadhaar_photo_url") @db.VarChar(255)
+  photoUrl        String?       @map("photo_url") @db.Text
+  aadhaarPhotoUrl String?       @map("aadhaar_photo_url") @db.Text
   collegeName     String?       @map("college_name") @db.VarChar(150)
   status          TenantStatus? @default(ACTIVE)
+  isVerified      Boolean       @default(false) @map("is_verified")
   createdAt       DateTime      @default(now()) @map("created_at")
   updatedAt       DateTime      @updatedAt @map("updated_at")
 
@@ -192,6 +194,8 @@ model Tenant {
 
   @@index([organizationId])
   @@index([status])
+  @@index([organizationId, status])
+  @@index([phone])
   @@map("tenants")
 }
 
@@ -214,6 +218,7 @@ model Admission {
   checkoutDate   DateTime?        @map("checkout_date") @db.Date
   monthlyRent    Decimal          @map("monthly_rent") @db.Decimal(10, 2)
   depositAmount  Decimal?         @default(0) @map("deposit_amount") @db.Decimal(10, 2)
+  openingBalance Decimal?         @default(0) @map("opening_balance") @db.Decimal(10, 2)
   status         AdmissionStatus?
   createdAt      DateTime         @default(now()) @map("created_at")
   updatedAt      DateTime         @updatedAt @map("updated_at")
@@ -416,7 +421,6 @@ model Broadcast {
 
 model User {
   id             String        @id @default(cuid())
-  clerkId        String        @unique
   name           String
   email          String?       @unique
   passwordHash   String?
@@ -430,9 +434,8 @@ model User {
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
-  recordedPayments Payment[]   @relation("PaymentRecordedBy")
+  recordedPayments Payment[] @relation("PaymentRecordedBy")
 
-  @@index([clerkId])
   @@index([organisationId])
   @@index([branchId])
   @@index([role])
@@ -470,9 +473,9 @@ enum LedgerStatus {
 }
 
 enum Plan {
-  STARTER
-  GROWTH
+  BASIC
   PRO
+  ENTERPRISE
 }
 
 enum SubStatus {
@@ -492,7 +495,7 @@ model Subscription {
   id               String       @id @default(cuid())
   organizationId   String       @unique @map("organization_id")
   organization     Organization @relation(fields: [organizationId], references: [id])
-  plan             Plan         @default(STARTER)
+  plan             Plan         @default(PRO)
   status           SubStatus    @default(TRIAL)
   trialEndsAt      DateTime     @map("trial_ends_at")
   currentPeriodEnd DateTime?    @map("current_period_end")

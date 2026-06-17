@@ -22,7 +22,8 @@ const orgSchema = z.object({
         rentPerBed: z.number().min(0)
       })).optional()
     })).optional()
-  })).min(1, "At least one branch must be provided")
+  })).min(1, "At least one branch must be provided"),
+  plan: z.string().optional().default('PRO')
 });
 
 function generateTempPassword() {
@@ -37,15 +38,27 @@ function generateTempPassword() {
 const router = Router();
 
 // Apply auth middleware and require superadmin role
-// We accept both SUPERADMIN (from Prisma enum) and superadmin (from Clerk metadata string)
-router.use(requireAuth, attachUserContext, requireRole('SUPERADMIN', 'superadmin', 'SUPER_ADMIN', 'admin', 'ADMIN'));
+router.use(requireAuth, attachUserContext, requireRole('SUPERADMIN'));
+
+import { CacheService } from '../services/cache';
 
 router.get('/dashboard', async (req, res) => {
   try {
+    const cacheKey = 'superadmin:dashboard';
+    const cachedData = await CacheService.get(cacheKey);
+    if (cachedData) {
+      return res.json({ success: true, data: cachedData });
+    }
+
     const orgs = await prisma.organization.findMany({
       include: {
         _count: {
-          select: { branches: true, tenants: true }
+          select: { 
+            branches: true, 
+            tenants: {
+              where: { status: 'ACTIVE' }
+            } 
+          }
         }
       },
       orderBy: { createdAt: 'desc' }
@@ -83,7 +96,10 @@ router.get('/dashboard', async (req, res) => {
       totalRevenue
     };
 
-    res.json({ success: true, data: { summary, organisations: orgs } });
+    const responseData = { summary, organisations: orgs };
+    await CacheService.set(cacheKey, responseData, 60);
+
+    res.json({ success: true, data: responseData });
   } catch (error: any) {
     console.error('Superadmin dashboard error:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch dashboard data' });
@@ -92,6 +108,12 @@ router.get('/dashboard', async (req, res) => {
 
 router.get('/stats', async (req, res, next) => {
   try {
+    const cacheKey = 'superadmin:stats';
+    const cachedData = await CacheService.get(cacheKey);
+    if (cachedData) {
+      return res.json({ success: true, data: cachedData });
+    }
+
     const [
       totalOrgs,
       totalBranches,
@@ -101,22 +123,26 @@ router.get('/stats', async (req, res, next) => {
     ] = await Promise.all([
       prisma.organization.count(), // Fix: Changed organisation to organization
       prisma.branch.count(),
-      prisma.tenant.count(),
+      prisma.tenant.count({ where: { status: 'ACTIVE' } }),
       prisma.user.count(),
       prisma.paymentRequest.count({
         where: { status: 'PENDING' }
       }).catch(() => 0)
     ]);
 
+    const responseData = {
+      totalOrgs,
+      totalBranches,
+      totalTenants,
+      totalUsers,
+      pendingRequests
+    };
+
+    await CacheService.set(cacheKey, responseData, 60);
+
     return res.json({
       success: true,
-      data: {
-        totalOrgs,
-        totalBranches,
-        totalTenants,
-        totalUsers,
-        pendingRequests
-      }
+      data: responseData
     });
   } catch (error) {
     next(error);
@@ -142,7 +168,7 @@ router.post('/organisations', async (req, res) => {
     }
     
     const validatedData = orgSchema.parse(payload);
-    const { orgName, ownerName, ownerPhone, ownerEmail, ownerAddress, branches } = validatedData;
+    const { orgName, ownerName, ownerPhone, ownerEmail, ownerAddress, branches, plan } = validatedData;
     
     console.log(`Creating org with ${branches.length} branches`);
     branches.forEach((b, i) => {
@@ -154,12 +180,15 @@ router.post('/organisations', async (req, res) => {
 
     const tempPassword = ownerPhone; // Temp password is phone number
 
-    const result = await prisma.$transaction(async (tx) => {
-      // 1. Create Organisation
-      console.log('Creating organisation...');
+    const orgId = uuidv4();
+    const ownerId = uuidv4();
+
+    // 1. Core Org & User Creation (Transaction 1)
+    console.log('Creating organisation...');
+    const coreResult = await prisma.$transaction(async (tx) => {
       const org = await tx.organization.create({
         data: { 
-          id: uuidv4(),
+          id: orgId,
           name: orgName, 
           ownerName: ownerName,
           ownerPhone: ownerPhone,
@@ -167,27 +196,21 @@ router.post('/organisations', async (req, res) => {
           address: ownerAddress
         }
       });
-      console.log('✅ Organisation created:', org.id);
 
-      // 2. Create owner user using custom local auth
-      console.log('Creating owner...');
       const passwordHash = bcrypt.hashSync(tempPassword, 12);
-      
       const owner = await tx.user.create({
         data: {
-          clerkId: 'local_' + uuidv4(),
+          id: ownerId,
           name: ownerName,
           email: ownerEmail.toLowerCase().trim(),
           phone: ownerPhone,
           passwordHash,
           role: 'OWNER',
-          organisationId: org.id,
+          organisationId: orgId,
           isActive: true
         }
       });
-      console.log('✅ Owner User created:', owner.id);
 
-      // Maintain Profile for legacy relations if needed
       await tx.profile.create({
         data: {
           id: uuidv4(),
@@ -195,106 +218,130 @@ router.post('/organisations', async (req, res) => {
           email: ownerEmail,
           phone: ownerPhone,
           role: 'OWNER',
-          organizationId: org.id
+          organizationId: orgId
         }
       });
-      console.log('✅ Legacy Profile created');
 
-      // 3. Create branches, rooms, and beds
-      const createdBranches = [];
-      let totalRooms = 0;
-      let totalBeds = 0;
-
-      for (const branch of branches) {
-        console.log(`Creating branch: ${branch.name}...`);
-        const createdBranch = await tx.branch.create({
-          data: {
-            id: uuidv4(),
-            name: branch.name,
-            address: branch.address || ownerAddress,
-            organizationId: org.id
-          }
-        });
-        console.log('✅ Branch created:', createdBranch.id);
-
-        if (branch.floors) {
-          for (const floor of branch.floors) {
-            console.log(`Processing floor ${floor.floorNumber}...`);
-            if (floor.rooms) {
-              for (const room of floor.rooms) {
-                const createdRoom = await tx.room.create({
-                  data: {
-                    id: uuidv4(),
-                    roomNumber: room.roomName,
-                    floor: floor.floorNumber,
-                    rentAmount: room.rentPerBed,
-                    branchId: createdBranch.id,
-                    organizationId: org.id,
-                    totalCapacity: room.bedCount,
-                  }
-                });
-                totalRooms++;
-                console.log(`  ✅ Room ${createdRoom.roomNumber} created`);
-
-                const bedNames = ['A','B','C','D','E','F','G','H'];
-                const bedData = [];
-                for (let i = 0; i < room.bedCount; i++) {
-                  bedData.push({
-                    id: uuidv4(),
-                    bedNumber: `Bed ${bedNames[i] || (i + 1)}`,
-                    roomId: createdRoom.id,
-                    organizationId: org.id,
-                    isOccupied: false
-                  });
-                  totalBeds++;
-                }
-                
-                if (bedData.length > 0) {
-                  await tx.bed.createMany({ data: bedData });
-                  console.log(`  ✅ ${room.bedCount} beds created for room ${createdRoom.roomNumber}`);
-                }
-              }
-            }
-          }
-        }
-        createdBranches.push(createdBranch.id);
-      }
-
-      // 4. Create trial subscription
       const trialEnd = new Date();
       trialEnd.setDate(trialEnd.getDate() + 14);
 
+      const isStrictBasic = plan.toUpperCase() === 'STRICT_BASIC';
+      const actualPlan = isStrictBasic ? 'BASIC' : plan.toUpperCase();
+      const initialStatus = isStrictBasic ? 'ACTIVE' : 'TRIAL';
+
       await tx.subscription.create({
         data: {
-          organizationId: org.id,
-          plan: 'STARTER',
-          status: 'TRIAL',
+          organizationId: orgId,
+          plan: actualPlan as any,
+          status: initialStatus as any,
           trialEndsAt: trialEnd
         }
       });
-      console.log('✅ Trial subscription created');
 
-      console.log(`\n=== CREATION COMPLETE ===`);
-      console.log(`Org: ${org.id}`);
-      console.log(`Owner: ${owner.id}`);
-      console.log(`Rooms: ${totalRooms}`);
-      console.log(`Beds: ${totalBeds}`);
-
-      return {
-        orgId: org.id,
-        ownerId: owner.id,
-        branchIds: createdBranches,
-        totalRooms,
-        totalBeds,
-        ownerCredentials: {
-          email: ownerEmail,
-          tempPassword: tempPassword
-        }
-      };
-    }, {
-      maxWait: 15000,
-      timeout: 30000 // Extended timeout for large orgs
+      return { org, owner };
     });
+
+    console.log('✅ Core Org created:', coreResult.org.id);
+
+    // 2. Branch & Room Creation (Iterative chunks)
+    const createdBranches = [];
+    let totalRooms = 0;
+    let totalBeds = 0;
+
+    for (const branch of branches) {
+      console.log(`Creating branch: ${branch.name}...`);
+      
+      const branchId = uuidv4();
+      
+      await prisma.branch.create({
+        data: {
+          id: branchId,
+          name: branch.name,
+          address: branch.address || ownerAddress,
+          organizationId: orgId,
+          floors: branch.floors ? branch.floors.length : 1
+        }
+      });
+      createdBranches.push(branchId);
+      console.log('✅ Branch created:', branchId);
+
+      if (branch.floors) {
+        // Group rooms into batches to insert without locking DB
+        const roomCreates: any[] = [];
+        
+        for (const floor of branch.floors) {
+          if (floor.rooms) {
+            for (const room of floor.rooms) {
+              const roomId = uuidv4();
+              roomCreates.push({
+                id: roomId,
+                roomNumber: room.roomName,
+                floor: floor.floorNumber,
+                rentAmount: room.rentPerBed,
+                branchId: branchId,
+                organizationId: orgId,
+                totalCapacity: room.bedCount,
+              });
+              
+              const bedData = [];
+              const bedNames = ['A','B','C','D','E','F','G','H'];
+              for (let i = 0; i < room.bedCount; i++) {
+                bedData.push({
+                  id: uuidv4(),
+                  bedNumber: `Bed ${bedNames[i] || (i + 1)}`,
+                  roomId: roomId,
+                  organizationId: orgId,
+                  isOccupied: false
+                });
+              }
+              totalRooms++;
+              totalBeds += room.bedCount;
+              
+              // We'll attach the beds to be created in the same transaction for this room
+              (roomCreates[roomCreates.length - 1] as any)._beds = bedData;
+            }
+          }
+        }
+
+        // Insert rooms in small batches of 20
+        const batchSize = 20;
+        for (let i = 0; i < roomCreates.length; i += batchSize) {
+          const batch = roomCreates.slice(i, i + batchSize);
+          await prisma.$transaction(async (tx) => {
+            for (const r of batch) {
+              await tx.room.create({
+                data: {
+                  id: r.id,
+                  roomNumber: r.roomNumber,
+                  floor: r.floor,
+                  rentAmount: r.rentAmount,
+                  branchId: r.branchId,
+                  organizationId: r.organizationId,
+                  totalCapacity: r.totalCapacity,
+                }
+              });
+              if (r._beds && r._beds.length > 0) {
+                await tx.bed.createMany({ data: r._beds });
+              }
+            }
+          });
+          // Small delay to prevent event loop blocking
+          await new Promise(resolve => setTimeout(resolve, 50));
+        }
+      }
+    }
+
+    const result = {
+      orgId,
+      ownerId,
+      branchIds: createdBranches,
+      totalRooms,
+      totalBeds,
+      ownerCredentials: {
+        email: ownerEmail,
+        tempPassword: tempPassword
+      }
+    };
 
     res.status(201).json({ 
       success: true, 
@@ -330,7 +377,7 @@ router.post('/organisations', async (req, res) => {
     
 
     console.error('Organisation creation failed:', error);
-    require('fs').writeFileSync('/tmp/easypg_error.log', JSON.stringify({
+    require('fs').writeFileSync('/tmp/u9pgs_error.log', JSON.stringify({
       message: error.message,
       stack: error.stack,
       name: error.name,
@@ -359,7 +406,12 @@ router.get('/organisations/:orgId', async (req, res) => {
           }
         },
         _count: {
-          select: { tenants: true, branches: true }
+          select: { 
+            branches: true,
+            tenants: {
+              where: { status: 'ACTIVE' }
+            }
+          }
         }
       }
     });
@@ -375,16 +427,31 @@ router.get('/organisations/:orgId', async (req, res) => {
 router.patch('/organisations/:orgId/toggle-status', async (req, res) => {
   const { orgId } = req.params;
   try {
-    const org = await prisma.organization.findUnique({ where: { id: orgId } });
+    const org = await prisma.organization.findUnique({ 
+      where: { id: orgId },
+      include: { subscription: true }
+    });
     if (!org) return res.status(404).json({ success: false, error: 'Organisation not found' });
 
-    const newStatus = org.subscriptionStatus === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
-    await prisma.organization.update({
-      where: { id: orgId },
-      data: { subscriptionStatus: newStatus }
-    });
+    // Determine current status from the Subscription model
+    const currentStatus = org.subscription?.status || org.subscriptionStatus;
+    const newStatus = (currentStatus === 'ACTIVE' || currentStatus === 'TRIAL') ? 'SUSPENDED' : 'ACTIVE';
+    
+    // Update both legacy field and new Subscription model
+    await prisma.$transaction([
+      prisma.organization.update({
+        where: { id: orgId },
+        data: { subscriptionStatus: newStatus }
+      }),
+      ...(org.subscription ? [
+        prisma.subscription.update({
+          where: { organizationId: orgId },
+          data: { status: newStatus as any }
+        })
+      ] : [])
+    ]);
 
-    res.json({ success: true, message: `Organisation status updated to ${newStatus}` });
+    res.json({ success: true, message: `Organisation unlocked and status updated to ${newStatus}` });
   } catch (error: any) {
     console.error('Toggle status error:', error);
     res.status(500).json({ success: false, error: 'Failed to toggle organisation status' });
@@ -460,7 +527,12 @@ router.get('/organisations/:orgId/wardens', async (req, res) => {
 
     if (!org) return res.status(404).json({ success: false, error: 'Organisation not found' });
 
-    res.json({ success: true, data: { wardens, org } });
+    const formattedWardens = wardens.map(w => ({
+      ...w,
+      isActive: w.status === 'ACTIVE'
+    }));
+
+    res.json({ success: true, data: { wardens: formattedWardens, org } });
   } catch (error: any) {
     console.error('Fetch wardens error:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch wardens' });
@@ -470,6 +542,44 @@ router.get('/organisations/:orgId/wardens', async (req, res) => {
 router.post('/wardens', async (req, res) => {
   const { name, email, phone, organisationId, branchId } = req.body;
   try {
+    const normalizedEmail = email.toLowerCase().trim();
+
+    // Check if user/warden with this email or phone already exists
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { email: normalizedEmail },
+          { phone: phone }
+        ]
+      }
+    });
+
+    if (existingUser) {
+      const field = existingUser.email === normalizedEmail ? 'email' : 'phone';
+      return res.status(400).json({
+        success: false,
+        error: `A user with this ${field} already exists. Please use a different one.`
+      });
+    }
+
+    const existingProfile = await prisma.profile.findFirst({
+      where: {
+        OR: [
+          { email: normalizedEmail },
+          { phone: phone }
+        ],
+        status: { not: 'INACTIVE' }
+      }
+    });
+
+    if (existingProfile) {
+      const field = existingProfile.email === normalizedEmail ? 'email' : 'phone';
+      return res.status(400).json({
+        success: false,
+        error: `A profile with this ${field} already exists. Please use a different one.`
+      });
+    }
+
     const tempPassword = phone; // temp password is phone
 
     // 1. Create User using local auth
@@ -477,9 +587,8 @@ router.post('/wardens', async (req, res) => {
     
     const user = await prisma.user.create({
       data: {
-        clerkId: 'local_warden_' + uuidv4(),
         name,
-        email: email.toLowerCase().trim(),
+        email: normalizedEmail,
         phone,
         passwordHash,
         role: 'WARDEN',
@@ -603,10 +712,9 @@ router.delete('/wardens/:id', async (req, res) => {
     const warden = await prisma.profile.findUnique({ where: { id } });
     if (!warden) return res.status(404).json({ success: false, error: 'Warden not found' });
 
-    // 1. Soft Delete in Profile DB
-    await prisma.profile.update({
-      where: { id },
-      data: { status: 'INACTIVE' }
+    // 1. Hard Delete in Profile DB
+    await prisma.profile.delete({
+      where: { id }
     });
 
     // 2. Delete User Account

@@ -12,6 +12,9 @@ notificationQueue.on('error', (err) => {});
 export const ocrQueue = new Queue('ocr-queue', { connection: redisConnection as any });
 ocrQueue.on('error', (err) => {});
 
+export const orgSetupQueue = new Queue('org-setup-queue', { connection: redisConnection as any });
+orgSetupQueue.on('error', (err) => {});
+
 export const serverAdapter = new ExpressAdapter();
 serverAdapter.setBasePath('/api/admin/queues');
 
@@ -27,6 +30,10 @@ export const QueueService = {
   async addOCRJob(data: any) {
     console.log('Queuing OCR job', data);
     return await ocrQueue.add('process-ocr', data);
+  },
+  async addOrgSetupJob(data: any) {
+    console.log('Queuing Org Setup job', data);
+    return await orgSetupQueue.add('process-org-setup', data);
   }
 };
 

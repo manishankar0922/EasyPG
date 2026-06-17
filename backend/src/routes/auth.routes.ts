@@ -24,13 +24,13 @@ router.post('/login',
       }
 
       // Secret key for token generation
-      const JWT_SECRET = process.env.JWT_SECRET || 'easypg-super-secret-key-123';
+      const JWT_SECRET = process.env.JWT_SECRET || 'u9pgs-super-secret-key-123';
 
       // Find user
       const user = await prisma.user.findUnique({
         where: { email: email.toLowerCase().trim() },
         include: {
-          organisation: true,
+          organisation: { include: { subscription: true } },
           branch: true
         }
       })
@@ -95,7 +95,11 @@ router.post('/login',
           phone: user.phone,
           role: user.role,
           organisationId: user.organisationId,
-          branchId: user.branchId
+          branchId: user.branchId,
+          plan: (user.organisation?.subscription?.status === 'TRIAL' && user.organisation?.subscription?.plan === 'BASIC') 
+                ? 'PRO' 
+                : (user.organisation?.subscription?.plan || 'PRO'),
+          subscriptionStatus: user.organisation?.subscription?.status || 'ACTIVE'
         }
       })
 
@@ -121,7 +125,6 @@ router.post('/create-owner',
 
       const user = await prisma.user.create({
         data: {
-          clerkId: 'local_' + Date.now(), // Fallback clerkId since it's required in schema
           name,
           email: email.toLowerCase().trim(),
           passwordHash,

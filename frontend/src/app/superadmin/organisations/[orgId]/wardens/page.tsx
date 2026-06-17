@@ -6,7 +6,7 @@ import api from '@/lib/api';
 import { ArrowLeft, UserPlus, ShieldAlert, CheckCircle2, Copy, Send, Key, Trash2, Power, Layers } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
-import LoadingScreen from '@/components/shared/LoadingScreen';
+import DevLoader from '@/components/superadmin/DevLoader';
 
 export default function WardensPage() {
   const params = useParams();
@@ -104,7 +104,7 @@ export default function WardensPage() {
     }
   };
 
-  if (loading && !org) return <LoadingScreen message="Loading wardens..." />;
+  if (loading && !org) return <DevLoader message="Loading wardens data..." />;
 
   if (successData) {
     return (
@@ -139,7 +139,7 @@ export default function WardensPage() {
           <div className="space-y-3">
             <button 
               onClick={() => {
-                const text = `Hello ${successData.name}, your EasyPG warden login is ready.\nBranch: ${successData.branchName}\nEmail: ${successData.email}\nPassword: ${successData.password}\nLogin: app.easypg.in\nContact your owner if you need help.`;
+                const text = `Hello ${successData.name}, your U9PGs warden login is ready.\nBranch: ${successData.branchName}\nEmail: ${successData.email}\nPassword: ${successData.password}\nLogin: app.u9pgs.in\nContact your owner if you need help.`;
                 navigator.clipboard.writeText(text);
                 alert('Copied to clipboard!');
               }}
@@ -148,7 +148,7 @@ export default function WardensPage() {
               <Copy className="h-5 w-5" /> Copy
             </button>
             <a 
-              href={`https://wa.me/91${successData.phone}?text=${encodeURIComponent(`Hello ${successData.name}, your EasyPG warden login is ready.\nBranch: ${successData.branchName}\nEmail: ${successData.email}\nPassword: ${successData.password}\nLogin: app.easypg.in\nContact your owner if you need help.`)}`}
+              href={`https://wa.me/91${successData.phone}?text=${encodeURIComponent(`Hello ${successData.name}, your U9PGs warden login is ready.\nBranch: ${successData.branchName}\nEmail: ${successData.email}\nPassword: ${successData.password}\nLogin: app.u9pgs.in\nContact your owner if you need help.`)}`}
               target="_blank"
               rel="noopener noreferrer"
               className="w-full flex items-center justify-center gap-2 h-14 bg-[#25D366] text-white rounded-xl font-bold hover:bg-[#20b858] transition-colors shadow-lg shadow-[#25D366]/20"

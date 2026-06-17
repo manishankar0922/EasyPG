@@ -19,7 +19,7 @@ const logger = winston.createLogger({
     appendRequestId(),
     winston.format.json()
   ),
-  defaultMeta: { service: 'easypg-api' },
+  defaultMeta: { service: 'u9pgs-api' },
   transports: [
     // Error logs — kept 30 days
     new DailyRotateFile({

@@ -5,6 +5,7 @@ import { idempotencyMiddleware } from '../middlewares/idempotency.middleware';
 import { validate } from '../middlewares/validation.middleware';
 import { addPaymentSchema } from '../schemas/financial.schema';
 import { z } from 'zod';
+import { redlock } from '../jobs/index';
 
 const router = Router();
 router.use(authMiddleware);
@@ -92,133 +93,151 @@ router.post('/', idempotencyMiddleware, validate(z.object({
   const finalPaymentDate = new Date(date || paymentDate || new Date());
   
   try {
-    const result = await prisma.$transaction(async (tx) => {
-      let targetInvoiceId = invoiceId;
+    const lockKey = `payment_lock:${tenantId || invoiceId}`;
+    let result;
+    
+    // Acquire a distributed lock for 10 seconds to prevent race conditions during double clicks
+    let lock;
+    try {
+      lock = await redlock.acquire([lockKey], 10000);
+    } catch (err) {
+      throw new Error('Another payment is currently being processed for this tenant. Please try again.');
+    }
 
-      // If tenantId is provided instead of invoiceId, find/create the current month's invoice
-      if (tenantId && !targetInvoiceId) {
-        const dateObj = new Date();
-        const currentYear = dateObj.getFullYear();
-        const currentMonthNum = dateObj.getMonth() + 1;
-        const currentMonthString = `${currentYear}-${currentMonthNum.toString().padStart(2, '0')}`;
-        const currentMonthStart = new Date(currentYear, currentMonthNum - 1, 1);
+    try {
+      result = await prisma.$transaction(async (tx) => {
+        let targetInvoiceId = invoiceId;
 
-        let invoice = await tx.invoice.findFirst({
-          where: { tenantId, organizationId: orgId, createdAt: { gte: currentMonthStart } },
-          include: { payments: true }
-        });
+        // If tenantId is provided instead of invoiceId, find/create the current month's invoice
+        if (tenantId && !targetInvoiceId) {
+          const dateObj = new Date();
+          const currentYear = dateObj.getFullYear();
+          const currentMonthNum = dateObj.getMonth() + 1;
+          const currentMonthString = `${currentYear}-${currentMonthNum.toString().padStart(2, '0')}`;
+          const currentMonthStart = new Date(currentYear, currentMonthNum - 1, 1);
 
-        if (!invoice) {
-          // If no invoice exists for this month, find their rent amount and create one
-          const admission = await tx.admission.findFirst({
-            where: { tenantId, organizationId: orgId, status: 'ACTIVE' },
-            include: { room: true }
-          });
-          if (!admission) throw new Error("No active admission to create an invoice for");
-          if (userRole === 'WARDEN' && admission.room.branchId !== userBranchId) {
-            throw new Error("Forbidden: Cannot record payment for tenant in a different branch");
-          }
-
-          invoice = await tx.invoice.create({
-            data: {
-              organizationId: orgId,
-              tenantId,
-              month: currentMonthString,
-              amount: admission.monthlyRent,
-              dueDate: new Date(currentMonthStart.getFullYear(), currentMonthStart.getMonth(), 5),
-              status: 'UNPAID'
-            },
+          let invoice = await tx.invoice.findFirst({
+            where: { tenantId, organizationId: orgId, createdAt: { gte: currentMonthStart } },
             include: { payments: true }
           });
+
+          if (!invoice) {
+            // If no invoice exists for this month, find their rent amount and create one
+            const admission = await tx.admission.findFirst({
+              where: { tenantId, organizationId: orgId, status: 'ACTIVE' },
+              include: { room: true }
+            });
+            if (!admission) throw new Error("No active admission to create an invoice for");
+            if (userRole === 'WARDEN' && admission.room.branchId !== userBranchId) {
+              throw new Error("Forbidden: Cannot record payment for tenant in a different branch");
+            }
+
+            invoice = await tx.invoice.create({
+              data: {
+                organizationId: orgId,
+                tenantId,
+                month: currentMonthString,
+                amount: admission.monthlyRent,
+                dueDate: new Date(currentMonthStart.getFullYear(), currentMonthStart.getMonth(), 5),
+                status: 'UNPAID'
+              },
+              include: { payments: true }
+            });
+          }
+          targetInvoiceId = invoice.id;
         }
-        targetInvoiceId = invoice.id;
-      }
 
-      if (!targetInvoiceId) throw new Error("Either invoiceId or tenantId must be provided");
+        if (!targetInvoiceId) throw new Error("Either invoiceId or tenantId must be provided");
 
-      const invoice = await tx.invoice.findUnique({
-        where: { id: targetInvoiceId },
-        include: { payments: true, tenant: { include: { admissions: { where: { status: 'ACTIVE' }, include: { room: true } } } } }
-      });
+        const invoice = await tx.invoice.findUnique({
+          where: { id: targetInvoiceId },
+          include: { payments: true, tenant: { include: { admissions: { where: { status: 'ACTIVE' }, include: { room: true } } } } }
+        });
 
-      if (!invoice || invoice.organizationId !== orgId) throw new Error('Invoice not found');
-      
-      if (userRole === 'WARDEN') {
-        const activeAdmission = invoice.tenant.admissions[0];
-        if (activeAdmission && activeAdmission.room.branchId !== userBranchId) {
-          throw new Error('Forbidden: Cannot record payment for tenant in a different branch');
+        if (!invoice || invoice.organizationId !== orgId) throw new Error('Invoice not found');
+        
+        if (userRole === 'WARDEN') {
+          const activeAdmission = invoice.tenant.admissions[0];
+          if (activeAdmission && activeAdmission.room.branchId !== userBranchId) {
+            throw new Error('Forbidden: Cannot record payment for tenant in a different branch');
+          }
         }
-      }
 
-      const payment = await tx.payment.create({
-        data: {
-          organizationId: orgId,
-          invoiceId: targetInvoiceId,
-          tenantId: invoice.tenantId,
-          amount,
-          paymentMode: finalPaymentMode,
-          paymentDate: finalPaymentDate,
-          recordedById: req.user!.id
-        }
-      });
-
-      const totalPaid = invoice.payments.reduce((acc, p) => acc + Number(p.amount), 0) + Number(amount);
-      
-      let newStatus: 'PAID' | 'PARTIAL' | 'UNPAID' = 'PARTIAL';
-      
-      if (totalPaid >= Number(invoice.amount)) {
-        newStatus = 'PAID';
-      } else if (totalPaid === 0) {
-        newStatus = 'UNPAID';
-      }
-
-      await tx.invoice.update({
-        where: { id: targetInvoiceId },
-        data: { status: newStatus }
-      });
-
-      // Synchronize with RentLedger so Dashboard accurately reflects payment
-      const invoiceYear = parseInt(invoice.month.substring(0, 4));
-      const invoiceMonth = parseInt(invoice.month.substring(5, 7));
-      
-      const rentLedger = await tx.rentLedger.findFirst({
-        where: {
-          tenantId: invoice.tenantId,
-          month: invoiceMonth,
-          year: invoiceYear
-        }
-      });
-
-      const ledgerStatus = newStatus === 'UNPAID' ? 'PENDING' : newStatus;
-
-      if (rentLedger) {
-        await tx.rentLedger.update({
-          where: { id: rentLedger.id },
+        const payment = await tx.payment.create({
           data: {
-            paidAmount: { increment: amount },
-            status: ledgerStatus as any
+            organizationId: orgId,
+            invoiceId: targetInvoiceId,
+            tenantId: invoice.tenantId,
+            amount,
+            paymentMode: finalPaymentMode,
+            paymentDate: finalPaymentDate,
+            recordedById: req.user!.id
           }
         });
-      } else {
-        await tx.rentLedger.create({
-          data: {
+
+        const totalPaid = invoice.payments.reduce((acc, p) => acc + Number(p.amount), 0) + Number(amount);
+        
+        let newStatus: 'PAID' | 'PARTIAL' | 'UNPAID' = 'PARTIAL';
+        
+        if (totalPaid >= Number(invoice.amount)) {
+          newStatus = 'PAID';
+        } else if (totalPaid === 0) {
+          newStatus = 'UNPAID';
+        }
+
+        await tx.invoice.update({
+          where: { id: targetInvoiceId },
+          data: { status: newStatus }
+        });
+
+        // Synchronize with RentLedger so Dashboard accurately reflects payment
+        const invoiceYear = parseInt(invoice.month.substring(0, 4));
+        const invoiceMonth = parseInt(invoice.month.substring(5, 7));
+        
+        const rentLedger = await tx.rentLedger.findFirst({
+          where: {
             tenantId: invoice.tenantId,
             month: invoiceMonth,
-            year: invoiceYear,
-            expectedRent: Number(invoice.amount),
-            totalDue: Number(invoice.amount),
-            paidAmount: amount,
-            dueDate: invoice.dueDate,
-            status: ledgerStatus as any
+            year: invoiceYear
           }
         });
-      }
 
-      return payment;
-    }, {
-      maxWait: 15000, // 15s max wait to acquire transaction
-      timeout: 20000  // 20s timeout for transaction execution
-    });
+        const ledgerStatus = newStatus === 'UNPAID' ? 'PENDING' : newStatus;
+
+        if (rentLedger) {
+          await tx.rentLedger.update({
+            where: { id: rentLedger.id },
+            data: {
+              paidAmount: { increment: amount },
+              status: ledgerStatus as any
+            }
+          });
+        } else {
+          await tx.rentLedger.create({
+            data: {
+              tenantId: invoice.tenantId,
+              month: invoiceMonth,
+              year: invoiceYear,
+              expectedRent: Number(invoice.amount),
+              totalDue: Number(invoice.amount),
+              paidAmount: amount,
+              dueDate: invoice.dueDate,
+              status: ledgerStatus as any
+            }
+          });
+        }
+
+        return payment;
+      }, {
+        maxWait: 15000, // 15s max wait to acquire transaction
+        timeout: 20000  // 20s timeout for transaction execution
+      });
+    } finally {
+      if (lock) {
+        // @ts-ignore - redlock types might use unlock() or release()
+        await lock.release().catch((e: any) => console.warn('Lock release error', e));
+      }
+    }
 
     res.status(201).json({ success: true, data: result });
   } catch (error: any) {

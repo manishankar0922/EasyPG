@@ -6,6 +6,7 @@ import api from '@/lib/api';
 import { ArrowLeft, Building2, User, Phone, MapPin, Layers, Loader2, CheckCircle2, Copy, Send, ShieldAlert } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
+import DevLoader from '@/components/superadmin/DevLoader';
 
 type RoomConfig = {
   roomName: string;
@@ -36,6 +37,7 @@ export default function NewOrganisationPage() {
   const [ownerPhone, setOwnerPhone] = useState('');
   const [ownerEmail, setOwnerEmail] = useState('');
   const [ownerAddress, setOwnerAddress] = useState('');
+  const [plan, setPlan] = useState('PRO');
 
   // OTP Verification state for Owner
   const [otpSent, setOtpSent] = useState(false);
@@ -177,7 +179,7 @@ export default function NewOrganisationPage() {
     setLoading(true);
     try {
       const { data } = await api.post('/superadmin/organisations', {
-        orgName, ownerName, ownerPhone, ownerEmail, ownerAddress, branches
+        orgName, ownerName, ownerPhone, ownerEmail, ownerAddress, branches, plan
       });
 
       if (data.success) {
@@ -196,10 +198,14 @@ export default function NewOrganisationPage() {
 
   const copyDetails = () => {
     if (!successData) return;
-    const text = `Welcome to EasyPG!\nYour login:\nEmail: ${successData.email}\nPassword: ${successData.password}\nLogin at: app.easypg.in`;
+    const text = `Welcome to U9PGs!\nYour login:\nEmail: ${successData.email}\nPassword: ${successData.password}\nLogin at: app.u9pgs.in`;
     navigator.clipboard.writeText(text);
     alert('Copied to clipboard!');
   };
+
+  if (loading) {
+    return <DevLoader message="Provisioning database structures & generating seed values..." />;
+  }
 
   if (successData) {
     return (
@@ -233,7 +239,7 @@ export default function NewOrganisationPage() {
               <Copy className="h-5 w-5" /> Copy Details
             </button>
             <a 
-              href={`https://wa.me/91${ownerPhone}?text=${encodeURIComponent(`Welcome to EasyPG!\nYour login:\nEmail: ${successData.email}\nPassword: ${successData.password}\nLogin at: app.easypg.in`)}`}
+              href={`https://wa.me/91${ownerPhone}?text=${encodeURIComponent(`Welcome to U9PGs!\nYour login:\nEmail: ${successData.email}\nPassword: ${successData.password}\nLogin at: app.u9pgs.in`)}`}
               target="_blank"
               rel="noopener noreferrer"
               className="w-full flex items-center justify-center gap-2 h-14 bg-[#25D366] text-white rounded-xl font-bold hover:bg-[#20b858] transition-colors shadow-lg shadow-[#25D366]/20"
@@ -355,13 +361,35 @@ export default function NewOrganisationPage() {
                   value={ownerEmail} onChange={e => setOwnerEmail(e.target.value)} />
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">Owner Address</label>
-                <div className="relative">
-                  <MapPin className="absolute left-3 top-3 h-5 w-5 text-slate-500" />
-                  <textarea rows={3} placeholder="Complete postal address..." required
-                    className="w-full rounded-xl border border-slate-700 bg-slate-950 py-3 pl-10 pr-4 text-white placeholder-slate-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm font-medium resize-none"
-                    value={ownerAddress} onChange={e => setOwnerAddress(e.target.value)} />
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">Owner Address</label>
+                  <div className="relative">
+                    <MapPin className="absolute left-3 top-3 h-5 w-5 text-slate-500" />
+                    <textarea rows={3} placeholder="Complete postal address..." required
+                      className="w-full rounded-xl border border-slate-700 bg-slate-950 py-3 pl-10 pr-4 text-white placeholder-slate-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm font-medium resize-none"
+                      value={ownerAddress} onChange={e => setOwnerAddress(e.target.value)} />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">Initial Trial Plan</label>
+                  <div className="relative">
+                    <select
+                      className="w-full rounded-xl border border-slate-700 bg-slate-950 py-3 px-4 text-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm font-bold appearance-none cursor-pointer"
+                      value={plan}
+                      onChange={e => setPlan(e.target.value)}
+                    >
+                      <option value="BASIC">Basic Pro Trial (14 Days Pro &gt; Auto-Downgrades to Basic)</option>
+                      <option value="STRICT_BASIC">Strictly Basic (Free limits immediately, no Pro trial)</option>
+                      <option value="PRO">PRO Trial (14 Days Free &gt; Locks if unpaid)</option>
+                      <option value="ENTERPRISE">ENTERPRISE (Custom limits &gt; Locks if unpaid)</option>
+                    </select>
+                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-500">
+                      <svg className="h-4 w-4 fill-current" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" /></svg>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-slate-500 mt-1">This will be granted as a 14-day trial.</p>
                 </div>
               </div>
             </div>

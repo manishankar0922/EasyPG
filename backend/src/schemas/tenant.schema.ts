@@ -18,6 +18,8 @@ export const createTenantSchema = z.object({
     monthlyRent: z.number().min(0, 'Min rent is 0').max(500000, 'Max rent is 500k'),
     checkinDate: z.string(),
     depositAmount: z.number().min(0).optional(),
+    pastDues: z.array(z.object({ month: z.string(), amount: z.number() })).optional(),
+    isVerified: z.boolean().optional(),
   }),
 });
 
