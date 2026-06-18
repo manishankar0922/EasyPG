@@ -12,10 +12,14 @@ router.use(authMiddleware);
 router.get('/', async (req, res) => {
   const { status, tenantId } = req.query;
   const orgId = req.user!.organizationId;
+  const { role, branchId: userBranchId } = req.user!;
 
   const invoices = await prisma.invoice.findMany({
     where: {
       organizationId: orgId,
+      ...(role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && {
+        tenant: { admissions: { some: { room: { branchId: userBranchId }, status: 'ACTIVE' } } }
+      }),
       ...(status && { status: status as any }),
       ...(tenantId && { tenantId: tenantId as string }),
     },
@@ -29,11 +33,15 @@ router.get('/', async (req, res) => {
 // GET /invoices/overdue
 router.get('/overdue', async (req, res) => {
   const orgId = req.user!.organizationId;
+  const { role, branchId: userBranchId } = req.user!;
   const overdueInvoices = await prisma.invoice.findMany({
     where: {
       organizationId: orgId,
       status: { not: 'PAID' },
-      dueDate: { lt: new Date() }
+      dueDate: { lt: new Date() },
+      ...(role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && {
+        tenant: { admissions: { some: { room: { branchId: userBranchId }, status: 'ACTIVE' } } }
+      })
     },
     include: { tenant: true }
   });
@@ -42,10 +50,29 @@ router.get('/overdue', async (req, res) => {
 
 // Generate individual invoice
 router.post('/', validate(createInvoiceSchema), async (req, res) => {
+  const orgId = req.user!.organizationId;
+  const { role, branchId: userBranchId } = req.user!;
+  const { tenantId } = req.body;
+
+  // Verify tenant exists and check branch restriction
+  const tenant = await prisma.tenant.findFirst({
+    where: {
+      id: tenantId,
+      organizationId: orgId,
+      ...(role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && {
+        admissions: { some: { room: { branchId: userBranchId }, status: 'ACTIVE' } }
+      })
+    }
+  });
+
+  if (!tenant) {
+    return res.status(404).json({ success: false, error: 'Tenant not found or unauthorized' });
+  }
+
   const invoice = await prisma.invoice.create({
     data: {
       ...req.body,
-      organizationId: req.user!.organizationId,
+      organizationId: orgId,
       dueDate: new Date(req.body.dueDate)
     }
   });
@@ -61,9 +88,16 @@ router.post('/generate-monthly', validate(z.object({
 })), async (req, res) => {
   const { month, dueDate } = req.body;
   const orgId = req.user!.organizationId;
+  const { role, branchId: userBranchId } = req.user!;
 
   const activeAdmissions = await prisma.admission.findMany({
-    where: { organizationId: orgId, status: 'ACTIVE' },
+    where: { 
+      organizationId: orgId, 
+      status: 'ACTIVE',
+      ...(role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && {
+        room: { branchId: userBranchId }
+      })
+    },
     include: { tenant: true }
   });
 
@@ -89,22 +123,55 @@ router.post('/generate-monthly', validate(z.object({
 // Update invoice
 router.patch('/:id', validate(updateInvoiceSchema), async (req, res) => {
   const invoiceId = req.params.id as string;
-  const invoice = await prisma.invoice.updateMany({
-    where: { id: invoiceId, organizationId: req.user!.organizationId },
+  const orgId = req.user!.organizationId;
+  const { role, branchId: userBranchId } = req.user!;
+
+  // Find target invoice to verify branch ownership
+  const targetInvoice = await prisma.invoice.findFirst({
+    where: {
+      id: invoiceId,
+      organizationId: orgId,
+      ...(role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && {
+        tenant: { admissions: { some: { room: { branchId: userBranchId }, status: 'ACTIVE' } } }
+      })
+    }
+  });
+
+  if (!targetInvoice) {
+    return res.status(404).json({ success: false, error: 'Invoice not found or unauthorized' });
+  }
+
+  const invoice = await prisma.invoice.update({
+    where: { id: invoiceId },
     data: {
       ...req.body,
       ...(req.body.dueDate && { dueDate: new Date(req.body.dueDate) })
     }
   });
 
-  if (invoice.count === 0) return res.status(404).json({ success: false, error: 'Invoice not found' });
-  res.json({ success: true, message: 'Invoice updated' });
+  res.json({ success: true, message: 'Invoice updated', data: invoice });
 });
 
 // Delete invoice
 router.delete('/:id', validate(z.object({ params: z.object({ id: z.string().min(5) }) })), async (req, res) => {
   const invoiceId = req.params.id as string;
   const orgId = req.user!.organizationId;
+  const { role, branchId: userBranchId } = req.user!;
+
+  // Find target invoice to verify branch ownership
+  const targetInvoice = await prisma.invoice.findFirst({
+    where: {
+      id: invoiceId,
+      organizationId: orgId,
+      ...(role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && {
+        tenant: { admissions: { some: { room: { branchId: userBranchId }, status: 'ACTIVE' } } }
+      })
+    }
+  });
+
+  if (!targetInvoice) {
+    return res.status(404).json({ success: false, error: 'Invoice not found or unauthorized' });
+  }
 
   // Check for payments attached to this invoice
   const paymentsCount = await prisma.payment.count({
@@ -118,11 +185,10 @@ router.delete('/:id', validate(z.object({ params: z.object({ id: z.string().min(
     });
   }
 
-  const result = await prisma.invoice.deleteMany({
-    where: { id: invoiceId, organizationId: orgId }
+  await prisma.invoice.delete({
+    where: { id: invoiceId }
   });
 
-  if (result.count === 0) return res.status(404).json({ success: false, error: 'Invoice not found' });
   res.json({ success: true, message: 'Invoice deleted successfully' });
 });
 

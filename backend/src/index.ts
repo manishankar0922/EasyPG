@@ -1,14 +1,20 @@
 import 'express-async-errors';
 import express, { Request, Response } from 'express';
 import cors from 'cors';
-import helmet from 'helmet';
 import { json } from 'express';
 import dotenv from 'dotenv';
+import hpp from 'hpp';
 import swaggerUi from 'swagger-ui-express';
 import swaggerJsdoc from 'swagger-jsdoc';
 import { errorHandler } from './middlewares/error.middleware';
 import { requestLogger } from './middlewares/requestLogger';
 import { startWorkers, serverAdapter } from './config/queue';
+import { generalLimiter, paymentLimiter, uploadLimiter, superadminWriteLimiter } from './middlewares/rateLimiter';
+import { requireAuth, requireRole } from './middlewares/auth.middleware';
+import { sanitizeBodyMiddleware } from './middlewares/sanitizeBody.middleware';
+import { helmetConfig, additionalSecurityHeaders } from './middlewares/securityHeaders.middleware';
+import { ipBlacklistMiddleware, honeypotTrap } from './middlewares/ipBlacklist.middleware';
+import { strictContentTypeMiddleware } from './middlewares/strictContentType.middleware';
 import prisma from './config/db';
 
 process.on('unhandledRejection', (reason: any) => {
@@ -47,8 +53,16 @@ const app = express();
 // Trust proxy for rate limiting behind reverse proxies (Render, Heroku, etc.)
 app.set('trust proxy', 1);
 
-// STEP 1 — Security headers (must be first)
-app.use(helmet());
+// STEP 0.5 — IP Blacklisting (Application WAF)
+// Drops requests from banned IPs instantly before any processing
+app.use(ipBlacklistMiddleware);
+
+// STEP 0.6 — Honeypot routes for automated vulnerability scanners
+app.all(['/.env', '/.git', '/wp-admin', '/admin.php', '/config.json'], honeypotTrap);
+
+// STEP 1 — Hardened security headers (CSP, HSTS, Permissions-Policy, Cache-Control)
+app.use(helmetConfig);
+app.use(additionalSecurityHeaders);
 
 // STEP 2 — CORS (must be before routes)
 const allowedOrigins = [
@@ -93,11 +107,40 @@ app.options('*', cors());
 import compression from 'compression';
 
 // STEP 4 — Body parsers (must be before routes)
-app.use(json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(json({ limit: '2mb' })); // Reduced from 10mb — images go through Cloudinary, not here
+app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 
 // STEP 4.5 — Response compression
 app.use(compression({ threshold: 1024 }));
+
+// STEP 4.5.5 — Strict Content Type Validation
+// Rejects malformed requests (like URL-encoded JSON bypasses)
+app.use('/api', strictContentTypeMiddleware);
+
+// STEP 4.6 — Global rate limiting on all /api/* routes
+app.use('/api/', generalLimiter);
+
+// STEP 4.7 — HPP (HTTP Parameter Pollution) — blocks ?role=staff&role=admin attacks
+// Attackers can send duplicate params; hpp keeps only the last value (safe default)
+app.use(hpp());
+
+// STEP 4.8 — Prototype pollution guard
+// Blocks __proto__, constructor, prototype keys in req.body that could corrupt Object prototype
+app.use((req: Request, _res: Response, next) => {
+  if (req.body && typeof req.body === 'object') {
+    const dangerous = ['__proto__', 'constructor', 'prototype'];
+    for (const key of dangerous) {
+      if (key in req.body) {
+        delete req.body[key];
+      }
+    }
+  }
+  next();
+});
+
+// STEP 4.9 — Global XSS/Injection sanitization (runs before all route handlers)
+// Strips script tags, event handlers, javascript: URIs from all POST/PATCH/PUT body strings
+app.use(sanitizeBodyMiddleware);
 
 // STEP 5 — Request logger
 app.use(requestLogger);
@@ -130,7 +173,8 @@ app.use((req, res, next) => {
   next();
 });
 
-app.get('/metrics', async (req, res) => {
+// Metrics endpoint — protected: only SuperAdmins can access Prometheus data
+app.get('/metrics', requireAuth, requireRole('SUPERADMIN', 'SUPER_ADMIN'), async (req, res) => {
   res.set('Content-Type', client.register.contentType);
   res.end(await client.register.metrics());
 });
@@ -172,27 +216,30 @@ app.get('/api/v1/health', (req: Request, res: Response) => {
   res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
-app.get('/api/v1/health/db', async (req: Request, res: Response) => {
+// DB health — protected: internal DB counts must not be exposed publicly
+app.get('/api/v1/health/db', requireAuth, requireRole('SUPERADMIN', 'SUPER_ADMIN'), async (req: Request, res: Response) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
-    const counts = {
+    // Only return counts in development; production exposes minimal info
+    const isDev = process.env.NODE_ENV !== 'production';
+    const counts = isDev ? {
       users: await prisma.user.count(),
       organisations: await prisma.organization.count(),
       branches: await prisma.branch.count(),
       rooms: await prisma.room.count(),
       beds: await prisma.bed.count(),
       tenants: await prisma.tenant.count(),
-    };
+    } : undefined;
     return res.json({
       status: 'healthy',
       database: 'connected',
-      counts
+      ...(isDev && { counts })
     });
-  } catch (error: any) {
+  } catch {
     return res.status(500).json({
       status: 'unhealthy',
-      database: 'disconnected',
-      error: error.message
+      database: 'disconnected'
+      // Never leak error.message in production — it may contain connection string details
     });
   }
 });
@@ -211,30 +258,21 @@ app.use('/api/v1/rooms', roomRoutes);
 app.use('/api/v1/tenants', tenantRoutes);
 app.use('/api/v1/admissions', admissionRoutes);
 app.use('/api/v1/invoices', invoiceRoutes);
-app.use('/api/v1/payments', paymentRoutes);
+app.use('/api/v1/payments', paymentLimiter, paymentRoutes); // extra rate limiting on payments
 app.use('/api/v1/dashboard', dashboardRoutes);
 app.use('/api/v1/admin', adminRoutes);
-app.use('/api/v1/upload', uploadRoutes);
-app.use('/api/v1/superadmin', superadminRoutes);
+app.use('/api/v1/upload', uploadLimiter, uploadRoutes); // strict rate limiting on uploads
+app.use('/api/v1/superadmin', superadminWriteLimiter, superadminRoutes); // hourly limit on superadmin writes
 app.use('/api/v1/rent-ledger', rentLedgerRoutes);
 app.use('/api/v1/vacate-notices', vacateNoticeRoutes);
 app.use('/api/v1/subscription', subscriptionRoutes);
 
 // STEP 8 — 404 handler (after all routes)
+// NOTE: Do NOT leak availableRoutes — it's a roadmap for attackers
 app.use('*', (req, res) => {
   res.status(404).json({
     success: false,
-    error: `Route not found: ${req.method} ${req.originalUrl}`,
-    availableRoutes: [
-      'POST /api/v1/auth/login',
-      'GET /api/v1/health',
-      'GET /api/v1/health/db',
-      'POST /api/v1/superadmin/organisations',
-      'GET /api/v1/dashboard/:branchId',
-      'GET /api/v1/tenants',
-      'POST /api/v1/tenants',
-      'POST /api/v1/payments/record',
-    ]
+    error: 'The requested resource was not found.'
   });
 });
 

@@ -1,6 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import prisma from '../config/db';
+import { addIpStrike, getClientIp } from './ipBlacklist.middleware';
 
 declare global {
   namespace Express {
@@ -38,13 +40,34 @@ export const requireAuth = async (
 
     const decoded = jwt.verify(
       token,
-      process.env.JWT_SECRET
+      process.env.JWT_SECRET,
+      {
+        issuer: 'u9pgs-api',    // strictly require valid issuer
+        audience: 'u9pgs-app',  // strictly require valid audience
+      }
     ) as {
       userId: string;
       role: string;
       organisationId: string;
       branchId: string;
+      fingerprint?: string;
     };
+
+    // ── SESSION HIJACKING PREVENTION (FINGERPRINT VERIFICATION) ──
+    if (decoded.fingerprint) {
+      const userAgent = req.headers['user-agent'] || 'unknown';
+      const currentFingerprint = crypto.createHash('sha256').update(userAgent).digest('hex');
+      
+      if (decoded.fingerprint !== currentFingerprint) {
+        // Token was stolen and is being used from a different browser/device
+        addIpStrike(getClientIp(req), 'Session Hijacking Attempt (Fingerprint Mismatch)');
+        return res.status(401).json({
+          success: false,
+          error: 'Session hijacking detected or browser changed. Please login again.',
+          code: 'FINGERPRINT_MISMATCH'
+        });
+      }
+    }
 
     // Mock bypass for dev accounts (Strictly limited to non-production)
     if (process.env.NODE_ENV !== 'production' && (decoded.userId === 'mock-admin' || decoded.userId === 'mock-dev')) {
@@ -88,11 +111,26 @@ export const requireAuth = async (
       });
     }
 
+    let effectivePlan = user.organisation?.subscription?.plan || 'PRO';
+    const sub = user.organisation?.subscription;
+    
+    if (sub) {
+      if (sub.status === 'TRIAL') {
+        effectivePlan = 'PRO';
+      } else if (sub.plan === 'BASIC' && sub.status === 'ACTIVE' && sub.trialEndsAt && new Date() < sub.trialEndsAt) {
+        effectivePlan = 'PRO';
+      } else if (sub.plan === 'STRICT_BASIC') {
+        effectivePlan = 'BASIC';
+      }
+    }
+
     // Attach user to request
     req.user = {
       ...user,
       organizationId: user.organisationId,
-      plan: user.organisation?.subscription?.plan || 'PRO'
+      plan: effectivePlan,
+      underlyingPlan: sub?.plan || 'PRO',
+      subscriptionStatus: sub?.status || 'ACTIVE'
     };
     next();
 

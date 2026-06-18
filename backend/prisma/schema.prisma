@@ -474,6 +474,7 @@ enum LedgerStatus {
 
 enum Plan {
   BASIC
+  STRICT_BASIC
   PRO
   ENTERPRISE
 }

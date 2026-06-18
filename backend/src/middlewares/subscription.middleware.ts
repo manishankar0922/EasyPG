@@ -27,6 +27,12 @@ export const checkSubscription = async (req: Request, res: Response, next: NextF
           trialEndsAt: trialEnd
         }
       });
+
+      // Synchronize legacy Organization table for SuperAdmin dashboard
+      await prisma.organization.update({
+        where: { id: req.user.organizationId },
+        data: { subscriptionPlan: 'TRIAL', subscriptionStatus: 'ACTIVE' }
+      });
     }
 
     const now = new Date();
@@ -37,30 +43,44 @@ export const checkSubscription = async (req: Request, res: Response, next: NextF
       return next();
     }
 
-    // Paid subscription active
-    if (sub.status === 'ACTIVE' && sub.currentPeriodEnd && sub.currentPeriodEnd > now) {
+    // Paid subscription active (or Lifetime/BASIC with no end date)
+    if (sub.status === 'ACTIVE' && (!sub.currentPeriodEnd || sub.currentPeriodEnd > now)) {
       (req as any).subscription = sub;
       return next();
     }
 
-    // Trial expired
+    // Trial expired - STRICT Lockout (No more fallback to BASIC)
     if (sub.status === 'TRIAL' && sub.trialEndsAt < now) {
-      return res.status(402).json({
-        success: false,
-        error: 'Trial expired. Please subscribe to continue.',
-        code: 'TRIAL_EXPIRED'
-      });
-    }
-
-    // Subscription expired
-    if (sub.status === 'ACTIVE' && sub.currentPeriodEnd && sub.currentPeriodEnd < now) {
-      await prisma.subscription.update({
+      sub = await prisma.subscription.update({
         where: { id: sub.id },
         data: { status: 'EXPIRED' }
       });
+      // Synchronize legacy Organization table for SuperAdmin dashboard
+      await prisma.organization.update({
+        where: { id: sub.organizationId },
+        data: { subscriptionStatus: 'EXPIRED' }
+      });
       return res.status(402).json({
         success: false,
-        error: 'Subscription expired. Please renew.',
+        error: 'Your 14-day Free Trial has expired. Please upgrade your plan to continue.',
+        code: 'SUBSCRIPTION_EXPIRED'
+      });
+    }
+
+    // Subscription expired - STRICT Lockout
+    if (sub.status === 'ACTIVE' && sub.currentPeriodEnd && sub.currentPeriodEnd < now) {
+      sub = await prisma.subscription.update({
+        where: { id: sub.id },
+        data: { status: 'EXPIRED' }
+      });
+      // Synchronize legacy Organization table for SuperAdmin dashboard
+      await prisma.organization.update({
+        where: { id: sub.organizationId },
+        data: { subscriptionStatus: 'EXPIRED' }
+      });
+      return res.status(402).json({
+        success: false,
+        error: 'Your subscription has expired. Please renew your plan to continue.',
         code: 'SUBSCRIPTION_EXPIRED'
       });
     }

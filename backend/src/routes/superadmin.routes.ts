@@ -4,6 +4,9 @@ import prisma from '../config/db';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { v4 as uuidv4 } from 'uuid';
+import { randomBytes } from 'crypto';
+import { passwordResetLimiter } from '../middlewares/rateLimiter';
+import { CacheService } from '../services/cache';
 
 const orgSchema = z.object({
   orgName: z.string().min(2, "Organisation name is required"),
@@ -39,8 +42,6 @@ const router = Router();
 
 // Apply auth middleware and require superadmin role
 router.use(requireAuth, attachUserContext, requireRole('SUPERADMIN'));
-
-import { CacheService } from '../services/cache';
 
 router.get('/dashboard', async (req, res) => {
   try {
@@ -150,9 +151,7 @@ router.get('/stats', async (req, res, next) => {
 });
 
 router.post('/organisations', async (req, res) => {
-  console.log('=== ORG CREATION STARTED ===');
-  console.log('Body received:', JSON.stringify(req.body, null, 2));
-
+  // Do NOT log the full request body — it may contain passwords and PII
   try {
     const payload = { ...req.body };
     if (payload.name && !payload.orgName) payload.orgName = payload.name;
@@ -169,22 +168,15 @@ router.post('/organisations', async (req, res) => {
     
     const validatedData = orgSchema.parse(payload);
     const { orgName, ownerName, ownerPhone, ownerEmail, ownerAddress, branches, plan } = validatedData;
-    
-    console.log(`Creating org with ${branches.length} branches`);
-    branches.forEach((b, i) => {
-      console.log(`Branch ${i+1}: ${b.floors?.length || 0} floors`);
-      b.floors?.forEach((f, j) => {
-        console.log(`  Floor ${j+1}: ${f.rooms?.length || 0} rooms`);
-      });
-    });
+    // Intentionally no console.log — org count/structure is internal data
 
-    const tempPassword = ownerPhone; // Temp password is phone number
+    // SECURITY FIX: Never use phone numbers as passwords (public info).
+    const tempPassword = process.env.DEFAULT_USER_PASSWORD || randomBytes(9).toString('base64url');
 
     const orgId = uuidv4();
     const ownerId = uuidv4();
 
     // 1. Core Org & User Creation (Transaction 1)
-    console.log('Creating organisation...');
     const coreResult = await prisma.$transaction(async (tx) => {
       const org = await tx.organization.create({
         data: { 
@@ -194,6 +186,18 @@ router.post('/organisations', async (req, res) => {
           ownerPhone: ownerPhone,
           email: ownerEmail,
           address: ownerAddress
+        }
+      });
+
+      const trialEndsAt = new Date();
+      trialEndsAt.setDate(trialEndsAt.getDate() + 14);
+
+      await tx.subscription.create({
+        data: {
+          organizationId: orgId,
+          plan: plan === 'ENTERPRISE' ? 'ENTERPRISE' : 'PRO',
+          status: 'TRIAL',
+          trialEndsAt
         }
       });
 
@@ -241,16 +245,12 @@ router.post('/organisations', async (req, res) => {
       return { org, owner };
     });
 
-    console.log('✅ Core Org created:', coreResult.org.id);
-
     // 2. Branch & Room Creation (Iterative chunks)
     const createdBranches = [];
     let totalRooms = 0;
     let totalBeds = 0;
 
     for (const branch of branches) {
-      console.log(`Creating branch: ${branch.name}...`);
-      
       const branchId = uuidv4();
       
       await prisma.branch.create({
@@ -263,7 +263,6 @@ router.post('/organisations', async (req, res) => {
         }
       });
       createdBranches.push(branchId);
-      console.log('✅ Branch created:', branchId);
 
       if (branch.floors) {
         // Group rooms into batches to insert without locking DB
@@ -374,20 +373,13 @@ router.post('/organisations', async (req, res) => {
       });
       return res.status(400).json({ success: false, errors: fieldErrors });
     }
-    
 
-    console.error('Organisation creation failed:', error);
-    require('fs').writeFileSync('/tmp/u9pgs_error.log', JSON.stringify({
-      message: error.message,
-      stack: error.stack,
-      name: error.name,
-      code: error.code
-    }, null, 2));
+    // Log error to structured logger, not to console or filesystem
+    console.error('Organisation creation failed:', error?.message || error);
 
     res.status(500).json({ 
       success: false, 
-      error: error.message || 'Failed to create organisation',
-      stack: error.stack
+      error: process.env.NODE_ENV === 'development' ? (error.message || 'Failed to create organisation') : 'Failed to create organisation'
     });
   }
 });
@@ -580,7 +572,8 @@ router.post('/wardens', async (req, res) => {
       });
     }
 
-    const tempPassword = phone; // temp password is phone
+    // SECURITY FIX: Never use phone numbers as passwords (public info).
+    const tempPassword = process.env.DEFAULT_WARDEN_PASSWORD || randomBytes(9).toString('base64url');
 
     // 1. Create User using local auth
     const passwordHash = bcrypt.hashSync(tempPassword, 12);
@@ -685,13 +678,14 @@ router.patch('/wardens/:id/deactivate', async (req, res) => {
   }
 });
 
-router.post('/wardens/:id/reset-password', async (req, res) => {
+router.post('/wardens/:id/reset-password', passwordResetLimiter, async (req, res) => {
   const { id } = req.params;
   try {
-    const warden = await prisma.profile.findUnique({ where: { id } });
+    const warden = await prisma.user.findUnique({ where: { id: id as string } });
     if (!warden) return res.status(404).json({ success: false, error: 'Warden not found' });
 
-    const tempPassword = warden.phone || 'password123';
+    // SECURITY FIX: Never use phone numbers as passwords (public info).
+    const tempPassword = process.env.DEFAULT_WARDEN_PASSWORD || randomBytes(9).toString('base64url');
     const passwordHash = bcrypt.hashSync(tempPassword, 12);
 
     await prisma.user.updateMany({
@@ -769,11 +763,10 @@ router.get('/subscription-stats', async (req, res) => {
 router.get('/subscription-requests', async (req, res) => {
   try {
     const requests = await prisma.paymentRequest.findMany({
-      where: { status: 'PENDING' },
       include: {
         organization: true
       },
-      orderBy: { requestedAt: 'asc' }
+      orderBy: { requestedAt: 'desc' }
     });
     
     res.json({ success: true, data: requests });
@@ -820,6 +813,15 @@ router.post('/subscription-requests/:id/approve', async (req, res) => {
           currentPeriodEnd,
           activatedAt: new Date(),
           activatedBy: adminId
+        }
+      });
+      
+      // Also update the legacy fields on the Organization table to prevent UI desync
+      await tx.organization.update({
+        where: { id: request.organizationId },
+        data: {
+          subscriptionStatus: 'ACTIVE',
+          subscriptionPlan: request.plan
         }
       });
       

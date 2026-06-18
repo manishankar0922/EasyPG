@@ -59,44 +59,59 @@ export const subscriptionReminderWorker = new Worker(
       console.log(`Found ${expiredTrials.length} expired trials to downgrade to BASIC.`);
 
       for (const trial of expiredTrials) {
-        if (trial.plan === 'BASIC') {
-          await prisma.$transaction([
-            prisma.subscription.update({
-              where: { id: trial.id },
-              data: {
-                status: 'ACTIVE',
-                currentPeriodEnd: new Date(now.setFullYear(now.getFullYear() + 1))
-              }
-            }),
-            prisma.organization.update({
-              where: { id: trial.organizationId },
-              data: { subscriptionStatus: 'ACTIVE' }
-            })
-          ]);
+        // STRICT LOCKOUT: Expire the trial, do NOT downgrade to BASIC
+        await prisma.$transaction([
+          prisma.subscription.update({
+            where: { id: trial.id },
+            data: { status: 'EXPIRED' }
+          }),
+          prisma.organization.update({
+            where: { id: trial.organizationId },
+            data: { subscriptionStatus: 'EXPIRED' }
+          })
+        ]);
 
-          const ownerPhone = trial.organization.ownerPhone;
-          const msg = `ℹ️ మీ U9PGs 14-రోజుల PRO trial పూర్తయింది. మీ అకౌంట్ ఆటోమేటిక్‌గా ఉచిత BASIC plan కి మార్చబడింది.`;
-          console.log(`[WhatsApp Mock] Auto-Downgraded: ${trial.organization.name} | Msg: ${msg}`);
-          
-        } else if (trial.plan === 'PRO' || trial.plan === 'ENTERPRISE') {
-          await prisma.$transaction([
-            prisma.subscription.update({
-              where: { id: trial.id },
-              data: { status: 'EXPIRED' }
-            }),
-            prisma.organization.update({
-              where: { id: trial.organizationId },
-              data: { subscriptionStatus: 'EXPIRED' }
-            })
-          ]);
-
-          const ownerPhone = trial.organization.ownerPhone;
-          const msg = `⚠️ మీ U9PGs ${trial.plan} trial పూర్తయింది. దయచేసి సేవలను కొనసాగించడానికి చెల్లించండి.`;
-          console.log(`[WhatsApp Mock] Locked/Expired Premium: ${trial.organization.name} | Msg: ${msg}`);
-        }
+        const ownerPhone = trial.organization.ownerPhone;
+        const msg = `⚠️ మీ U9PGs 14-రోజుల ఫ్రీ ట్రయల్ ముగిసింది. దయచేసి సేవలను కొనసాగించడానికి మీ ప్లాన్‌ను అప్‌గ్రేడ్ చేయండి.`;
+        console.log(`[WhatsApp Mock] Locked Expired Trial: ${trial.organization.name} | Msg: ${msg}`);
       }
 
-      console.log(`[Job ${job.id}] Finished subscription renewal and downgrade checks.`);
+      // --- AUTO-EXPIRE EXPIRED PAID SUBSCRIPTIONS ---
+      console.log(`[Job ${job.id}] Checking for expired PAID subscriptions to lock out...`);
+
+      const expiredPaidSubs = await prisma.subscription.findMany({
+        where: {
+          status: 'ACTIVE',
+          currentPeriodEnd: {
+            lt: now
+          }
+        },
+        include: {
+          organization: true
+        }
+      });
+
+      console.log(`Found ${expiredPaidSubs.length} expired paid subscriptions to lock out.`);
+
+      for (const sub of expiredPaidSubs) {
+        // STRICT LOCKOUT: Expire the paid plan
+        await prisma.$transaction([
+          prisma.subscription.update({
+            where: { id: sub.id },
+            data: { status: 'EXPIRED' }
+          }),
+          prisma.organization.update({
+            where: { id: sub.organizationId },
+            data: { subscriptionStatus: 'EXPIRED' }
+          })
+        ]);
+
+        const ownerPhone = sub.organization.ownerPhone;
+        const msg = `⚠️ మీ U9PGs సబ్‌స్క్రిప్షన్ గడువు ముగిసింది. దయచేసి మీ ప్లాన్‌ను రెన్యూవల్ చేయండి.`;
+        console.log(`[WhatsApp Mock] Locked Expired Sub: ${sub.organization.name} | Msg: ${msg}`);
+      }
+
+      console.log(`[Job ${job.id}] Finished subscription renewal and expiration checks.`);
     } catch (error) {
       console.error(`[Job ${job.id}] Error running subscription reminder check:`, error);
       throw error;

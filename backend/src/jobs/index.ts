@@ -12,13 +12,18 @@ export const redisConnection = isProd ? new Redis(process.env.REDIS_URL || 'redi
   keepAlive: 10000,
 }) : {} as any;
 
-// @ts-ignore
+// Mock Redlock properly so local development doesn't crash on undefined 'acquire' function
 export const redlock = isProd ? new Redlock([redisConnection], {
   driftFactor: 0.01,
   retryCount: 10,
   retryDelay: 200,
   retryJitter: 200
-}) : {} as any;
+}) : {
+  acquire: async () => ({
+    release: async () => {},
+    unlock: async () => {}
+  })
+} as any;
 
 if (isProd) {
   let hasLoggedRedisError = false;

@@ -13,7 +13,11 @@ const requireTenantAuth = async (req: Request, res: Response, next: Function) =>
     }
 
     const token = authHeader.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'u9pgs-super-secret-key-123') as any;
+    if (!process.env.JWT_SECRET) {
+      console.error('❌ JWT_SECRET missing from .env!');
+      return res.status(500).json({ success: false, error: 'Server configuration error' });
+    }
+    const decoded = jwt.verify(token, process.env.JWT_SECRET) as any;
 
     if (decoded.role !== 'TENANT') {
       return res.status(403).json({ success: false, error: 'Access denied. Tenants only.' });
