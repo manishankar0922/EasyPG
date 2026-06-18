@@ -1,13 +1,16 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import prisma from '../config/db';
-import { authLimiter } from '../middlewares/rateLimiter';
+import { tenantAuthLimiter } from '../middlewares/rateLimiter';
+import { accountLockoutMiddleware, recordFailedAttempt, clearLockout } from '../middlewares/accountLockout.middleware';
 
 const router = Router();
 
 // POST /api/v1/tenant-auth/login
 router.post('/login',
-  authLimiter,
+  tenantAuthLimiter, // Max 5 attempts per 15 minutes per IP
+  accountLockoutMiddleware, // Check if this account is currently locked
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { phone, password } = req.body;
@@ -41,36 +44,47 @@ router.post('/login',
       // whether the DB stored it with or without the country code.
       const tenant = await prisma.tenant.findFirst({
         where: { 
+          status: 'ACTIVE',
           OR: [
             { phone: sanitizedPhone },
             { phone: `+91${sanitizedPhone}` },
             { phone: `91${sanitizedPhone}` }
           ]
         },
-        include: { organization: true }
+        include: { 
+          organization: {
+            include: { subscription: true }
+          }
+        }
       });
 
+      // Timing Attack Prevention: if tenant doesn't exist, simulate a ~10ms DB delay
       if (!tenant) {
-        return res.status(401).json({
-          success: false,
-          error: 'Tenant not found'
-        });
+        await new Promise(resolve => setTimeout(resolve, 10));
       }
 
-      // Security Check: Password is STRICTLY Aadhaar Last 4 digits
-      const providedPassword = password.trim();
-      
-      if (!tenant.aadhaarLast4) {
-        return res.status(403).json({
-          success: false,
-          error: 'Aadhaar not registered. Please contact Warden to update KYC.'
-        });
-      }
+      // Fallback: If aadhaarLast4 is empty/missing, the password is the last 4 digits of the phone number
+      const expectedPassword = (tenant?.aadhaarLast4 && tenant.aadhaarLast4.trim() !== '') 
+        ? tenant.aadhaarLast4.trim() 
+        : tenant?.phone.slice(-4);
 
-      if (providedPassword !== tenant.aadhaarLast4) {
+      const isValidPassword = expectedPassword && password.trim() === expectedPassword;
+
+      if (!tenant || !isValidPassword) {
+        // Record failed attempt for account lockout tracking
+        const lockResult = recordFailedAttempt(sanitizedPhone);
+
+        if (lockResult.locked) {
+          return res.status(423).json({
+            success: false,
+            error: 'Account temporarily locked due to too many failed login attempts.',
+            lockedUntil: lockResult.lockedUntil?.toISOString(),
+          });
+        }
+
         return res.status(401).json({
           success: false,
-          error: 'Invalid password'
+          error: 'Invalid phone number or password',
         });
       }
 
@@ -81,7 +95,41 @@ router.post('/login',
         });
       }
 
-      const JWT_SECRET = process.env.JWT_SECRET || 'u9pgs-super-secret-key-123';
+      // Subscription Logic Gating: Tenant App is a PRO/ENTERPRISE/TRIAL feature
+      const org = tenant.organization;
+      const sub = org.subscription;
+      
+      // If there's no subscription record yet, we can assume they are on the legacy ACTIVE trial/pro
+      // But let's check the new subscription table primarily.
+      const status = sub?.status || org.subscriptionStatus;
+      const plan = sub?.plan || org.subscriptionPlan;
+      
+      // Allow if they are in TRIAL (Check both status and plan for legacy compatibility)
+      const isTrial = status === 'TRIAL' || plan === 'TRIAL';
+      
+      // Allow if they are ACTIVE and on PRO or ENTERPRISE
+      const isProOrEnterprise = status === 'ACTIVE' && 
+                               (plan === 'PRO' || plan === 'ENTERPRISE');
+
+      if (!isTrial && !isProOrEnterprise) {
+        return res.status(403).json({
+          success: false,
+          error: 'Tenant Login is a PRO feature. Ask your PG owner to upgrade their plan.'
+        });
+      }
+
+      if (!process.env.JWT_SECRET) {
+        console.error('❌ JWT_SECRET missing from .env!');
+        return res.status(500).json({ success: false, error: 'Server configuration error' });
+      }
+      const JWT_SECRET = process.env.JWT_SECRET;
+
+      // ✅ Login successful — clear lockout state
+      clearLockout(sanitizedPhone);
+
+      // ── SESSION HIJACKING PREVENTION (FINGERPRINTING) ──
+      const userAgent = req.headers['user-agent'] || 'unknown';
+      const fingerprint = crypto.createHash('sha256').update(userAgent).digest('hex');
 
       const token = jwt.sign(
         {
@@ -89,9 +137,14 @@ router.post('/login',
           tenantId: tenant.id,
           role: 'TENANT',
           organisationId: tenant.organizationId,
+          fingerprint,
         },
         JWT_SECRET,
-        { expiresIn: '30d' } // 30 days for mobile app convenience
+        { 
+          expiresIn: '30d', // 30 days for mobile app convenience
+          issuer: 'u9pgs-api',    // iss claim
+          audience: 'u9pgs-app',  // aud claim
+        }
       );
 
       return res.status(200).json({

@@ -48,7 +48,11 @@ router.post('/organizations/:id/impersonate', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Owner profile not found for this organization.' });
     }
 
-    const JWT_SECRET = process.env.JWT_SECRET || 'u9pgs-super-secret-key-123';
+    if (!process.env.JWT_SECRET) {
+      console.error('❌ JWT_SECRET missing from .env!');
+      return res.status(500).json({ success: false, error: 'Server configuration error' });
+    }
+    const JWT_SECRET = process.env.JWT_SECRET;
     // Generate a temporary JWT token valid for 2 hours
     const token = jwt.sign({ id: profile.id, role: profile.role, organizationId: profile.organizationId }, JWT_SECRET, { expiresIn: '2h' });
 
@@ -159,6 +163,18 @@ router.post('/organizations', validate(createOrgSchema), async (req, res) => {
           subscriptionPlan: subscriptionPlan || 'TRIAL',
           maxBranches: maxBranches || 3,
           maxRooms: maxRooms || 50
+        }
+      });
+
+      const trialEndsAt = new Date();
+      trialEndsAt.setDate(trialEndsAt.getDate() + 14);
+
+      await tx.subscription.create({
+        data: {
+          organizationId: org.id,
+          plan: subscriptionPlan === 'ENTERPRISE' ? 'ENTERPRISE' : 'PRO',
+          status: 'TRIAL',
+          trialEndsAt
         }
       });
 
@@ -294,6 +310,55 @@ router.put('/organizations/:id/subscription', validate(updateSubscriptionSchema)
         }
       });
 
+      // Synchronize the dedicated Subscription table as well
+      const sub = await tx.subscription.findUnique({ where: { organizationId: orgId } });
+      let trialEndsAt = sub?.trialEndsAt || new Date(0);
+      const now = new Date();
+      let currentPeriodEnd = null;
+
+      // Aggressive 1-time Trial Enforcement
+      if (subscriptionStatus === 'TRIAL') {
+        if (sub && sub.trialEndsAt && sub.trialEndsAt < now) {
+          throw new Error('This organization has already used their 1-time 14-day trial. You cannot grant another trial. Please upgrade them to PRO or ENTERPRISE.');
+        }
+        trialEndsAt = new Date(now.setDate(now.getDate() + 14));
+      } else if (subscriptionStatus === 'ACTIVE') {
+        const _now = new Date();
+        if (subscriptionPlan === 'BASIC') {
+           // BASIC HYBRID: 14 days PRO features + 1 month BASIC features
+           trialEndsAt = new Date(_now.setDate(_now.getDate() + 14));
+           currentPeriodEnd = new Date(trialEndsAt);
+           currentPeriodEnd.setMonth(currentPeriodEnd.getMonth() + 1);
+        } else if (subscriptionPlan === 'STRICT_BASIC') {
+           // 5TH PLAN: STRICT BASIC - 14+30 days purely BASIC features (no PRO)
+           trialEndsAt = new Date(0); // Set to past to ensure no PRO trial
+           currentPeriodEnd = new Date(_now.setDate(_now.getDate() + 44));
+        } else if (subscriptionPlan === 'PRO') {
+           // STRICT PRO: 14 days PRO + 1 month PRO
+           currentPeriodEnd = new Date(_now.setDate(_now.getDate() + 44)); // 14 + 30 days
+        } else if (subscriptionPlan === 'ENTERPRISE') {
+           // UNLIMITED ACCESS
+           currentPeriodEnd = null;
+        }
+      }
+
+      await tx.subscription.upsert({
+        where: { organizationId: orgId },
+        update: {
+          plan: subscriptionPlan,
+          status: subscriptionStatus,
+          trialEndsAt: trialEndsAt,
+          currentPeriodEnd: currentPeriodEnd,
+        },
+        create: {
+          organizationId: orgId,
+          plan: subscriptionPlan,
+          status: subscriptionStatus,
+          trialEndsAt: trialEndsAt,
+          currentPeriodEnd: currentPeriodEnd,
+        }
+      });
+
       await tx.systemLog.create({
         data: {
           adminId: req.user!.id,
@@ -309,7 +374,7 @@ router.put('/organizations/:id/subscription', validate(updateSubscriptionSchema)
     res.json({ success: true, data: updatedOrg });
   } catch (error: any) {
     console.error('Error updating organization subscription:', error);
-    res.status(500).json({ success: false, error: 'Internal Server Error' });
+    res.status(400).json({ success: false, error: error.message || 'Internal Server Error' });
   }
 });
 

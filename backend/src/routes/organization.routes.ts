@@ -20,8 +20,24 @@ router.post('/', validate(z.object({
 })), async (req, res) => {
   const { name, ownerName, ownerPhone } = req.body;
 
-  const org = await prisma.organization.create({
-    data: { name, ownerName, ownerPhone }
+  const org = await prisma.$transaction(async (tx) => {
+    const newOrg = await tx.organization.create({
+      data: { name, ownerName, ownerPhone }
+    });
+
+    const trialEndsAt = new Date();
+    trialEndsAt.setDate(trialEndsAt.getDate() + 14);
+
+    await tx.subscription.create({
+      data: {
+        organizationId: newOrg.id,
+        plan: 'PRO',
+        status: 'TRIAL',
+        trialEndsAt
+      }
+    });
+
+    return newOrg;
   });
 
   res.status(201).json({ success: true, data: org });

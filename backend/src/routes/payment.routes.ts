@@ -191,8 +191,15 @@ router.post('/', idempotencyMiddleware, validate(z.object({
         });
 
         // Synchronize with RentLedger so Dashboard accurately reflects payment
-        const invoiceYear = parseInt(invoice.month.substring(0, 4));
-        const invoiceMonth = parseInt(invoice.month.substring(5, 7));
+        // Safely parse year/month — invoice.month may be "YYYY-MM" or "PREVIOUS_ARREARS"
+        let invoiceYear = parseInt(invoice.month.substring(0, 4));
+        let invoiceMonth = parseInt(invoice.month.substring(5, 7));
+        
+        // Fallback: if month format is non-standard (e.g. arrears), use the payment date
+        if (isNaN(invoiceYear) || isNaN(invoiceMonth)) {
+          invoiceYear = finalPaymentDate.getFullYear();
+          invoiceMonth = finalPaymentDate.getMonth() + 1;
+        }
         
         const rentLedger = await tx.rentLedger.findFirst({
           where: {
@@ -249,11 +256,24 @@ router.post('/', idempotencyMiddleware, validate(z.object({
 // Basic Report
 router.get('/report', async (req, res) => {
   const orgId = req.user!.organizationId;
+  const { role, branchId: userBranchId } = req.user!;
   const { startDate, endDate } = req.query;
 
   const payments = await prisma.payment.findMany({
     where: {
       organizationId: orgId,
+      ...(role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && {
+        invoice: {
+          tenant: {
+            admissions: {
+              some: {
+                room: { branchId: userBranchId },
+                status: 'ACTIVE'
+              }
+            }
+          }
+        }
+      }),
       ...(startDate && endDate && {
         paymentDate: {
           gte: new Date(startDate as string),

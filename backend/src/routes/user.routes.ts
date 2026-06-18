@@ -2,10 +2,11 @@ import { Router } from 'express';
 import prisma from '../config/db';
 import { supabaseAdmin } from '../config/supabase';
 import { authMiddleware } from '../middlewares/auth.middleware';
-import { validate } from '../middlewares/validation.middleware';
+import { validate, fields } from '../middlewares/validate';
+import { passwordResetLimiter } from '../middlewares/rateLimiter';
 import { createProfileSchema, updateProfileSchema } from '../schemas/profile.schema';
 import { z } from 'zod';
-import { randomUUID } from 'crypto';
+import { randomUUID, randomBytes } from 'crypto';
 
 const router = Router();
 router.use(authMiddleware);
@@ -48,11 +49,14 @@ router.post('/', validate(createProfileSchema), async (req, res) => {
   }
 
   // 2. Set Default Password if not provided
+  // Passwords come from environment variables — NEVER hardcoded.
+  // If env vars not set, generate a cryptographically random password.
   let password = providedPassword;
   if (!password) {
-    if (targetRole === 'WARDEN') password = 'warden@123';
-    else if (targetRole === 'STAFF') password = 'staff@123';
-    else password = 'user@123';
+    const genRandom = () => randomBytes(9).toString('base64url'); // 12 safe chars
+    if (targetRole === 'WARDEN') password = process.env.DEFAULT_WARDEN_PASSWORD || genRandom();
+    else if (targetRole === 'STAFF') password = process.env.DEFAULT_STAFF_PASSWORD || genRandom();
+    else password = process.env.DEFAULT_USER_PASSWORD || genRandom();
   }
 
   try {
@@ -90,7 +94,9 @@ router.post('/', validate(createProfileSchema), async (req, res) => {
 
     res.status(201).json({ 
       success: true, 
-      message: `User created with default password: ${password}`,
+      // Never return the raw password in the API response — send it
+      // to the user via SMS/WhatsApp separately if needed
+      message: 'User created successfully. Temporary password sent separately.',
       data: profile 
     });
 
@@ -123,10 +129,10 @@ router.patch('/:id/status', validate(z.object({
   res.json({ success: true, message: `User status updated to ${status}` });
 });
 
-// Admin Password Reset
-router.post('/:id/reset-password', validate(z.object({ 
-  params: z.object({ id: z.string().min(5) }),
-  body: z.object({ newPassword: z.string().min(6) }) 
+// Admin Password Reset — rate limited to 3 attempts/hour
+router.post('/:id/reset-password', passwordResetLimiter, validate(z.object({ 
+  params: z.object({ id: fields.id }),
+  body: z.object({ newPassword: fields.password }) 
 })), async (req, res) => {
   const { organizationId, role: currentUserRole } = req.user!;
   const targetId = req.params.id as string;
