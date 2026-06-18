@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import Image from 'next/image';
-import { Phone, MessageCircle, IndianRupee, ArrowLeft, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Phone, MessageCircle, IndianRupee, ArrowLeft, Loader2, CheckCircle2, AlertCircle, Lock } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { useAuthStore } from '@/store/auth-store';
 import { cn } from '@/lib/utils';
@@ -26,6 +26,7 @@ export default function TenantDetailPage() {
   const [paymentMode, setPaymentMode] = useState('CASH');
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
   const [paymentNote, setPaymentNote] = useState('');
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState('');
   const [submittingPayment, setSubmittingPayment] = useState(false);
 
   // Vacate Dialog State
@@ -122,13 +123,20 @@ export default function TenantDetailPage() {
     
     setSubmittingPayment(true);
     try {
-      const res = await api.post('/payments', {
-        tenantId: id,
+      const payload: any = {
         amount: Number(paymentAmount),
         mode: paymentMode,
         date: paymentDate,
         note: paymentNote
-      });
+      };
+
+      if (selectedInvoiceId && selectedInvoiceId !== 'CURRENT_MONTH') {
+        payload.invoiceId = selectedInvoiceId;
+      } else {
+        payload.tenantId = id;
+      }
+
+      const res = await api.post('/payments', payload);
 
       if (res.data.success) {
         setShowSuccess(true);
@@ -299,6 +307,12 @@ export default function TenantDetailPage() {
             {!isPaidThisMonth && (
               <button 
                 onClick={() => {
+                  const unpaid = tenant.invoices?.filter((inv: any) => inv.status !== 'PAID') || [];
+                  if (unpaid.length > 0) {
+                    setSelectedInvoiceId(unpaid[unpaid.length - 1].id); // Select oldest by default
+                  } else {
+                    setSelectedInvoiceId('CURRENT_MONTH');
+                  }
                   setPaymentAmount(rentPending.toString());
                   setIsPaymentSheetOpen(true);
                 }}
@@ -479,9 +493,22 @@ export default function TenantDetailPage() {
                     (rentPending - Number(paymentAmount) > 0 ? `Remaining Due: *₹${rentPending - Number(paymentAmount)}*\n\n` : '') +
                     `Thank you!\n- U9PGs Management`
                   )}`)}
-                  className="w-full h-14 bg-[#25D366] text-white rounded-2xl font-bold text-lg active:scale-95 transition-transform flex items-center justify-center gap-2 shadow-lg shadow-[#25D366]/20"
+                  className={cn(
+                    "w-full h-14 rounded-2xl font-bold text-lg transition-transform flex items-center justify-center gap-2 shadow-lg",
+                    user?.plan === 'BASIC' && user?.subscriptionStatus !== 'TRIAL'
+                      ? "bg-slate-100 text-slate-400 shadow-none cursor-not-allowed hover:bg-slate-200"
+                      : "bg-[#25D366] text-white active:scale-95 shadow-[#25D366]/20"
+                  )}
                 >
-                  <MessageCircle className="h-5 w-5" /> {lang === 'te' ? 'రసీదు పంపండి' : 'Send Receipt'}
+                  {(user?.plan === 'BASIC' && user?.subscriptionStatus !== 'TRIAL') ? (
+                    <>
+                      <Lock className="h-5 w-5" /> {lang === 'te' ? 'PROకి అప్‌గ్రేడ్ చేయండి' : 'Upgrade to PRO to Send'}
+                    </>
+                  ) : (
+                    <>
+                      <MessageCircle className="h-5 w-5" /> {lang === 'te' ? 'రసీదు పంపండి' : 'Send Receipt'}
+                    </>
+                  )}
                 </button>
                 <button 
                   onClick={() => setIsPaymentSheetOpen(false)}
@@ -493,6 +520,50 @@ export default function TenantDetailPage() {
             </div>
           ) : (
             <div className="space-y-6 pb-6">
+              
+              {/* Invoice Selection Dropdown */}
+              {(tenant.invoices?.filter((inv: any) => inv.status !== 'PAID').length > 0 || !currentMonthInvoice) && (
+                <div>
+                  <label className="block text-sm font-bold text-slate-500 mb-2 uppercase tracking-wider">
+                    Select Dues
+                  </label>
+                  <select 
+                    value={selectedInvoiceId}
+                    onChange={(e) => {
+                      setSelectedInvoiceId(e.target.value);
+                      if (e.target.value === 'CURRENT_MONTH') {
+                        setPaymentAmount((Number(rentAmount) - paidAmountThisMonth).toString());
+                      } else {
+                        const inv = tenant.invoices.find((i: any) => i.id === e.target.value);
+                        if (inv) {
+                          const paidSoFar = inv.payments?.reduce((acc: number, p: any) => acc + Number(p.amount), 0) || 0;
+                          setPaymentAmount((Number(inv.amount) - paidSoFar).toString());
+                        }
+                      }
+                    }}
+                    className="w-full h-14 bg-slate-50 border-none rounded-2xl px-4 text-base font-bold text-slate-900 focus:ring-2 focus:ring-blue-500"
+                  >
+                    {tenant.invoices?.filter((inv: any) => inv.status !== 'PAID').map((inv: any) => {
+                      const isArrears = inv.month === 'PREVIOUS_ARREARS';
+                      const monthLabel = isArrears ? 'Past Dues / Arrears' : new Date(inv.createdAt).toLocaleString('en-IN', { month: 'long', year: 'numeric' });
+                      const paidSoFar = inv.payments?.reduce((acc: number, p: any) => acc + Number(p.amount), 0) || 0;
+                      const pending = Number(inv.amount) - paidSoFar;
+                      return (
+                        <option key={inv.id} value={inv.id}>
+                          {monthLabel} (Due: ₹{pending.toLocaleString()})
+                        </option>
+                      );
+                    })}
+                    {/* Add current month option if it doesn't exist yet */}
+                    {!currentMonthInvoice && (
+                      <option value="CURRENT_MONTH">
+                        Current Month (Due: ₹{rentAmount.toLocaleString()})
+                      </option>
+                    )}
+                  </select>
+                </div>
+              )}
+
               <div>
                 <label className="block text-sm font-bold text-slate-500 mb-2 uppercase tracking-wider">{lang === 'te' ? 'అందుకున్న మొత్తం (₹)' : 'Amount Received (₹)'}</label>
                 <input 

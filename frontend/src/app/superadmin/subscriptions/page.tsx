@@ -145,7 +145,7 @@ export default function SuperadminSubscriptions() {
         </div>
 
         <div className="space-y-5">
-          {requests.length === 0 ? (
+          {requests.filter(r => r.status === 'PENDING').length === 0 ? (
             <div className="bg-white/[0.02] rounded-3xl border border-white/5 p-16 text-center backdrop-blur-md shadow-2xl">
               <div className="w-20 h-20 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
                 <CheckCircle2 className="h-10 w-10 text-emerald-400" />
@@ -154,18 +154,28 @@ export default function SuperadminSubscriptions() {
               <p className="text-slate-400 font-medium max-w-sm mx-auto">All subscription requests have been processed and approved. The platform is running smoothly.</p>
             </div>
           ) : (
-            requests.map(req => (
+            requests.filter(r => r.status === 'PENDING').map(req => (
               <div key={req.id} className="bg-white/[0.03] hover:bg-white/[0.05] transition-colors rounded-3xl border border-white/10 p-6 shadow-xl backdrop-blur-sm group">
                 <div className="flex flex-col lg:flex-row gap-8">
                   
                   {/* Info Section */}
                   <div className="flex-1">
-                    <div className="mb-6">
-                      <h3 className="text-2xl font-black text-white tracking-tight mb-1">{req.organization.name}</h3>
-                      <div className="flex items-center gap-2 text-sm font-medium text-slate-400">
-                        <span className="text-indigo-400">{req.organization.ownerName}</span>
-                        <span>•</span>
-                        <span>+91 {req.organization.ownerPhone}</span>
+                    <div className="mb-6 flex justify-between items-start">
+                      <div>
+                        <h3 className="text-2xl font-black text-white tracking-tight mb-1">{req.organization.name}</h3>
+                        <div className="flex items-center gap-2 text-sm font-medium text-slate-400">
+                          <span className="text-indigo-400">{req.organization.ownerName}</span>
+                          <span>•</span>
+                          <span>+91 {req.organization.ownerPhone}</span>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Requested At</span>
+                        <p className="text-sm font-medium text-slate-300 mt-1">
+                          {new Date(req.requestedAt).toLocaleString('en-IN', {
+                            day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
+                          })}
+                        </p>
                       </div>
                     </div>
                     
@@ -274,6 +284,48 @@ export default function SuperadminSubscriptions() {
             ))
           )}
         </div>
+
+        {/* Request History Timeline */}
+        {requests.filter(r => r.status !== 'PENDING').length > 0 && (
+          <div className="mt-16">
+            <h2 className="text-xl font-black text-white flex items-center gap-2 mb-6">
+              <Clock className="h-5 w-5 text-slate-400" />
+              Request History
+            </h2>
+            <div className="space-y-4">
+              {requests.filter(r => r.status !== 'PENDING').map(req => (
+                <div key={req.id} className="bg-white/[0.01] rounded-2xl border border-white/5 p-5 flex items-center justify-between">
+                  <div>
+                    <h4 className="text-white font-bold">{req.organization.name}</h4>
+                    <div className="flex items-center gap-3 text-xs font-medium text-slate-400 mt-1">
+                      <span>Plan: <strong className="text-slate-300">{req.plan}</strong></span>
+                      <span>•</span>
+                      <span>₹{req.amount}</span>
+                      <span>•</span>
+                      <span>Requested: {new Date(req.requestedAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                    </div>
+                    {req.status === 'REJECTED' && req.rejectedReason && (
+                      <p className="text-sm text-rose-400/80 mt-2 bg-rose-500/10 px-3 py-1.5 rounded-lg inline-block">
+                        Reason: {req.rejectedReason}
+                      </p>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-full ${
+                      req.status === 'APPROVED' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                    }`}>
+                      {req.status === 'APPROVED' ? <CheckCircle2 className="h-3.5 w-3.5" /> : <XCircle className="h-3.5 w-3.5" />}
+                      {req.status}
+                    </span>
+                    <p className="text-[10px] text-slate-500 mt-2 uppercase tracking-wider">
+                      Reviewed on {new Date(req.reviewedAt || req.requestedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

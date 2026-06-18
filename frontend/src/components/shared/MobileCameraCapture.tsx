@@ -3,6 +3,7 @@
 import React, { useRef, useState } from 'react';
 import { Camera, Loader2, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
+import api from '@/lib/api';
 
 interface Props {
   label: string;
@@ -60,19 +61,30 @@ export default function MobileCameraCapture({ label, onUploadComplete, onUploadS
   };
 
   const uploadToCloudinary = async (blob: Blob): Promise<string> => {
-    const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
-    const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
-
-    if (!cloudName || cloudName === 'your_cloud_name' || cloudName === 'demo_cloud_name') {
+    // 0. Mock for local development without actual API keys
+    const envCloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+    if (!envCloudName || envCloudName === 'your_cloud_name' || envCloudName === 'demo_cloud_name') {
       console.warn('⚠️ Mocking Cloudinary upload because NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME is not set correctly.');
       await new Promise(resolve => setTimeout(resolve, 1500));
       return 'https://images.unsplash.com/photo-1511367461989-f85a21fda167?w=400&h=400&fit=crop';
     }
 
+    // 1. Get signature from backend
+    // Map folderPath to one of the allowed enums: ['tenants', 'documents', 'profiles', 'complaints']
+    const folderType = folderPath?.includes('tenant') ? 'tenants' : 
+                       folderPath?.includes('profile') ? 'profiles' : 
+                       folderPath?.includes('complaint') ? 'complaints' : 'documents';
+
+    const sigRes = await api.post('/upload/signature', { folder: folderType });
+    const { signature, timestamp, folder, cloudName, apiKey } = sigRes.data.data;
+
+    // 2. Prepare signed payload
     const formData = new FormData()
     formData.append('file', blob)
-    formData.append('upload_preset', uploadPreset || 'u9pgs_unsigned')
-    formData.append('folder', folderPath || 'U9PGs/uncategorized')
+    formData.append('api_key', apiKey)
+    formData.append('timestamp', timestamp.toString())
+    formData.append('signature', signature)
+    formData.append('folder', folder)
     if (docType) formData.append('public_id', docType)
 
     // Robust API pattern: Exponential Backoff & Timeout Handling

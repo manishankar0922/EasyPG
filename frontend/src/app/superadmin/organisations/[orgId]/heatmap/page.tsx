@@ -169,7 +169,7 @@ function Cell({
 }
 
 // ── AdminHeatmap Component ─────────────────────────────────────────────────────
-export function AdminHeatmap({ orgId }: { orgId: string }) {
+function AdminHeatmap({ orgId }: { orgId: string }) {
   const [floors, setFloors] = useState<FloorData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');

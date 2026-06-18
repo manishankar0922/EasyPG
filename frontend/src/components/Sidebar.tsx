@@ -129,22 +129,66 @@ export default function Sidebar() {
       </nav>
 
       <div className="p-4 border-t border-slate-50 bg-slate-50/50">
-        <div className="flex items-center justify-between bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
+        
+        {/* Subscription Plan Badge */}
+        {user?.role !== 'TENANT' && user?.role !== 'SUPERADMIN' && user?.role !== 'SUPER_ADMIN' && (
+          <div className="mb-4 px-1">
+            <div className={cn(
+              "rounded-2xl p-4 flex flex-col justify-center items-start border relative overflow-hidden transition-all hover:scale-[1.02]",
+              user?.plan === 'ENTERPRISE' 
+                ? "bg-gradient-to-br from-indigo-900 to-violet-900 border-indigo-500/30 text-white shadow-lg shadow-indigo-900/20"
+                : user?.plan === 'PRO' || user?.subscriptionStatus === 'TRIAL'
+                  ? "bg-gradient-to-br from-slate-900 to-black border-slate-700 text-white shadow-xl shadow-black/10"
+                  : "bg-white border-slate-200 text-slate-800 shadow-sm"
+            )}>
+              {/* Decorative background shape */}
+              {(user?.plan === 'PRO' || user?.plan === 'ENTERPRISE' || user?.subscriptionStatus === 'TRIAL') && (
+                <div className="absolute -right-6 -top-6 w-24 h-24 bg-white/10 blur-2xl rounded-full pointer-events-none"></div>
+              )}
+              
+              <div className="flex items-center gap-2 mb-1 z-10">
+                <ShieldCheck className={cn(
+                  "h-4 w-4",
+                  user?.plan === 'ENTERPRISE' ? "text-indigo-400" :
+                  user?.plan === 'PRO' || user?.subscriptionStatus === 'TRIAL' ? "text-yellow-400" : "text-blue-600"
+                )} />
+                <span className="text-[11px] font-black uppercase tracking-widest opacity-80">
+                  {user?.subscriptionStatus === 'TRIAL' ? '14-Day Free Trial' : 'Current Plan'}
+                </span>
+              </div>
+              
+              <div className="flex items-end justify-between w-full z-10">
+                <span className="font-extrabold text-lg leading-none">
+                  {user?.plan === 'ENTERPRISE' ? 'Enterprise' : 
+                   user?.plan === 'PRO' || user?.subscriptionStatus === 'TRIAL' ? 'Pro Plan' : 'Basic Plan'}
+                </span>
+                
+                {user?.plan === 'BASIC' && user?.subscriptionStatus !== 'TRIAL' && (
+                  <Link href="/settings" className="text-[10px] font-bold bg-blue-50 text-blue-600 px-2.5 py-1 rounded-lg hover:bg-blue-100 transition-colors">
+                    Upgrade
+                  </Link>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="flex items-center justify-between bg-white rounded-2xl p-4 shadow-sm border border-slate-100 transition-all hover:shadow-md">
           <div className="flex items-center space-x-3 overflow-hidden">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 font-bold text-slate-600">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 font-black text-slate-600 border border-slate-200">
               {user?.name?.charAt(0) || 'U'}
             </div>
             <div className="overflow-hidden">
-              <p className="text-sm font-bold text-slate-900 truncate">{user?.name}</p>
-              <p className="text-[10px] font-medium text-slate-400 uppercase">{user?.role}</p>
+              <p className="text-sm font-bold text-slate-900 truncate leading-tight">{user?.name}</p>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{user?.role}</p>
             </div>
           </div>
           <button 
             onClick={handleLogout}
             title="Logout"
-            className="group rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+            className="group rounded-xl p-2.5 text-slate-400 bg-slate-50 border border-slate-100 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-100 transition-all active:scale-95"
           >
-            <LogOut className="h-5 w-5" />
+            <LogOut className="h-4 w-4" />
           </button>
         </div>
       </div>

@@ -221,6 +221,53 @@ export default function OrgDetailsPage() {
           </div>
         </div>
 
+        {/* Manage Subscription Section */}
+        <div className="bg-slate-900/50 rounded-2xl border border-slate-700/50 overflow-hidden mt-8">
+          <div className="border-b border-slate-700/50 bg-slate-800/30 px-6 py-4 flex items-center gap-2">
+             <ShieldCheck className="h-5 w-5 text-blue-500" />
+             <h2 className="text-sm font-black uppercase tracking-widest text-slate-500">Subscription Override</h2>
+          </div>
+          <div className="p-6">
+            <p className="text-sm text-slate-400 mb-6">Manually override the organization's subscription plan. Changing to PRO or ENTERPRISE grants 1 year access. Downgrading to BASIC takes effect immediately.</p>
+            <div className="flex flex-col sm:flex-row gap-4 items-center">
+              <select 
+                id="subPlanOverride"
+                className="bg-slate-950 border border-slate-700 text-white rounded-lg px-4 py-2.5 text-sm font-bold w-full sm:w-auto focus:outline-none focus:border-blue-500"
+                defaultValue={org.subscriptionPlan}
+              >
+                <option value="BASIC">BASIC (14d PRO + 1mo Basic)</option>
+                <option value="STRICT_BASIC">STRICT BASIC (44d Purely Basic)</option>
+                <option value="PRO">PRO (44d Premium Features)</option>
+                <option value="ENTERPRISE">ENTERPRISE (Custom/Unlimited)</option>
+              </select>
+              <button 
+                onClick={async () => {
+                  const select = document.getElementById('subPlanOverride') as HTMLSelectElement;
+                  const newPlan = select.value;
+                  if (!confirm(`Are you sure you want to change this organization to ${newPlan}?`)) return;
+                  try {
+                    const res = await api.put(`/admin/organizations/${org.id}/subscription`, {
+                      subscriptionPlan: newPlan,
+                      subscriptionStatus: 'ACTIVE',
+                      maxBranches: org.maxBranches || 3,
+                      maxRooms: org.maxRooms || 50
+                    });
+                    if (res.data.success) {
+                      alert(`Successfully updated plan to ${newPlan}`);
+                      window.location.reload();
+                    }
+                  } catch (err: any) {
+                    alert(err.response?.data?.error || err.message || 'Failed to update subscription');
+                  }
+                }}
+                className="w-full sm:w-auto px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-sm transition shadow-lg shadow-blue-500/20"
+              >
+                Update Subscription
+              </button>
+            </div>
+          </div>
+        </div>
+
         {/* Danger Zone */}
         <div className="bg-rose-950/20 rounded-2xl border border-rose-900/50 overflow-hidden mt-8">
           <div className="border-b border-rose-900/50 bg-rose-950/40 px-6 py-4 flex items-center gap-2">
