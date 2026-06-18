@@ -10,32 +10,27 @@ export default function AuthRedirectPage() {
   const router = useRouter();
 
   useEffect(() => {
-
     if (!user) {
       router.replace('/login');
       return;
     }
 
     const role = user.role?.toLowerCase() || '';
-    console.log('[AuthRedirect] Evaluating role for redirect:', role);
+    // Intentionally no console.log — role/session info must not appear in browser console
 
     switch (role) {
       case 'superadmin':
       case 'super_admin':
       case 'admin':
-        console.log('[AuthRedirect] Redirecting Super Admin to /superadmin/dashboard');
         router.replace('/superadmin/dashboard');
         break;
       case 'owner':
-        console.log('[AuthRedirect] Redirecting Owner to /dashboard');
-        router.replace('/dashboard');
-        break;
       case 'warden':
-        console.log('[AuthRedirect] Redirecting Warden to /dashboard');
+      case 'staff':
         router.replace('/dashboard');
         break;
       default:
-        console.warn('[AuthRedirect] Unknown role, redirecting to /unauthorized:', role);
+        // Unknown role — redirect to unauthorized without leaking role value
         router.replace('/unauthorized');
         break;
     }

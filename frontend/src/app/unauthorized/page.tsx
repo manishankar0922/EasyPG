@@ -1,7 +1,8 @@
 import Link from 'next/link';
 
-export default function UnauthorizedPage({ searchParams }: { searchParams: { reason?: string } }) {
-  const reason = searchParams.reason;
+export default async function UnauthorizedPage({ searchParams }: { searchParams: Promise<{ reason?: string }> }) {
+  const resolvedParams = await searchParams;
+  const reason = resolvedParams.reason;
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-center">

@@ -1,8 +1,13 @@
 import axios from 'axios'
 
+// Require API URL from env — never fall back to localhost in production
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
+if (!API_BASE_URL && process.env.NODE_ENV === 'production') {
+  throw new Error('❌ NEXT_PUBLIC_API_URL environment variable is not set. Cannot start frontend.');
+}
+
 const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL
-    || 'http://localhost:3001/api/v1',
+  baseURL: API_BASE_URL || 'http://localhost:3001/api/v1', // localhost is dev-only fallback
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json'
@@ -16,11 +21,14 @@ api.interceptors.request.use((config) => {
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
-    console.log(
-      '📤 API Call:',
-      config.method?.toUpperCase(),
-      config.baseURL + (config.url || '')
-    )
+    // Only log in development — never expose API call details to browser console in production
+    if (process.env.NODE_ENV === 'development') {
+      console.log(
+        '📤 API Call:',
+        config.method?.toUpperCase(),
+        config.baseURL + (config.url || '')
+      )
+    }
   }
   return config
 })
@@ -34,18 +42,20 @@ api.interceptors.response.use(
     const url = error.config?.url
     const method = error.config?.method?.toUpperCase()
 
-    // Show FULL error details always
-    console.error('❌ API Error:', JSON.stringify({
-      status,
-      url: `${method} ${url}`,
-      error: data?.error || data?.message || error.message,
-      data,
-      requestBody: (() => {
-        try {
-          return JSON.parse(error.config?.data || '{}')
-        } catch { return error.config?.data }
-      })()
-    }, null, 2))
+    // Only log full details in development — request bodies may contain PII/financial data
+    if (process.env.NODE_ENV === 'development') {
+      console.error('❌ API Error:', JSON.stringify({
+        status,
+        url: `${method} ${url}`,
+        error: data?.error || data?.message || error.message,
+        data,
+        requestBody: (() => {
+          try {
+            return JSON.parse(error.config?.data || '{}')
+          } catch { return error.config?.data }
+        })()
+      }, null, 2))
+    }
 
     // No response = backend not reachable
     if (!error.response) {
@@ -77,6 +87,11 @@ api.interceptors.response.use(
     }
 
     if (status === 404) {
+      if (data && data.error) {
+        // Resource not found (e.g., "Organisation not found")
+        return Promise.reject(new Error(data.error));
+      }
+      
       console.error(
         `404: Route "${url}" not found in backend.`,
         'Check backend routes are mounted correctly.'

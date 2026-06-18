@@ -54,7 +54,7 @@ export function middleware(request: NextRequest) {
   // --- Subdomain Isolation Shields ---
   
   // 1. Tenant Subdomain Shield
-  if (subdomain === 'tenant') {
+  if (subdomain === 'tenant' || subdomain === 'tenet') {
     // Hard Lock: ONLY Tenants allowed on this subdomain
     if (token && role && role !== 'TENANT') {
       return NextResponse.redirect(new URL('/unauthorized', request.url));
@@ -101,13 +101,19 @@ export function middleware(request: NextRequest) {
   // If trying to access protected routes without a token
   if (!token && (isSuperAdminRoute || isDashboardRoute)) {
     const loginUrl = new URL('/login', request.url);
-    loginUrl.searchParams.set('redirect', pathname);
+    // SECURITY: Only pass internal relative paths as redirect target.
+    // Block open redirect: an attacker could craft /login?redirect=https://evil.com
+    // Only allow paths that start with / and have no protocol (no http:// etc)
+    const safeRedirect = pathname.startsWith('/') && !pathname.startsWith('//') && !pathname.includes(':') 
+      ? pathname 
+      : '/dashboard';
+    loginUrl.searchParams.set('redirect', safeRedirect);
     return NextResponse.redirect(loginUrl);
   }
 
   // Rewrite /login based on subdomain so each has a unique UI
   if (isAuthRoute && pathname === '/login') {
-    if (subdomain === 'tenant') return NextResponse.rewrite(new URL('/login/tenant', request.url));
+    if (subdomain === 'tenant' || subdomain === 'tenet') return NextResponse.rewrite(new URL('/login/tenant', request.url));
     if (subdomain === 'admin') return NextResponse.rewrite(new URL('/login/admin', request.url));
     if (subdomain === 'dev') return NextResponse.rewrite(new URL('/login/dev', request.url));
   }
