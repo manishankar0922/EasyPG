@@ -239,7 +239,6 @@ export default function SettingsPage() {
 
             {(profile.underlyingPlan === 'BASIC' && profile.subscriptionStatus !== 'TRIAL') && (
               <button 
-              <button 
                 onClick={() => setIsUpgradeModalOpen(true)}
                 className="group relative flex shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-slate-900 to-black px-6 py-4 text-sm font-bold text-white shadow-xl shadow-slate-900/20 transition-all hover:scale-105 active:scale-95 overflow-hidden"
               >
