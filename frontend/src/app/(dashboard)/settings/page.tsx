@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/auth-store';
+import { cn } from '@/lib/utils';
 import { Loader2, ShieldCheck, KeyRound, CheckCircle, AlertTriangle, Upload, X } from 'lucide-react';
 
 export default function SettingsPage() {
