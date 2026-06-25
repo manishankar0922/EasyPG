@@ -9,7 +9,7 @@ import swaggerJsdoc from 'swagger-jsdoc';
 import { errorHandler } from './middlewares/error.middleware';
 import { requestLogger } from './middlewares/requestLogger';
 import { startWorkers, serverAdapter } from './config/queue';
-import { generalLimiter, paymentLimiter, uploadLimiter, superadminWriteLimiter } from './middlewares/rateLimiter';
+import { generalLimiter, paymentLimiter, uploadLimiter, superadminWriteLimiter, userAwareLimiter } from './middlewares/rateLimiter';
 import { requireAuth, requireRole } from './middlewares/auth.middleware';
 import { sanitizeBodyMiddleware } from './middlewares/sanitizeBody.middleware';
 import { helmetConfig, additionalSecurityHeaders } from './middlewares/securityHeaders.middleware';
@@ -259,11 +259,12 @@ app.use('/api/v1/tenants', tenantRoutes);
 app.use('/api/v1/admissions', admissionRoutes);
 app.use('/api/v1/invoices', invoiceRoutes);
 app.use('/api/v1/payments', paymentLimiter, paymentRoutes); // extra rate limiting on payments
-app.use('/api/v1/dashboard', dashboardRoutes);
+// userAwareLimiter: compound IP+userId so each account has its own dashboard quota
+app.use('/api/v1/dashboard', userAwareLimiter, dashboardRoutes);
 app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v1/upload', uploadLimiter, uploadRoutes); // strict rate limiting on uploads
 app.use('/api/v1/superadmin', superadminWriteLimiter, superadminRoutes); // hourly limit on superadmin writes
-app.use('/api/v1/rent-ledger', rentLedgerRoutes);
+app.use('/api/v1/rent-ledger', userAwareLimiter, rentLedgerRoutes);
 app.use('/api/v1/vacate-notices', vacateNoticeRoutes);
 app.use('/api/v1/subscription', subscriptionRoutes);
 

@@ -7,36 +7,54 @@ import { v4 as uuidv4 } from 'uuid';
 import { randomBytes } from 'crypto';
 import { passwordResetLimiter } from '../middlewares/rateLimiter';
 import { CacheService } from '../services/cache';
+import { validate } from '../middlewares/validate';
+
+// ─── INPUT SCHEMAS ─────────────────────────────────────────────────────────────────
+// All write endpoints use strict Zod schemas:
+//   - Type checks: reject { email: { $gt: '' } } object injection
+//   - Length limits: prevent DB column overflow and DoS via oversized payload
+//   - Format checks: phone regex, email format, UUID length
+//   - .strict(): rejects any unexpected extra fields (OWASP API3)
 
 const orgSchema = z.object({
-  orgName: z.string().min(2, "Organisation name is required"),
-  ownerName: z.string().min(2, "Owner name is required"),
+  orgName: z.string().min(2, "Organisation name is required").max(100),
+  ownerName: z.string().min(2, "Owner name is required").max(100),
   ownerPhone: z.string().regex(/^[0-9]{10}$/, "Invalid phone number"),
-  ownerEmail: z.string().email("Invalid email format"),
-  ownerAddress: z.string().optional(),
+  ownerEmail: z.string().email("Invalid email format").max(254).toLowerCase().trim(),
+  ownerAddress: z.string().max(500).optional(),
   branches: z.array(z.object({
-    name: z.string().min(2, "Branch name is required"),
-    address: z.string().optional(),
+    name: z.string().min(2, "Branch name is required").max(100),
+    address: z.string().max(500).optional(),
     floors: z.array(z.object({
-      floorNumber: z.number().int(),
+      floorNumber: z.number().int().min(0).max(100),
       rooms: z.array(z.object({
-        roomName: z.string(),
-        bedCount: z.number().int().min(1),
-        rentPerBed: z.number().min(0)
-      })).optional()
-    })).optional()
-  })).min(1, "At least one branch must be provided"),
-  plan: z.string().optional().default('PRO')
+        roomName: z.string().min(1).max(20),
+        bedCount: z.number().int().min(1).max(20),
+        rentPerBed: z.number().min(0).max(100000)
+      })).max(100).optional()
+    })).max(50).optional()
+  })).min(1, "At least one branch must be provided").max(20),
+  plan: z.string().max(20).optional().default('PRO')
 });
 
-function generateTempPassword() {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%';
-  let pass = '';
-  for (let i = 0; i < 10; i++) {
-    pass += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return pass;
-}
+/** Schema for POST /wardens */
+const createWardenSchema = z.object({
+  name: z.string().min(2, 'Name is required').max(100).trim(),
+  email: z.string().email('Invalid email').max(254).toLowerCase().trim(),
+  phone: z.string().regex(/^[0-9]{10}$/, 'Invalid 10-digit phone number'),
+  organisationId: z.string().min(5, 'Invalid organisationId').max(40),
+  branchId: z.string().min(5, 'Invalid branchId').max(40).optional(),
+}).strict(); // reject any extra fields
+
+/** Schema for PATCH /wardens/:id/reassign */
+const reassignWardenSchema = z.object({
+  newBranchId: z.string().min(5, 'Invalid branchId').max(40),
+}).strict();
+
+/** Schema for POST /subscription-requests/:id/reject */
+const rejectRequestSchema = z.object({
+  reason: z.string().min(1, 'Reason is required').max(500, 'Reason too long').trim(),
+}).strict();
 
 const router = Router();
 
@@ -531,10 +549,18 @@ router.get('/organisations/:orgId/wardens', async (req, res) => {
   }
 });
 
-router.post('/wardens', async (req, res) => {
+/**
+ * POST /api/v1/superadmin/wardens
+ *
+ * OWASP API3 hardened: all fields validated against createWardenSchema.
+ * .strict() on the schema rejects unexpected extra fields.
+ */
+router.post('/wardens', validate(createWardenSchema), async (req, res) => {
+  // Destructure from Zod-validated body — types and lengths are guaranteed
   const { name, email, phone, organisationId, branchId } = req.body;
+  // Email is already .toLowerCase().trim() by the schema
+  const normalizedEmail = email;
   try {
-    const normalizedEmail = email.toLowerCase().trim();
 
     // Check if user/warden with this email or phone already exists
     const existingUser = await prisma.user.findFirst({
@@ -625,17 +651,18 @@ router.post('/wardens', async (req, res) => {
   }
 });
 
-router.patch('/wardens/:id/reassign', async (req, res) => {
+router.patch('/wardens/:id/reassign', validate(reassignWardenSchema), async (req, res) => {
   const { id } = req.params;
+  // newBranchId is validated and typed by reassignWardenSchema
   const { newBranchId } = req.body;
   
   try {
-    const warden = await prisma.profile.findUnique({ where: { id } });
+    const warden = await prisma.profile.findUnique({ where: { id: id as string } });
     if (!warden) return res.status(404).json({ success: false, error: 'Warden not found' });
 
     // 1. Update Profile DB
     await prisma.profile.update({
-      where: { id },
+      where: { id: id as string },
       data: { branchId: newBranchId }
     });
 
@@ -835,14 +862,20 @@ router.post('/subscription-requests/:id/approve', async (req, res) => {
   }
 });
 
-router.post('/subscription-requests/:id/reject', async (req, res) => {
+/**
+ * POST /api/v1/superadmin/subscription-requests/:id/reject
+ *
+ * Reason is required and capped at 500 chars (prevents oversized text injection).
+ */
+router.post('/subscription-requests/:id/reject', validate(rejectRequestSchema), async (req, res) => {
   const { id } = req.params;
+  // reason validated: required, trimmed, max 500 chars
   const { reason } = req.body;
   const adminId = req.user!.id;
   
   try {
     const request = await prisma.paymentRequest.update({
-      where: { id },
+      where: { id: id as string },
       data: {
         status: 'REJECTED',
         rejectedReason: reason,
