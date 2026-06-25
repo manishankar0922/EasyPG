@@ -1,34 +1,45 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
+import { z } from 'zod';
 import prisma from '../config/db';
 import { tenantAuthLimiter } from '../middlewares/rateLimiter';
+import { validate } from '../middlewares/validate';
 import { accountLockoutMiddleware, recordFailedAttempt, clearLockout } from '../middlewares/accountLockout.middleware';
+
+// ─── INPUT SCHEMA ─────────────────────────────────────────────────────────────────
+/**
+ * tenantLoginSchema — strict Zod schema for POST /tenant-auth/login
+ *  - phone: 10-digit Indian mobile number; trimmed of formatting chars by handler
+ *  - password: 4-digit pin (Aadhaar last4 or phone last4); max 10 to handle edge cases
+ *  - .strict(): rejects any extra fields (prevents parameter injection, OWASP API3)
+ */
+const tenantLoginSchema = z.object({
+  phone: z.string({ error: 'Phone is required' })
+    .min(10, 'Phone number too short')
+    .max(15, 'Phone number too long'),  // allow +91XXXXXXXXXX format
+  password: z.string({ error: 'Password is required' })
+    .min(1, 'Password is required')
+    .max(10, 'Password too long'),       // tenant pin is 4 digits; cap at 10
+}).strict();
 
 const router = Router();
 
 // POST /api/v1/tenant-auth/login
+// tenantAuthLimiter:  IP-based, max 5 per 15 min
+// accountLockoutMiddleware: account-based, locks after 5 consecutive failures
+// validate(tenantLoginSchema): strict type+length validation (OWASP API3)
 router.post('/login',
-  tenantAuthLimiter, // Max 5 attempts per 15 minutes per IP
-  accountLockoutMiddleware, // Check if this account is currently locked
+  tenantAuthLimiter,
+  accountLockoutMiddleware,
+  validate(tenantLoginSchema),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+      // req.body is already validated+typed by tenantLoginSchema.
+      // phone and password are guaranteed to be strings of valid length.
       const { phone, password } = req.body;
 
-      if (!phone || !password) {
-        return res.status(400).json({
-          success: false,
-          error: 'Phone and password required'
-        });
-      }
-
-      // Security Check 1: Prevent Type-Crash Vulnerability
-      if (typeof phone !== 'string' || typeof password !== 'string') {
-        return res.status(400).json({
-          success: false,
-          error: 'Invalid input format'
-        });
-      }
+      // Removed manual type+presence checks — validate() handles these.
 
       // Security Check 2: Sanitize Phone Number (Extract last 10 digits)
       const sanitizedPhone = phone.replace(/\D/g, '').slice(-10);
@@ -160,7 +171,10 @@ router.post('/login',
         }
       });
     } catch (error) {
-      console.error('Tenant Login error:', error);
+      // SECURITY: Do not log raw error in production — may leak internal stack/DB state
+      if (process.env.NODE_ENV !== 'production') {
+        console.error('Tenant Login error:', error);
+      }
       next(error);
     }
   }

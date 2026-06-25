@@ -2,8 +2,10 @@ import { Router, Request, Response, NextFunction } from 'express'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import crypto from 'crypto'
+import { z } from 'zod'
 import prisma from '../config/db'
 import { authLimiter } from '../middlewares/rateLimiter'
+import { validate } from '../middlewares/validate'
 import { requireAuth, requireRole } from '../middlewares/auth.middleware'
 import {
   accountLockoutMiddleware,
@@ -18,29 +20,55 @@ import {
 // By always running bcrypt.compare, response time is constant regardless of email validity.
 const DUMMY_HASH = '$2b$12$dummyhashfortimingnormalizationi8Ge5SomeTrulyRandomDataXXX';
 
+// ─── INPUT SCHEMAS (OWASP API3: Broken Object Property Level Authorization) ───────
+// Strict schemas reject unexpected fields and enforce type+length constraints.
+
+/** Schema for POST /login — only email + password, nothing else */
+const loginSchema = z.object({
+  // Strip whitespace; lower-case; hard cap at 254 (RFC 5321 max)
+  email: z.string({ error: 'Email is required' })
+    .email('Invalid email address')
+    .max(254, 'Email must not exceed 254 characters')
+    .toLowerCase()
+    .trim(),
+  // Hard cap at 128; no regex — we compare a hash, not enforce strength here
+  password: z.string({ error: 'Password is required' })
+    .min(1, 'Password is required')
+    .max(128, 'Password too long'),
+}).strict(); // .strict() rejects any extra fields (prevents parameter injection)
+
+/** Schema for POST /create-owner */
+const createOwnerSchema = z.object({
+  name: z.string().min(2, 'Name is required').max(100, 'Name too long').trim(),
+  email: z.string().email('Invalid email').max(254).toLowerCase().trim(),
+  password: z.string().min(8, 'Minimum 8 characters').max(128, 'Password too long')
+    .regex(/[a-z]/, 'Must contain lowercase')
+    .regex(/[A-Z]/, 'Must contain uppercase')
+    .regex(/[0-9]/, 'Must contain a number')
+    .regex(/[^a-zA-Z0-9]/, 'Must contain a special character'),
+  phone: z.string().regex(/^[6-9]\d{9}$/, 'Invalid Indian mobile number').optional(),
+  organisationId: z.string().min(5, 'Invalid organisation ID').max(40),
+}).strict(); // reject unexpected fields
+
 const router = Router()
 
 // POST /api/v1/auth/login
 // Rate limited to 5 attempts/15 min per IP (authLimiter)
 // Account locked after 5 per-account failures (accountLockoutMiddleware)
 router.post('/login',
-  authLimiter,
-  accountLockoutMiddleware, // Check if this account is currently locked
+  authLimiter,              // IP-based: max 5 per 15 min — blocks brute-force
+  accountLockoutMiddleware, // Account-based: locks after 5 consecutive failures
+  validate(loginSchema),    // OWASP API3: strict type/length/format validation
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       // Intentionally no console.log — do not log emails or credentials
 
+      // req.body is already validated+typed by loginSchema middleware above.
+      // Zod has already: verified types, trimmed, lower-cased, enforced lengths.
       const { email, password } = req.body
 
-      // Validate presence
-      if (!email || !password) {
-        return res.status(400).json({ success: false, error: 'Email and password required' })
-      }
-
-      // Validate types (prevent object injection attacks: { email: { $gt: '' } })
-      if (typeof email !== 'string' || typeof password !== 'string') {
-        return res.status(400).json({ success: false, error: 'Invalid input format' })
-      }
+      // Removed manual type+presence checks — validate() middleware handles these.
+      // Zod's .strict() also ensures no extra fields were injected.
 
       if (!process.env.JWT_SECRET) {
         console.error('❌ JWT_SECRET missing from .env! Server cannot issue tokens.');
@@ -163,16 +191,14 @@ router.post('/login',
 router.post('/create-owner',
   requireAuth,
   requireRole('SUPERADMIN', 'SUPER_ADMIN'),
+  validate(createOwnerSchema), // Strict schema: type + length + password complexity
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+      // req.body already validated by createOwnerSchema — no need for manual presence checks
       const {
         name, email, password,
         phone, organisationId
       } = req.body
-
-      if (!name || !email || !password || !organisationId) {
-        return res.status(400).json({ success: false, error: 'name, email, password, organisationId are required' })
-      }
 
       // Hash password
       const passwordHash = await bcrypt.hash(password, 12)

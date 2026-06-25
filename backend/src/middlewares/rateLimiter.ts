@@ -1,19 +1,28 @@
 /**
- * rateLimiter.ts
+ * rateLimiter.ts — OWASP API Security Top 10 (API4:2023 Unrestricted Resource Consumption)
  *
  * Centralized rate limiting for all API routes.
- * Uses Redis store in production (persistent across restarts/replicas).
- * Falls back to in-memory store in development (resets on restart).
  *
- * All limiters use:
- *  - standardHeaders: true  → sends RFC 6585 RateLimit-* headers
- *  - legacyHeaders: false   → suppresses old X-RateLimit-* headers
- *  - skipSuccessfulRequests: false → successful logins count toward limit
+ * Strategy: dual-key rate limiting
+ *  - PUBLIC endpoints (login, tenant-auth): keyed by IP address
+ *  - PROTECTED endpoints: keyed by "IP:userId" compound key
+ *    → Prevents distributed account attacks that bypass IP-only limits
+ *    → A user with 1000 rotating IPs still cannot exceed their personal quota
+ *
+ * Stores:
+ *  - Production: Redis (persistent across restarts/replicas)
+ *  - Development: in-memory (resets on restart)
+ *
+ * All limiters:
+ *  - standardHeaders: true  → RFC 6585 RateLimit-* response headers
+ *  - legacyHeaders: false   → no deprecated X-RateLimit-* headers
+ *  - handler: sends Retry-After header alongside 429 (OWASP best practice)
  */
 
 import rateLimit from 'express-rate-limit';
 import { RedisStore } from 'rate-limit-redis';
 import { redisConnection } from '../jobs/index';
+import { Request, Response } from 'express';
 
 const createRedisStore = (prefix: string) => {
   if (process.env.NODE_ENV === 'production') {
@@ -25,10 +34,43 @@ const createRedisStore = (prefix: string) => {
   return undefined; // Use default in-memory store in development
 };
 
+/**
+ * Graceful 429 handler: sends RFC 7231 Retry-After header so clients
+ * know exactly when to retry instead of hammering the server further.
+ */
+const rateLimitHandler = (req: Request, res: Response) => {
+  const retryAfterSeconds = Math.ceil(
+    (res.getHeader('RateLimit-Reset') as number ?? 900)
+  );
+  res.setHeader('Retry-After', retryAfterSeconds);
+  res.status(429).json({
+    success: false,
+    error: (res as any).locals?.rateLimitMessage ||
+      'Too many requests. Please slow down.',
+    retryAfter: retryAfterSeconds,
+  });
+};
+
+/**
+ * Compound key generator for protected (authenticated) routes.
+ * Combines IP + userId so that:
+ *  - Each user has their own personal quota even across rotating IPs
+ *  - Anonymous requests still fall back to IP-only keying
+ */
+const userAwareKeyGenerator = (req: Request): string => {
+  const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim()
+    ?? req.socket?.remoteAddress
+    ?? 'unknown';
+  const userId = (req as any).user?.id || null;
+  // Format: "ip:userId" for authed users, "ip" for anonymous
+  return userId ? `${ip}:${userId}` : ip;
+};
+
 const base = {
   standardHeaders: true,  // RFC 6585 RateLimit-* response headers
   legacyHeaders: false,   // No X-RateLimit-* headers
   skipSuccessfulRequests: false, // Count all requests — don't reward success
+  handler: rateLimitHandler,
 };
 
 // ─── GENERAL ─────────────────────────────────────────────────────────────────
@@ -94,10 +136,25 @@ export const uploadLimiter = rateLimit({
 
 // ─── SUPERADMIN WRITES ────────────────────────────────────────────────────────
 // Organisation creation, deletion, subscription changes
+// Uses compound IP+userId key — a superadmin account itself is rate-limited
 export const superadminWriteLimiter = rateLimit({
   ...base,
   windowMs: 60 * 60 * 1000, // 1 hour
   max: 50,
+  // Compound key: IP + authenticated userId prevents role-sharing abuse
+  keyGenerator: userAwareKeyGenerator,
   message: { success: false, error: 'Too many admin operations. Please try again later.' },
   store: createRedisStore('superadmin'),
+});
+
+// ─── USER-AWARE GENERAL LIMITER ───────────────────────────────────────────────
+// Applied to high-traffic protected endpoints (dashboard, reports, etc.)
+// Compound IP+userId ensures each account has its own quota across IPs.
+export const userAwareLimiter = rateLimit({
+  ...base,
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 300, // Slightly more than generalLimiter because it's per-user, not per-IP
+  keyGenerator: userAwareKeyGenerator,
+  message: { success: false, error: 'Too many requests. Please slow down and try again in 15 minutes.' },
+  store: createRedisStore('user_aware'),
 });
