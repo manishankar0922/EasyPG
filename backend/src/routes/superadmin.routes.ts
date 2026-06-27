@@ -196,6 +196,12 @@ router.post('/organisations', async (req, res) => {
 
     // 1. Core Org & User Creation (Transaction 1)
     const coreResult = await prisma.$transaction(async (tx) => {
+      const upperPlan = plan.toUpperCase();
+      const isStrictBasic = upperPlan === 'STRICT_BASIC';
+      const isBasic = upperPlan === 'BASIC';
+      const isEnterprise = upperPlan === 'ENTERPRISE';
+      const isPro = upperPlan === 'PRO';
+
       const org = await tx.organization.create({
         data: { 
           id: orgId,
@@ -203,19 +209,32 @@ router.post('/organisations', async (req, res) => {
           ownerName: ownerName,
           ownerPhone: ownerPhone,
           email: ownerEmail,
-          address: ownerAddress
+          address: ownerAddress,
+          subscriptionPlan: upperPlan,
+          subscriptionStatus: 'ACTIVE'
         }
       });
 
       const trialEndsAt = new Date();
-      trialEndsAt.setDate(trialEndsAt.getDate() + 14);
+      if (isStrictBasic) {
+        trialEndsAt.setTime(0); // Set to past to ensure no PRO trial
+      } else {
+        trialEndsAt.setDate(trialEndsAt.getDate() + 14);
+      }
+
+      let currentPeriodEnd: Date | null = null;
+      if (isStrictBasic || isBasic || isPro) {
+        currentPeriodEnd = new Date();
+        currentPeriodEnd.setDate(currentPeriodEnd.getDate() + 44);
+      }
 
       await tx.subscription.create({
         data: {
           organizationId: orgId,
-          plan: plan === 'ENTERPRISE' ? 'ENTERPRISE' : 'PRO',
-          status: 'TRIAL',
-          trialEndsAt
+          plan: upperPlan as any,
+          status: isStrictBasic ? 'ACTIVE' : 'TRIAL',
+          trialEndsAt,
+          currentPeriodEnd
         }
       });
 
@@ -241,22 +260,6 @@ router.post('/organisations', async (req, res) => {
           phone: ownerPhone,
           role: 'OWNER',
           organizationId: orgId
-        }
-      });
-
-      const trialEnd = new Date();
-      trialEnd.setDate(trialEnd.getDate() + 14);
-
-      const isStrictBasic = plan.toUpperCase() === 'STRICT_BASIC';
-      const actualPlan = isStrictBasic ? 'BASIC' : plan.toUpperCase();
-      const initialStatus = isStrictBasic ? 'ACTIVE' : 'TRIAL';
-
-      await tx.subscription.create({
-        data: {
-          organizationId: orgId,
-          plan: actualPlan as any,
-          status: initialStatus as any,
-          trialEndsAt: trialEnd
         }
       });
 
@@ -360,6 +363,8 @@ router.post('/organisations', async (req, res) => {
       }
     };
 
+    await CacheService.deleteByPattern('superadmin:*');
+
     res.status(201).json({ 
       success: true, 
       data: result,
@@ -461,10 +466,43 @@ router.patch('/organisations/:orgId/toggle-status', async (req, res) => {
       ] : [])
     ]);
 
+    await CacheService.deleteByPattern('superadmin:*');
     res.json({ success: true, message: `Organisation unlocked and status updated to ${newStatus}` });
   } catch (error: any) {
     console.error('Toggle status error:', error);
     res.status(500).json({ success: false, error: 'Failed to toggle organisation status' });
+  }
+});
+
+router.patch('/organisations/:orgId/reset-owner-password', async (req, res) => {
+  const { orgId } = req.params;
+  try {
+    const owner = await prisma.user.findFirst({
+      where: {
+        organisationId: orgId,
+        role: 'OWNER'
+      }
+    });
+
+    if (!owner) {
+      return res.status(404).json({ success: false, error: 'Owner account not found for this organisation' });
+    }
+
+    const defaultPassword = 'U9PGs@123';
+    const passwordHash = await bcrypt.hash(defaultPassword, 12);
+
+    await prisma.user.update({
+      where: { id: owner.id },
+      data: { passwordHash }
+    });
+
+    res.json({
+      success: true,
+      message: `Password reset successfully for ${owner.name || owner.email} to the default (U9PGs@123)`
+    });
+  } catch (error: any) {
+    console.error('Reset owner password error:', error);
+    res.status(500).json({ success: false, error: 'Failed to reset owner password' });
   }
 });
 
@@ -506,6 +544,7 @@ router.delete('/organisations/:orgId', async (req, res) => {
       prisma.organization.delete({ where: { id: orgId } }),
     ]);
 
+    await CacheService.deleteByPattern('superadmin:*');
     res.json({ success: true, message: 'Organisation completely deleted' });
   } catch (error: any) {
     console.error('Delete org error:', error);
@@ -855,6 +894,7 @@ router.post('/subscription-requests/:id/approve', async (req, res) => {
       return { request: updatedRequest, subscription };
     });
     
+    await CacheService.deleteByPattern('superadmin:*');
     res.json({ success: true, message: 'Subscription approved and activated' });
   } catch (error: any) {
     console.error('Approve sub error', error);
@@ -884,6 +924,7 @@ router.post('/subscription-requests/:id/reject', validate(rejectRequestSchema), 
       }
     });
     
+    await CacheService.deleteByPattern('superadmin:*');
     res.json({ success: true, message: 'Subscription request rejected' });
   } catch (error: any) {
     res.status(500).json({ success: false, error: 'Failed to reject subscription' });

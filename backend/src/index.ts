@@ -93,6 +93,11 @@ app.use(cors({
     if (originUrl.hostname.endsWith('.localhost') || originUrl.hostname === 'localhost') {
       return callback(null, true);
     }
+
+    // Allow Vercel preview/production deployments
+    if (originUrl.hostname.endsWith('.vercel.app')) {
+      return callback(null, true);
+    }
     
     callback(new Error('Not allowed by CORS'));
   },
@@ -146,7 +151,7 @@ app.use(sanitizeBodyMiddleware);
 app.use(requestLogger);
 
 // Initialize Background Workers
-if (process.env.NODE_ENV === 'production') {
+if (process.env.NODE_ENV === 'production' && !process.env.VERCEL) {
   startWorkers();
 }
 
@@ -281,7 +286,7 @@ app.use('*', (req, res) => {
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 3001;
-if (process.env.NODE_ENV !== 'test') {
+if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
   app.listen(PORT, () => {
     console.log(`
     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

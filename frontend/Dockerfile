@@ -1,18 +1,47 @@
-# Use Node.js 20 Alpine as base
-FROM node:22-slim
-
-# Create app directory
+# ──────────────────────────────────────────────────────────
+# Stage 1: Install dependencies
+# ──────────────────────────────────────────────────────────
+FROM node:22-slim AS deps
 WORKDIR /app
-
-# Install dependencies
 COPY package*.json ./
-RUN npm install
+RUN npm ci
 
-# Copy project files
+# ──────────────────────────────────────────────────────────
+# Stage 2: Build Next.js
+# ──────────────────────────────────────────────────────────
+FROM node:22-slim AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Expose Next.js port
+ENV NEXT_TELEMETRY_DISABLED=1
+
+RUN npm run build
+
+# ──────────────────────────────────────────────────────────
+# Stage 3: Production runtime (standalone output)
+# ──────────────────────────────────────────────────────────
+FROM node:22-slim AS runner
+
+RUN apt-get update -y && apt-get install -y dumb-init && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+
+RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
+
+COPY --from=builder /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+USER nextjs
+
 EXPOSE 3000
 
-# Start development server
-CMD ["npm", "run", "dev"]
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+
+ENTRYPOINT ["dumb-init", "--"]
+CMD ["node", "server.js"]

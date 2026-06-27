@@ -120,7 +120,7 @@ export const requireProPlan = async (req: Request, res: Response, next: NextFunc
     return res.status(403).json({ success: false, error: 'Subscription required' });
   }
 
-  if (sub.plan === 'BASIC') {
+  if (sub.plan === 'BASIC' || sub.plan === 'STRICT_BASIC') {
     return res.status(403).json({ 
       success: false, 
       error: 'This feature requires the Pro plan.',

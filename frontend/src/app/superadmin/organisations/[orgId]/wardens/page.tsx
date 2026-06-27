@@ -66,7 +66,15 @@ export default function WardensPage() {
         fetchData();
       }
     } catch (err: any) {
-      setError(err.response?.data?.error || err.message || 'Failed to create warden');
+      const serverErrors = err.response?.data?.errors;
+      if (serverErrors) {
+        const errorMsg = Object.entries(serverErrors)
+          .map(([_, msg]) => `${msg}`)
+          .join(', ');
+        setError(errorMsg);
+      } else {
+        setError(err.response?.data?.error || err.message || 'Failed to create warden');
+      }
     } finally {
       setAddLoading(false);
     }
