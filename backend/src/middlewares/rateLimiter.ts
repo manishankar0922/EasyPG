@@ -78,7 +78,7 @@ const base = {
 export const generalLimiter = rateLimit({
   ...base,
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 200,
+  max: 500, // Increased: 200 was too low for legit SaaS users (dashboard loads ~10 API calls per page)
   message: { success: false, error: 'Too many requests. Please slow down and try again in 15 minutes.' },
   store: createRedisStore('general'),
 });
@@ -153,7 +153,7 @@ export const superadminWriteLimiter = rateLimit({
 export const userAwareLimiter = rateLimit({
   ...base,
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 300, // Slightly more than generalLimiter because it's per-user, not per-IP
+  max: 500, // Per-user, not per-IP — each account gets 500 requests per 15min
   keyGenerator: userAwareKeyGenerator,
   message: { success: false, error: 'Too many requests. Please slow down and try again in 15 minutes.' },
   store: createRedisStore('user_aware'),

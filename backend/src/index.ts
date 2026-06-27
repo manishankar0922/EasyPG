@@ -299,8 +299,36 @@ if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
     Frontend: ${process.env.FRONTEND_URL}
     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     `);
+
+    // ── KEEP-ALIVE SELF-PING ─────────────────────────────────────────────
+    // Render free tier spins down after 15 minutes of inactivity.
+    // This ping fires every 14 minutes to keep the process alive,
+    // preventing the 30–60s cold-start delay that breaks login/logout.
+    if (process.env.NODE_ENV === 'production' && process.env.RENDER_EXTERNAL_URL) {
+      const PING_URL = `${process.env.RENDER_EXTERNAL_URL}/api/v1/health`;
+      setInterval(async () => {
+        try {
+          const response = await fetch(PING_URL, { method: 'GET', signal: AbortSignal.timeout(5000) });
+          if (!response.ok) console.warn(`⚠️ Keep-alive ping failed: ${response.status}`);
+        } catch (err: any) {
+          console.warn(`⚠️ Keep-alive ping error: ${err.message}`);
+        }
+      }, 14 * 60 * 1000); // Every 14 minutes
+      console.log(`🔔 Keep-alive ping active → ${PING_URL}`);
+    }
+    // ──────────────────────────────────────────────────────────────────────
   });
+
+  // Graceful shutdown — disconnect Prisma before process exits
+  // Prevents zombie Postgres connections on Render restarts
+  const gracefulShutdown = async (signal: string) => {
+    console.log(`${signal} received. Disconnecting Prisma...`);
+    await prisma.$disconnect();
+    process.exit(0);
+  };
+  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+  process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 }
 
-export default app; 
+export default app;
 

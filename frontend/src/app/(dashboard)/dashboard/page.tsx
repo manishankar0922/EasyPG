@@ -221,7 +221,7 @@ export default function MobileDashboard() {
                         </div>
                         
                         <button 
-                          onClick={() => window.location.href = `/tenants/new?roomId=${admission?.room?.id}`}
+                          onClick={() => router.push(`/tenants/new?roomId=${admission?.room?.id}`)}
                           className="w-full bg-white border border-orange-200 text-orange-600 font-bold text-sm py-2 rounded-xl active:bg-orange-100 transition-colors"
                         >
                           Find New Tenant
