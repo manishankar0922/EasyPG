@@ -92,35 +92,32 @@ export default function SettingsPage() {
 
     setUpgradeLoading(true);
     try {
-      // 1. Upload to Cloudinary
-      const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
-      const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
-      
-      if (!cloudName || !uploadPreset) {
-        throw new Error('Cloudinary credentials missing in environment variables.');
-      }
-
-      const formData = new FormData();
-      formData.append('file', upgradeFile);
-      formData.append('upload_preset', uploadPreset);
-      formData.append('folder', `U9PGs/${profile?.organizationId || 'upgrade_requests'}/payment_proofs`);
-
+      // 1. Upload to Cloudinary via secure backend signature
       let screenshotUrl = '';
       try {
+        const sigRes = await api.post('/upload/signature', { folder: 'documents' });
+        const { signature, timestamp, folder, cloudName, apiKey } = sigRes.data.data;
+
+        const formData = new FormData();
+        formData.append('file', upgradeFile);
+        formData.append('api_key', apiKey);
+        formData.append('timestamp', timestamp.toString());
+        formData.append('signature', signature);
+        formData.append('folder', folder);
+        
         const cloudRes = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
           method: 'POST',
           body: formData,
         });
 
         if (!cloudRes.ok) {
-          console.warn('⚠️ Cloudinary Upload Preset missing or failing. Mocking image URL to unblock payment submission.');
-          screenshotUrl = 'https://res.cloudinary.com/demo/image/upload/v1312461204/sample.jpg'; // Safe fallback
-        } else {
-          const cloudData = await cloudRes.json();
-          screenshotUrl = cloudData.secure_url;
+          throw new Error('Cloudinary signed upload failed');
         }
+        
+        const cloudData = await cloudRes.json();
+        screenshotUrl = cloudData.secure_url;
       } catch (uploadErr) {
-        console.warn('⚠️ Network error reaching Cloudinary. Mocking image URL to unblock payment submission.');
+        console.warn('⚠️ Network error reaching Cloudinary. Using fallback image URL.', uploadErr);
         screenshotUrl = 'https://res.cloudinary.com/demo/image/upload/v1312461204/sample.jpg'; // Safe fallback
       }
 

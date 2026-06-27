@@ -61,13 +61,8 @@ export default function MobileCameraCapture({ label, onUploadComplete, onUploadS
   };
 
   const uploadToCloudinary = async (blob: Blob): Promise<string> => {
-    // 0. Mock for local development without actual API keys
-    const envCloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
-    if (!envCloudName || envCloudName === 'your_cloud_name' || envCloudName === 'demo_cloud_name') {
-      console.warn('⚠️ Mocking Cloudinary upload because NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME is not set correctly.');
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      return 'https://images.unsplash.com/photo-1511367461989-f85a21fda167?w=400&h=400&fit=crop';
-    }
+    // We no longer rely on frontend environment variables for Cloudinary.
+    // The backend provides the secure signature, cloudName, and API key dynamically!
 
     // 1. Get signature from backend
     // Map folderPath to one of the allowed enums: ['tenants', 'documents', 'profiles', 'complaints']
