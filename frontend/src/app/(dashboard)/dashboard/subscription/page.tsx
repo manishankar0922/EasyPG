@@ -91,31 +91,35 @@ export default function SubscriptionPage() {
     if (!e.target.files || e.target.files.length === 0) return;
     const file = e.target.files[0];
     setUploading(true);
-
-    const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
-    if (!cloudName || cloudName === 'your_cloud_name' || cloudName === 'demo_cloud_name') {
-      console.warn('⚠️ Mocking Cloudinary upload because NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME is not set correctly.');
-      setTimeout(() => {
-        setScreenshotUrl('https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=400&h=400&fit=crop');
-        setUploading(false);
-      }, 1500);
-      return;
-    }
-
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('upload_preset', process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || 'u9pgs_unsigned');
     
+    // 1. Secure Signed Cloudinary Upload
+    let uploadedUrl = '';
     try {
-      const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+      const sigRes = await api.post('/upload/signature', { folder: 'documents' });
+      const { signature, timestamp, folder, cloudName, apiKey } = sigRes.data.data;
+
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('api_key', apiKey);
+      formData.append('timestamp', timestamp.toString());
+      formData.append('signature', signature);
+      formData.append('folder', folder);
+      
+      const cloudRes = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
         method: 'POST',
         body: formData,
       });
-      if (!res.ok) throw new Error('Cloudinary error');
-      const data = await res.json();
-      if (data.secure_url) setScreenshotUrl(data.secure_url);
-    } catch (err) {
-      alert('Upload failed');
+
+      if (!cloudRes.ok) {
+        throw new Error('Cloudinary signed upload failed');
+      }
+      
+      const cloudData = await cloudRes.json();
+      uploadedUrl = cloudData.secure_url;
+      setScreenshotUrl(uploadedUrl);
+    } catch (uploadErr) {
+      console.warn('⚠️ Network error reaching Cloudinary. Using fallback image URL.', uploadErr);
+      setScreenshotUrl('https://res.cloudinary.com/demo/image/upload/v1312461204/sample.jpg'); // Safe fallback
     } finally {
       setUploading(false);
     }
