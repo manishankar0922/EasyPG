@@ -10,11 +10,15 @@ export default function RootPage() {
 
   useEffect(() => {
     if (token) {
-      router.push('/dashboard');
+      router.replace('/dashboard');
     } else {
-      router.push('/login');
+      router.replace('/login');
     }
   }, [token, router]);
 
-  return null;
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-slate-50">
+      <div className="h-10 w-10 rounded-full border-4 border-blue-600 border-t-transparent animate-spin" />
+    </div>
+  );
 }

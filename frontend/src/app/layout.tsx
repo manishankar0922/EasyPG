@@ -1,13 +1,11 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { Providers } from "./providers";
-
-const geistSans = { variable: "" };
-const geistMono = { variable: "" };
+import { Toaster } from 'sonner';
 
 export const metadata: Metadata = {
-  title: "U9PGs",
-  description: "U9PGs Property Management Solutions",
+  title: "U9PGs – Property Management",
+  description: "U9PGs Property Management Solutions – Manage tenants, rooms, and rent with ease.",
 };
 
 export default function RootLayout({
@@ -17,12 +15,18 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
+      <body className="antialiased font-sans">
         <Providers>
           {children}
         </Providers>
+        <Toaster
+          richColors
+          position="top-center"
+          toastOptions={{
+            duration: 3500,
+            style: { fontFamily: 'Inter, sans-serif', fontWeight: '600', borderRadius: '16px' }
+          }}
+        />
       </body>
     </html>
   );

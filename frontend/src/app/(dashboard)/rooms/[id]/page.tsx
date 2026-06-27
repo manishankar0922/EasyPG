@@ -18,6 +18,7 @@ import {
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 interface Room {
   id: string;
@@ -81,7 +82,7 @@ export default function RoomDetailsPage() {
       await api.patch(`/rooms/${roomId}/${newStatus}`);
       fetchRoom();
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to update status');
+      toast.error(err.response?.data?.error || 'Failed to update room status');
     } finally {
       setUpdating(false);
     }

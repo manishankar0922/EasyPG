@@ -8,6 +8,7 @@ import LoadingScreen from '@/components/shared/LoadingScreen';
 import { Loader2, UserPlus, Phone, Calendar, Banknote, BedDouble, AlertCircle, CheckCircle2, MessageCircle, User, CreditCard, School } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/auth-store';
+import { toast } from 'sonner';
 
 type Bed = { id: string; bedNumber: string; isOccupied: boolean };
 type Room = {
@@ -121,14 +122,14 @@ export default function AddTenantPage() {
 
   const handleSendOtp = () => {
     if (!phone || phone.length < 10) {
-      alert('Please enter a valid 10-digit phone number first.');
+      toast.warning('Please enter a valid 10-digit phone number first.');
       return;
     }
     setVerifyingOtp(true);
     setTimeout(() => {
       setVerifyingOtp(false);
       setOtpSent(true);
-      alert(`Dummy OTP sent to ${phone}`);
+      toast.info(`Dummy OTP sent to ${phone}`);
     }, 1000);
   };
 
@@ -137,7 +138,7 @@ export default function AddTenantPage() {
     setTimeout(() => {
       setVerifyingOtp(false);
       setOtpVerified(true);
-      alert('Phone number verified successfully!');
+      toast.success('Phone number verified successfully!');
     }, 1000);
   };
 

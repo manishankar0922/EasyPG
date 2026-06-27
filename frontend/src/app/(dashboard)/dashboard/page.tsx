@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/auth-store';
 import { useLanguage } from '@/context/LanguageContext';
@@ -14,6 +15,7 @@ import TenantDashboard from '@/components/tenant/TenantDashboard';
 export default function MobileDashboard() {
   const { user } = useAuthStore();
   const { t, lang } = useLanguage();
+  const router = useRouter();
   const { activeBranchId, loading: branchLoading, error: branchError } = useBranch();
   const [data, setData] = useState<any>(null);
   const [vacancies, setVacancies] = useState<any[]>([]);
@@ -26,26 +28,22 @@ export default function MobileDashboard() {
       try {
         setLoading(true);
         setDashboardError(null);
-        
-        // Fetch dashboard data
-        try {
-          const dashboardRes = await api.get(`/dashboard/mobile-home?branchId=${activeBranchId}`);
-          if (dashboardRes.data?.success) {
-            setData(dashboardRes.data.data);
-          }
-        } catch (err: any) {
-          console.error('Failed to load dashboard stats:', err);
-          setDashboardError(err.message || 'Failed to load dashboard stats. Server unreachable.');
+
+        // Run both API calls in parallel
+        const [dashboardResult, vacanciesResult] = await Promise.allSettled([
+          api.get(`/dashboard/mobile-home?branchId=${activeBranchId}`),
+          api.get(`/branches/${activeBranchId}/upcoming-vacancies`)
+        ]);
+
+        if (dashboardResult.status === 'fulfilled' && dashboardResult.value.data?.success) {
+          setData(dashboardResult.value.data.data);
+        } else if (dashboardResult.status === 'rejected') {
+          const err = dashboardResult.reason;
+          setDashboardError(err.message || 'Failed to load dashboard stats.');
         }
 
-        // Fetch vacancies separately so it doesn't break the whole dashboard if it fails
-        try {
-          const vacanciesRes = await api.get(`/branches/${activeBranchId}/upcoming-vacancies`);
-          if (vacanciesRes.data?.success) {
-            setVacancies(vacanciesRes.data.data);
-          }
-        } catch (err) {
-          console.error('Failed to load upcoming vacancies:', err);
+        if (vacanciesResult.status === 'fulfilled' && vacanciesResult.value.data?.success) {
+          setVacancies(vacanciesResult.value.data.data);
         }
 
       } finally {
@@ -76,7 +74,7 @@ export default function MobileDashboard() {
           {branchError || dashboardError}
         </p>
         <button 
-          onClick={() => window.location.reload()} 
+          onClick={() => router.refresh()} 
           className="mt-4 px-6 py-3 bg-blue-600 text-white rounded-xl font-bold shadow-lg shadow-blue-600/20 active:scale-95 transition-all"
         >
           Try Again

@@ -8,7 +8,7 @@ import { Search, Plus, ChevronRight, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/auth-store';
 import { useLanguage } from '@/context/LanguageContext';
-
+import { useBranch } from '@/context/BranchContext';
 import SearchingAnimation from '@/components/shared/SearchingAnimation';
 
 type FilterType = 'ALL' | 'PAID' | 'UNPAID' | 'NEW';
@@ -19,6 +19,7 @@ export default function TenantsMobilePage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterType>('ALL');
   const { user } = useAuthStore();
+  const { activeBranchId } = useBranch();
   const { t } = useLanguage();
 
   useEffect(() => {
@@ -37,7 +38,7 @@ export default function TenantsMobilePage() {
             search: searchQuery,
             paymentStatus: statusParam,
             newThisMonth: newParam,
-            branchId: user?.branchId || ''
+            branchId: activeBranchId || user?.branchId || ''
           }
         });
 
@@ -47,21 +48,16 @@ export default function TenantsMobilePage() {
       } catch (err) {
         console.error('Failed to fetch tenants', err);
       } finally {
-        // Add a fake delay ONLY if they are actively searching to show off the animation
-        if (searchQuery) {
-          setTimeout(() => setLoading(false), 800);
-        } else {
-          setLoading(false);
-        }
+        setLoading(false);
       }
     }
 
     // Debounce search slightly
     const timer = setTimeout(() => {
       fetchTenants();
-    }, 400);
+    }, 300);
     return () => clearTimeout(timer);
-  }, [searchQuery, activeFilter, user]);
+  }, [searchQuery, activeFilter, user, activeBranchId]);
 
   return (
     <div className="min-h-screen bg-slate-50 relative pb-20">

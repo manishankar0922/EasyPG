@@ -5,6 +5,7 @@ import api from '@/lib/api';
 import { useAuthStore } from '@/store/auth-store';
 import { cn } from '@/lib/utils';
 import { Loader2, ShieldCheck, KeyRound, CheckCircle, AlertTriangle, Upload, X } from 'lucide-react';
+import { toast } from 'sonner';
 
 export default function SettingsPage() {
   const { user } = useAuthStore();
@@ -129,7 +130,7 @@ export default function SettingsPage() {
         amount: 799
       });
 
-      alert(res.data.message || 'Upgrade request submitted successfully!');
+      toast.success(res.data.message || 'Upgrade request submitted! We will activate within 2 hours.');
       setIsUpgradeModalOpen(false);
       setUpgradeUpiRef('');
       setUpgradeFile(null);

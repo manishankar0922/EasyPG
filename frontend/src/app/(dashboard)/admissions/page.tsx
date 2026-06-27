@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
+import { toast } from 'sonner';
 
 interface Admission {
   id: string;
@@ -83,7 +84,7 @@ export default function AdmissionsPage() {
         fetchAdmissions();
       }
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Checkout failed');
+      toast.error(err.response?.data?.error || 'Checkout failed. Please try again.');
     } finally {
       setSubmitting(false);
     }

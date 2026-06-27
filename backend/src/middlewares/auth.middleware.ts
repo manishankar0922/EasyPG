@@ -162,7 +162,23 @@ export const attachUserContext = async (req: Request, res: Response, next: NextF
 };
 
 export const requireBranchAccess = async (req: Request, res: Response, next: NextFunction) => {
-  // Just pass through or implement your logic
+  // Only enforce branch restriction for WARDEN and STAFF roles.
+  // OWNER, SUPERADMIN, SUPER_ADMIN can access any branch.
+  const restrictedRoles = ['WARDEN', 'STAFF'];
+  if (!req.user || !restrictedRoles.includes(req.user.role)) {
+    return next();
+  }
+
+  // If request targets a specific branchId (param or query), verify it matches the user's branch.
+  const requestedBranchId = req.params?.branchId || req.query?.branchId;
+  if (requestedBranchId && req.user.branchId && requestedBranchId !== req.user.branchId) {
+    return res.status(403).json({
+      success: false,
+      error: 'Access denied: You can only access data for your assigned branch.',
+      code: 'CROSS_BRANCH_ACCESS_DENIED'
+    });
+  }
+
   next();
 };
 
