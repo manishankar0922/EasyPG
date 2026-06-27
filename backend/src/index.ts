@@ -51,7 +51,7 @@ dotenv.config();
 const app = express();
 
 // Trust proxy for rate limiting behind reverse proxies (Render, Heroku, etc.)
-app.set('trust proxy', 1);
+app.set('trust proxy', true);
 
 // STEP 0.5 — IP Blacklisting (Application WAF)
 // Drops requests from banned IPs instantly before any processing
