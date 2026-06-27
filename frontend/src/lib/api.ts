@@ -8,7 +8,7 @@ if (!API_BASE_URL && process.env.NODE_ENV === 'production') {
 
 const api = axios.create({
   baseURL: API_BASE_URL || 'http://localhost:3001/api/v1', // localhost is dev-only fallback
-  timeout: 30000,
+  timeout: 60000, // 60s — Render free tier cold starts can take up to 50s
   headers: {
     'Content-Type': 'application/json'
   }
