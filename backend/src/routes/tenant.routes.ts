@@ -247,23 +247,37 @@ router.post('/:id/vacate-notice', validate(z.object({
     if (!tenant) return res.status(404).json({ success: false, error: 'Tenant not found' });
 
     // Check if there is already a pending notice
-    const existing = await prisma.vacateNotice.findFirst({
-      where: { tenantId, status: 'PENDING' }
+    const existing = await prisma.vacateNotice.findUnique({
+      where: { tenantId }
     });
 
-    if (existing) {
+    if (existing && existing.status === 'PENDING') {
       return res.status(400).json({ success: false, error: 'A pending vacate notice already exists.' });
     }
 
-    const notice = await prisma.vacateNotice.create({
-      data: {
-        organizationId: orgId,
-        tenantId,
-        vacateDate: new Date(plannedVacateDate),
-        reason,
-        createdBy: req.user!.id
-      }
-    });
+    let notice;
+    if (existing) {
+      notice = await prisma.vacateNotice.update({
+        where: { tenantId },
+        data: {
+          vacateDate: new Date(plannedVacateDate),
+          reason,
+          status: 'PENDING',
+          createdBy: req.user!.id,
+          noticeDate: new Date()
+        }
+      });
+    } else {
+      notice = await prisma.vacateNotice.create({
+        data: {
+          organizationId: orgId,
+          tenantId,
+          vacateDate: new Date(plannedVacateDate),
+          reason,
+          createdBy: req.user!.id
+        }
+      });
+    }
 
     res.json({ success: true, data: notice, message: 'Vacate notice recorded' });
   } catch (error: any) {
