@@ -19,6 +19,10 @@ export default function DevLogin() {
       setError('');
       setLoading(true);
 
+      // Force React to yield to the browser paint cycle immediately
+      // This instantly shows the loading spinner and fixes the 10-second INP render block
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
       const endpoint = apiUrl.endsWith('/api/v1') ? '/auth/login' : '/api/v1/auth/login';
 
