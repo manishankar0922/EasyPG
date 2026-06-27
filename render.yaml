@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: u9pgs-backend
+    runtime: node
+    rootDir: backend
+    buildCommand: npm ci && npm run build
+    startCommand: node dist/src/index.js
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 4000
+      # Set these in the Render Dashboard → Environment:
+      # DATABASE_URL, DIRECT_URL, JWT_SECRET, FRONTEND_URL,
+      # CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET,
+      # REDIS_URL (from a Render Redis service)
+    autoDeploy: true
