@@ -47,7 +47,21 @@ export function middleware(request: NextRequest) {
   const hostname = request.headers.get('host') || '';
   let subdomain = '';
   
-  if (hostname.endsWith('.vercel.app')) {
+  // Check for simulation override query parameter (highly useful for testing without a custom domain)
+  const urlSubdomain = request.nextUrl.searchParams.get('subdomain');
+  let cookieSubdomain = request.cookies.get('u9pgs_simulated_subdomain')?.value;
+
+  if (urlSubdomain) {
+    if (urlSubdomain === 'clear') {
+      cookieSubdomain = undefined;
+    } else if (['dev', 'admin', 'tenant', 'tenet'].includes(urlSubdomain)) {
+      cookieSubdomain = urlSubdomain;
+    }
+  }
+
+  if (cookieSubdomain) {
+    subdomain = cookieSubdomain;
+  } else if (hostname.endsWith('.vercel.app')) {
     const prefix = hostname.split('.')[0]; // e.g. "dev-u9pgs"
     if (prefix.startsWith('dev-')) {
       subdomain = 'dev';
@@ -61,6 +75,25 @@ export function middleware(request: NextRequest) {
   }
 
   // --- Subdomain Isolation Shields ---
+  
+  // Create response object early so we can write cookies if needed
+  let response = NextResponse.next();
+
+  // If a new subdomain query was provided, redirect to clean the URL bar but preserve the cookie
+  if (urlSubdomain) {
+    const cleanUrl = new URL(request.nextUrl.pathname, request.url);
+    // Keep any other search parameters except subdomain
+    request.nextUrl.searchParams.forEach((val, key) => {
+      if (key !== 'subdomain') cleanUrl.searchParams.set(key, val);
+    });
+    response = NextResponse.redirect(cleanUrl);
+    if (urlSubdomain === 'clear') {
+      response.cookies.delete('u9pgs_simulated_subdomain');
+    } else if (['dev', 'admin', 'tenant', 'tenet'].includes(urlSubdomain)) {
+      response.cookies.set('u9pgs_simulated_subdomain', urlSubdomain, { path: '/' });
+    }
+    return response;
+  }
   
   // 1. Tenant Subdomain Shield
   if (subdomain === 'tenant' || subdomain === 'tenet') {
