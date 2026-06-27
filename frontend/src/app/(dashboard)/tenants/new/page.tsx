@@ -328,7 +328,7 @@ export default function AddTenantPage() {
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-600">Phone Number (OTP Verification)</label>
+              <label className="text-xs font-semibold text-slate-600">Phone Number</label>
               <div className="relative">
                 <Phone className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
                 <input 
@@ -346,35 +346,22 @@ export default function AddTenantPage() {
               
               {!otpVerified && (
                 <div className="flex gap-2 mt-2">
-                  {otpSent ? (
-                    <>
-                      <input 
-                        type="text" 
-                        maxLength={6} 
-                        placeholder="OTP" 
-                        className="w-24 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 focus:border-blue-500 focus:outline-none tracking-widest"
-                        value={otpCode}
-                        onChange={(e) => setOtpCode(e.target.value)}
-                      />
-                      <button 
-                        type="button" 
-                        onClick={handleVerifyOtp}
-                        disabled={verifyingOtp || otpCode.length < 4}
-                        className="rounded-lg bg-emerald-600 px-4 py-1.5 text-xs font-bold text-white hover:bg-emerald-700 transition disabled:opacity-50"
-                      >
-                        {verifyingOtp ? 'Verifying...' : 'Verify'}
-                      </button>
-                    </>
-                  ) : (
-                    <button 
-                      type="button" 
-                      onClick={handleSendOtp}
-                      disabled={verifyingOtp || phone.length < 10}
-                      className="rounded-lg bg-blue-100 text-blue-700 px-4 py-1.5 text-xs font-bold hover:bg-blue-200 transition disabled:opacity-50"
-                    >
-                      {verifyingOtp ? <Loader2 className="h-4 w-4 animate-spin inline" /> : 'Send OTP'}
-                    </button>
-                  )}
+                  <a 
+                    href={`tel:${phone}`}
+                    onClick={() => {
+                      if (phone.length >= 10) {
+                        setOtpVerified(true);
+                      }
+                    }}
+                    className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold transition ${
+                      phone.length < 10 
+                        ? "bg-slate-100 text-slate-400 cursor-not-allowed pointer-events-none" 
+                        : "bg-blue-100 text-blue-700 hover:bg-blue-200"
+                    }`}
+                  >
+                    <Phone className="h-3 w-3" />
+                    Call to Verify
+                  </a>
                 </div>
               )}
               {otpVerified && <div className="text-xs font-bold text-emerald-500 mt-1 flex items-center gap-1"><CheckCircle2 className="h-3 w-3" /> Verified</div>}
