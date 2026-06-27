@@ -595,7 +595,7 @@ router.get('/:id/heatmap', requireProPlan, async (req, res) => {
               }
             },
             bed: {
-              select: { name: true, bedNumber: true }
+              select: { bedNumber: true }
             }
           }
         }
@@ -622,7 +622,7 @@ router.get('/:id/heatmap', requireProPlan, async (req, res) => {
         hasAC: room.hasAC,
         tenants: (room as any).admissions.map((a: any) => ({
           ...a.tenant,
-          bedName: a.bed?.name || a.bed?.bedNumber || '',
+          bedName: a.bed?.bedNumber || '',
           vacateNotice: a.tenant.vacateNotice && a.tenant.vacateNotice.length > 0 ? a.tenant.vacateNotice[0] : null
         }))
       });

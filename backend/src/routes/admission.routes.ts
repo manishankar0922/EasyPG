@@ -4,6 +4,7 @@ import { authMiddleware } from '../middlewares/auth.middleware';
 import { validate } from '../middlewares/validation.middleware';
 import { checkInSchema, checkOutSchema, roomTransferSchema } from '../schemas/admission.schema';
 import { z } from 'zod';
+import { CacheService } from '../services/cache';
 
 const router = Router();
 router.use(authMiddleware);
@@ -102,6 +103,7 @@ router.post('/checkin', validate(checkInSchema), async (req, res) => {
       });
     });
 
+    await CacheService.deleteByPattern(`heatmap:${orgId}:*`);
     res.status(201).json({ success: true, data: result });
   } catch (error: any) {
     res.status(400).json({ success: false, error: error.message });
@@ -144,6 +146,7 @@ router.post('/checkout/:id', validate(checkOutSchema), async (req, res) => {
       });
     });
 
+    await CacheService.deleteByPattern(`heatmap:${orgId}:*`);
     res.json({ success: true, data: result });
   } catch (error: any) {
     res.status(400).json({ success: false, error: error.message });
@@ -199,6 +202,7 @@ router.post('/transfer/:id', validate(roomTransferSchema), async (req, res) => {
       });
     });
 
+    await CacheService.deleteByPattern(`heatmap:${orgId}:*`);
     res.json({ success: true, data: result });
   } catch (error: any) {
     res.status(400).json({ success: false, error: error.message });

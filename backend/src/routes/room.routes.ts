@@ -4,6 +4,7 @@ import { authMiddleware } from '../middlewares/auth.middleware';
 import { validate } from '../middlewares/validation.middleware';
 import { createRoomSchema, updateRoomSchema } from '../schemas/room.schema';
 import { z } from 'zod';
+import { CacheService } from '../services/cache';
 
 const router = Router();
 router.use(authMiddleware);
@@ -205,6 +206,7 @@ router.post('/', validate(createRoomSchema), async (req, res) => {
 
       return newRoom;
     });
+    await CacheService.deleteByPattern(`heatmap:${orgId}:*`);
     res.status(201).json({ success: true, data: room });
   } catch (error: any) {
     console.error('Failed to create room:', error);
@@ -222,6 +224,7 @@ router.patch('/:id', validate(updateRoomSchema), async (req, res) => {
 
   if (room.count === 0) return res.status(404).json({ success: false, error: 'Room not found' });
   
+  await CacheService.deleteByPattern(`heatmap:${req.user!.organizationId}:*`);
   res.json({ success: true, message: 'Room updated' });
 });
 
@@ -235,6 +238,7 @@ router.patch('/:id/block', validate(z.object({ params: z.object({ id: z.string()
 
   if (room.count === 0) return res.status(404).json({ success: false, error: 'Room not found' });
   
+  await CacheService.deleteByPattern(`heatmap:${req.user!.organizationId}:*`);
   res.json({ success: true, message: 'Room blocked' });
 });
 
@@ -248,6 +252,7 @@ router.patch('/:id/activate', validate(z.object({ params: z.object({ id: z.strin
 
   if (room.count === 0) return res.status(404).json({ success: false, error: 'Room not found' });
   
+  await CacheService.deleteByPattern(`heatmap:${req.user!.organizationId}:*`);
   res.json({ success: true, message: 'Room activated' });
 });
 
@@ -273,6 +278,7 @@ router.delete('/:id', validate(z.object({ params: z.object({ id: z.string().min(
     prisma.room.deleteMany({ where: { id: roomId, organizationId: orgId } })
   ]);
   
+  await CacheService.deleteByPattern(`heatmap:${orgId}:*`);
   res.json({ success: true, message: 'Room deleted' });
 });
 
