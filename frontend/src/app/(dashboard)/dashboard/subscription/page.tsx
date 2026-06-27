@@ -312,8 +312,8 @@ export default function SubscriptionPage() {
 
             <div className="flex justify-center">
               <div className="w-48 h-48 bg-slate-50 border-2 border-slate-200 rounded-2xl flex items-center justify-center flex-col gap-2 p-2">
-                {process.env.NEXT_PUBLIC_UPI_QR_URL ? (
-                  <img src={process.env.NEXT_PUBLIC_UPI_QR_URL} alt="UPI QR Code" className="w-full h-full object-contain" />
+                {process.env.NEXT_PUBLIC_UPI_QR_URL || '/qr-code.png' ? (
+                  <img src={process.env.NEXT_PUBLIC_UPI_QR_URL || '/qr-code.png'} alt="UPI QR Code" className="w-full h-full object-contain" />
                 ) : (
                   <span className="text-slate-400 font-bold text-xs text-center">QR Code pending setup.<br/>Use UPI ID below.</span>
                 )}
