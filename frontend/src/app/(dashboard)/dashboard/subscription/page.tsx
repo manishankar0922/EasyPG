@@ -1,11 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useSearchParams } from 'next/navigation';
 import api from '@/lib/api';
 import { useLanguage } from '@/context/LanguageContext';
 import { Loader2, CheckCircle2, AlertTriangle, Upload, X } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { toast } from 'sonner';
 
 const PLANS = {
   BASIC: {
@@ -58,6 +60,8 @@ export default function SubscriptionPage() {
   const isBlocked = searchParams.get('blocked') === 'true';
   const blockCode = searchParams.get('code');
   const { lang } = useLanguage();
+  const router = useRouter();
+  const SUPPORT_WA = process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP || '919000000000'; // Set NEXT_PUBLIC_SUPPORT_WHATSAPP in env
 
   const [status, setStatus] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -140,7 +144,7 @@ export default function SubscriptionPage() {
         setIsSheetOpen(false);
       }
     } catch (err) {
-      alert('Failed to submit request');
+      toast.error('Failed to submit payment request. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -190,13 +194,13 @@ export default function SubscriptionPage() {
 
           <div className="flex flex-col gap-3">
             <button 
-              onClick={() => window.location.href = '/dashboard/subscription'}
+              onClick={() => router.push('/dashboard/subscription')}
               className="w-full h-14 bg-slate-900 text-white rounded-xl font-bold text-lg active:scale-95 transition-transform"
             >
               View Plans & Subscribe
             </button>
             <a 
-              href="https://wa.me/91XXXXXXXXXX"
+              href={`https://wa.me/${SUPPORT_WA}`}
               className="w-full h-14 bg-[#25D366]/10 text-[#25D366] rounded-xl font-bold text-lg flex items-center justify-center active:bg-[#25D366]/20 transition-colors"
             >
               Chat on WhatsApp
@@ -224,7 +228,7 @@ export default function SubscriptionPage() {
             <h3 className="font-bold text-emerald-800 mb-1">Request Submitted!</h3>
             <p className="text-sm text-emerald-600 mb-4">We will activate your account within 2 hours. Contact us on WhatsApp if urgent.</p>
             <a 
-              href={`https://wa.me/91XXXXXXXXXX?text=Hi, I have submitted payment for U9PGs ${selectedPlan} Plan. UPI Ref: ${upiRef}`}
+              href={`https://wa.me/${SUPPORT_WA}?text=${encodeURIComponent(`Hi, I have submitted payment for U9PGs ${selectedPlan} Plan. UPI Ref: ${upiRef}`)}`}
               className="px-6 py-2 bg-[#25D366] text-white rounded-full font-bold text-sm"
             >
               Send WhatsApp Message
@@ -307,8 +311,12 @@ export default function SubscriptionPage() {
             </div>
 
             <div className="flex justify-center">
-              <div className="w-48 h-48 bg-slate-100 border-2 border-slate-200 rounded-2xl flex items-center justify-center flex-col gap-2">
-                <span className="text-slate-400 font-bold">[ QR Code Here ]</span>
+              <div className="w-48 h-48 bg-slate-50 border-2 border-slate-200 rounded-2xl flex items-center justify-center flex-col gap-2 p-2">
+                {process.env.NEXT_PUBLIC_UPI_QR_URL ? (
+                  <img src={process.env.NEXT_PUBLIC_UPI_QR_URL} alt="UPI QR Code" className="w-full h-full object-contain" />
+                ) : (
+                  <span className="text-slate-400 font-bold text-xs text-center">QR Code pending setup.<br/>Use UPI ID below.</span>
+                )}
               </div>
             </div>
 

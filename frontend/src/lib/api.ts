@@ -68,14 +68,18 @@ api.interceptors.response.use(
     }
 
     if (status === 401) {
-      localStorage.removeItem('u9pgs_token')
-      localStorage.removeItem('u9pgs_user')
+      // Clear BOTH token keys — the app uses two different keys historically
+      localStorage.removeItem('u9pgs_token');
+      localStorage.removeItem('u9-auth-token');
+      localStorage.removeItem('u9pgs_user');
+      localStorage.removeItem('u9-auth-storage'); // zustand persisted store
       if (typeof window !== 'undefined') {
-        window.location.href = '/login'
+        // Hard redirect — clears any in-memory React state too
+        window.location.href = '/login';
       }
       return Promise.reject(
-        new Error('Session expired. Please login.')
-      )
+        new Error('Session expired. Please login again.')
+      );
     }
 
     if (status === 403) {
@@ -88,20 +92,11 @@ api.interceptors.response.use(
 
     if (status === 404) {
       if (data && data.error) {
-        // Resource not found (e.g., "Organisation not found")
         return Promise.reject(new Error(data.error));
       }
-      
-      console.error(
-        `404: Route "${url}" not found in backend.`,
-        'Check backend routes are mounted correctly.'
-      )
       return Promise.reject(
-        new Error(
-          `API route not found: ${url}. ` +
-          'Check backend route registration.'
-        )
-      )
+        new Error(`Not found: ${url}`)
+      );
     }
 
     if (status === 500) {

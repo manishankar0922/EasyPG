@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils';
 import VacateNoticeSheet from '@/components/shared/VacateNoticeSheet';
 import SuccessAnimation from '@/components/shared/SuccessAnimation';
 import { useLanguage } from '@/context/LanguageContext';
+import { toast } from 'sonner';
 
 export default function TenantDetailPage() {
   const { id } = useParams();
@@ -143,8 +144,7 @@ export default function TenantDetailPage() {
         await fetchTenant(); // Refresh data
       }
     } catch (err: any) {
-      console.error('Payment failed', err);
-      alert(err.message || err.response?.data?.error || 'Failed to record payment');
+      toast.error(err.message || err.response?.data?.error || 'Failed to record payment');
     } finally {
       setSubmittingPayment(false);
     }
@@ -152,9 +152,11 @@ export default function TenantDetailPage() {
 
   const handleWhatsAppReceipt = (url: string) => {
     if (user?.plan === 'BASIC') {
-      alert(lang === 'te' 
-        ? '🔒 ఆటోమేటెడ్ వాట్సాప్ రసీదులు PRO ఫీచర్. దయచేసి అప్‌గ్రేడ్ చేయండి.' 
-        : '🔒 Automated WhatsApp Receipts are a PRO feature. Please upgrade your plan to unlock instant messaging.');
+      toast.info(
+        lang === 'te'
+          ? '🔒 ఆటోమేటెడ్ వాట్సాప్ రసీదులు PRO ఫీచర్. దయచేసి అప్‌గ్రేడ్ చేయండి.'
+          : '🔒 Automated WhatsApp Receipts are a PRO feature. Upgrade your plan to unlock.'
+      );
       return;
     }
     window.open(url, '_blank', 'noopener,noreferrer');
@@ -168,8 +170,7 @@ export default function TenantDetailPage() {
         setIsVacateSuccess(true);
       }
     } catch (err) {
-      console.error('Vacate failed', err);
-      alert('Failed to mark tenant as vacated');
+      toast.error('Failed to mark tenant as vacated');
     } finally {
       setVacating(false);
     }
@@ -252,7 +253,11 @@ export default function TenantDetailPage() {
             onClick={() => {
               if (rentPending <= 0) {
                 const monthName = new Date().toLocaleString('en-IN', { month: 'long' });
-                alert(lang === 'te' ? `ఈ అద్దెదారు ప్రస్తుత (${monthName}) నెలకు వారి అద్దెను పూర్తిగా చెల్లించారు.` : `This tenant has already fully paid their rent for the current (${monthName}) month.`);
+                toast.success(
+                  lang === 'te'
+                    ? `ఈ అద్దెదారు ప్రస్తుత (${monthName}) నెలకు అద్దె పూర్తిగా చెల్లించారు ✅`
+                    : `Tenant has fully paid rent for ${monthName} ✅`
+                );
                 return;
               }
               setPaymentAmount(rentPending.toString());

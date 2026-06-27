@@ -4,14 +4,17 @@ import { useEffect, useState, useRef } from 'react';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/auth-store';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import { Search, History, CheckCircle2, IndianRupee, BarChart3, MessageCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import MonthlyReport from '@/components/invoices/MonthlyReport';
 import { useLanguage } from '@/context/LanguageContext';
+import { toast } from 'sonner';
 
 export default function QuickPaymentPage() {
   const { user } = useAuthStore();
   const { t, lang } = useLanguage();
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<'RECORD' | 'HISTORY' | 'REPORT'>('REPORT');
   const [searchQuery, setSearchQuery] = useState('');
   const [tenants, setTenants] = useState<any[]>([]);
@@ -90,8 +93,7 @@ export default function QuickPaymentPage() {
         setSuccess(true);
       }
     } catch (err) {
-      console.error('Payment failed', err);
-      alert('Failed to record payment');
+      toast.error('Failed to record payment');
     } finally {
       setSubmitting(false);
     }
@@ -297,7 +299,7 @@ export default function QuickPaymentPage() {
               {t.recordAnother}
             </button>
             <button 
-              onClick={() => { window.location.href = '/dashboard'; }}
+              onClick={() => router.push('/dashboard')}
               className="w-full h-14 bg-white border-2 border-slate-200 text-slate-700 rounded-2xl font-bold text-lg active:bg-slate-50 transition-colors"
             >
               {t.goHome}
