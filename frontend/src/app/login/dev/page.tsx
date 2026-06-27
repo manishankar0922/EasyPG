@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuthStore } from '@/store/auth-store';
+import { useAuthStore, setServerSideCookies } from '@/store/auth-store';
 import { Loader2, Terminal } from 'lucide-react';
 
 export default function DevLogin() {
@@ -37,6 +37,10 @@ export default function DevLogin() {
 
       localStorage.setItem('u9pgs_token', data.token);
       localStorage.setItem('u9pgs_user', JSON.stringify(data.user));
+      
+      // Ensure cookie is fully written before redirecting!
+      await setServerSideCookies(data.token, data.user.role);
+      
       setAuth(data.user, data.token);
 
       router.push('/superadmin/dashboard');

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuthStore } from '@/store/auth-store';
+import { useAuthStore, setServerSideCookies } from '@/store/auth-store';
 import { Loader2, Phone, ShieldCheck, ArrowRight, Home } from 'lucide-react';
 
 export default function TenantLogin() {
@@ -37,6 +37,8 @@ export default function TenantLogin() {
 
       localStorage.setItem('u9pgs_token', data.token);
       localStorage.setItem('u9pgs_user', JSON.stringify(data.user));
+      
+      await setServerSideCookies(data.token, 'TENANT');
       setAuth(data.user, data.token);
 
       router.push('/dashboard'); 
