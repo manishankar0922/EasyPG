@@ -46,8 +46,17 @@ export function middleware(request: NextRequest) {
   // Subdomain Logic (dev., admin., tenant.)
   const hostname = request.headers.get('host') || '';
   let subdomain = '';
-  // Check if there is a subdomain (works for .u9pgs.in or .localhost)
-  if (hostname.split('.').length >= 3 || hostname.includes('localhost:')) {
+  
+  if (hostname.endsWith('.vercel.app')) {
+    const prefix = hostname.split('.')[0]; // e.g. "dev-u9pgs"
+    if (prefix.startsWith('dev-')) {
+      subdomain = 'dev';
+    } else if (prefix.startsWith('admin-')) {
+      subdomain = 'admin';
+    } else if (prefix.startsWith('tenant-') || prefix.startsWith('tenet-')) {
+      subdomain = 'tenant';
+    }
+  } else if (hostname.split('.').length >= 3 || hostname.includes('localhost:')) {
     subdomain = hostname.split('.')[0];
   }
 
