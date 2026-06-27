@@ -43,7 +43,7 @@ const sanitizeUser = (user: User): User => ({
  * Sets the session cookie via a server-side Next.js API route so that
  * the cookie can be marked HttpOnly (inaccessible to JavaScript/XSS).
  */
-const setServerSideCookies = async (token: string, role: string) => {
+export const setServerSideCookies = async (token: string, role: string) => {
   if (typeof window === 'undefined') return;
   try {
     await fetch('/api/auth/set-session', {
