@@ -167,9 +167,9 @@ router.post('/', idempotencyMiddleware, validate(z.object({
           data: {
             organizationId: orgId,
             invoiceId: targetInvoiceId,
-            tenantId: invoice.tenantId,
+            tenantId: invoice.tenantId as string,
             amount,
-            paymentMode: finalPaymentMode,
+            paymentMode: finalPaymentMode as any,
             paymentDate: finalPaymentDate,
             recordedById: req.user!.id
           }
