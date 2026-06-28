@@ -48,14 +48,14 @@ export default function SuperAdminDashboard() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans pb-20">
       {/* Top Bar */}
-      <header className="bg-slate-900/60 backdrop-blur-md px-6 py-4 flex items-center justify-between shadow-sm sticky top-0 z-40 border-b border-slate-800">
-        <div className="flex items-center gap-3">
-          <div className="h-10 w-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-600/20">
-            <span className="text-white font-bold text-lg">EP</span>
+      <header className="bg-slate-900/60 backdrop-blur-md px-4 sm:px-6 py-4 flex items-center justify-between shadow-sm sticky top-0 z-40 border-b border-slate-800">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <div className="h-8 w-8 sm:h-10 sm:w-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-600/20">
+            <span className="text-white font-bold text-sm sm:text-lg">EP</span>
           </div>
           <div>
-            <h1 className="text-xl font-bold text-white tracking-tight leading-none">U9PGs Admin</h1>
-            <span className="text-xs font-semibold text-slate-400">Global Command Center</span>
+            <h1 className="text-lg sm:text-xl font-bold text-white tracking-tight leading-none">EasyPG Admin</h1>
+            <span className="text-[10px] sm:text-xs font-semibold text-slate-400">Global Command Center</span>
           </div>
         </div>
         <div className="flex items-center gap-3">
