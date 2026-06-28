@@ -196,7 +196,7 @@ router.get('/:id/monthly-report', async (req, res) => {
           select: {
             rentLedgers: {
               where: { month: queryMonth, year: queryYear },
-              select: { paidAmount: true, balanceFromLastMonth: true }
+              select: { paidAmount: true, balanceFromLastMonth: true, totalDue: true }
             }
           }
         }
@@ -297,8 +297,8 @@ router.get('/:id/monthly-report', async (req, res) => {
 
     // Group admissions by branch (for occupied beds & rent)
     activeAdmissions.forEach(admission => {
-      if (admission.room.branch) {
-        const bId = admission.room.branch.id;
+      if (admission.room.branchId) {
+        const bId = admission.room.branchId;
         if (branchStats[bId]) {
           const ledger = admission.tenant.rentLedgers[0];
           if (ledger) {
