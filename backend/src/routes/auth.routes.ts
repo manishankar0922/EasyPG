@@ -352,4 +352,33 @@ router.post('/reset-password', passwordResetLimiter, validate(resetPasswordSchem
   }
 });
 
+// POST /api/v1/auth/logout
+router.post('/logout', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+      
+      try {
+        const { redisConnection } = require('../jobs/index');
+        // Blacklist the token in Redis for 24 hours (or matching token expiration)
+        await redisConnection.set(`bl:${token}`, 'true', 'EX', 60 * 60 * 24);
+      } catch (e) {
+        console.error('Failed to blacklist JWT in Redis', e);
+      }
+
+      await logSecurityEvent({
+        eventType: SecurityEventType.LOGOUT,
+        userId: req.user?.id || req.auth?.userId || 'unknown',
+        req,
+        metadata: { ip: getClientIp(req) }
+      });
+    }
+    
+    res.status(200).json({ success: true, message: 'Logged out successfully' });
+  } catch (error) {
+    next(error);
+  }
+});
+
 export default router

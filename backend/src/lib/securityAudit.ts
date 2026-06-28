@@ -11,6 +11,7 @@ export enum SecurityEventType {
   ACCOUNT_LOCKED = 'ACCOUNT_LOCKED',
   ROLE_CHANGED = 'ROLE_CHANGED',
   SESSION_HIJACK_ATTEMPT = 'SESSION_HIJACK_ATTEMPT',
+  LOGOUT = 'LOGOUT',
 }
 
 interface AuditEventParams {
