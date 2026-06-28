@@ -84,12 +84,11 @@ export const generalLimiter = rateLimit({
 });
 
 // ─── AUTH — LOGIN ─────────────────────────────────────────────────────────────
-// STRICT: max 5 attempts per 15 minutes per IP
 // Prevents brute-force attacks on /auth/login and /auth/create-owner
 export const authLimiter = rateLimit({
   ...base,
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 50, // Increased to 50 to prevent blocking legitimate active users
+  max: 500, // Increased drastically
   message: { success: false, error: 'Too many login attempts. You have been temporarily blocked. Please wait 15 minutes.' },
   store: createRedisStore('auth'),
 });
@@ -99,7 +98,7 @@ export const authLimiter = rateLimit({
 export const tenantAuthLimiter = rateLimit({
   ...base,
   windowMs: 15 * 60 * 1000,
-  max: 50, // Increased to 50 to prevent blocking legitimate active users
+  max: 500, // Increased drastically
   message: { success: false, error: 'Too many login attempts. You have been temporarily blocked. Please wait 15 minutes.' },
   store: createRedisStore('tenant_auth'),
 });
