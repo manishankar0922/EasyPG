@@ -28,6 +28,7 @@ export default function AddTenantPage() {
   const [parentPhone, setParentPhone] = useState('');
   const [aadhaarLast4, setAadhaarLast4] = useState('');
   const [collegeName, setCollegeName] = useState('');
+  const [location, setLocation] = useState('');
   const [photoUrl, setPhotoUrl] = useState('');
   const [aadhaarPhotoUrl, setAadhaarPhotoUrl] = useState('');
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
@@ -182,6 +183,7 @@ export default function AddTenantPage() {
         parentPhone,
         aadhaarLast4,
         collegeName,
+        location,
         photoUrl,
         aadhaarPhotoUrl,
         roomId: finalRoomId,
@@ -278,7 +280,7 @@ export default function AddTenantPage() {
 
             <div className="w-full space-y-4">
               <a 
-                href={`https://wa.me/91${createdTenantData?.phone}?text=${encodeURIComponent(`Welcome to U9PGs, *${createdTenantData?.name}*!\n\nYour profile has been successfully created.\n*Room:* ${createdTenantData?.room}\n*Rent:* ₹${createdTenantData?.rent}\n\nWe are happy to have you!\n- Management`)}`}
+                href={`https://wa.me/91${createdTenantData?.phone}?text=${encodeURIComponent(`Welcome to ${user?.organisationName || user?.branchName || 'our PG'}, *${createdTenantData?.name}*!\n\nYour profile has been successfully created.\n*Room:* ${createdTenantData?.room}\n*Rent:* ₹${createdTenantData?.rent}\n\nWe are happy to have you!\n- Management`)}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-full h-14 bg-[#25D366] text-white rounded-2xl font-bold text-lg active:scale-95 transition-transform flex items-center justify-center gap-2 shadow-lg shadow-[#25D366]/20"
@@ -407,6 +409,19 @@ export default function AddTenantPage() {
                   placeholder="e.g. MIT College"
                   className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-4 text-slate-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition shadow-sm text-sm"
                   value={collegeName} onChange={e => setCollegeName(e.target.value)} 
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-600">Location / Native Address (Optional)</label>
+              <div className="relative">
+                <AlertCircle className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
+                <input 
+                  type="text"
+                  placeholder="e.g. Hyderabad, Telangana"
+                  className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-4 text-slate-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition shadow-sm text-sm"
+                  value={location} onChange={e => setLocation(e.target.value)} 
                 />
               </div>
             </div>

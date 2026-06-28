@@ -11,7 +11,7 @@ import { useLanguage } from '@/context/LanguageContext';
 import { useBranch } from '@/context/BranchContext';
 import SearchingAnimation from '@/components/shared/SearchingAnimation';
 
-type FilterType = 'ALL' | 'PAID' | 'UNPAID' | 'NEW';
+type FilterType = 'ALL' | 'PAID' | 'UNPAID' | 'NEW' | 'VACATED';
 
 export default function TenantsMobilePage() {
   const [tenants, setTenants] = useState<any[]>([]);
@@ -38,6 +38,7 @@ export default function TenantsMobilePage() {
             search: searchQuery,
             paymentStatus: statusParam,
             newThisMonth: newParam,
+            status: activeFilter === 'VACATED' ? 'VACATED' : undefined,
             branchId: activeBranchId || user?.branchId || ''
           }
         });
@@ -83,7 +84,8 @@ export default function TenantsMobilePage() {
             { id: 'ALL', label: t.all },
             { id: 'PAID', label: `${t.paid} ✅` },
             { id: 'UNPAID', label: `${t.notPaid} ❌` },
-            { id: 'NEW', label: t.newThisMonth }
+            { id: 'NEW', label: t.newThisMonth },
+            { id: 'VACATED', label: 'Vacated 🚪' }
           ].map(chip => (
             <button
               key={chip.id}
@@ -149,11 +151,18 @@ export default function TenantsMobilePage() {
                     </p>
                     <p className="text-xs font-medium text-slate-400 mt-0.5">
                       Since {new Date(tenant.moveInDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      {tenant.paymentStatus === 'VACATED' && tenant.checkoutDate && (
+                        <> • Left on {new Date(tenant.checkoutDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</>
+                      )}
                     </p>
                   </div>
                   
                   <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                    {tenant.paymentStatus === 'PAID' ? (
+                    {tenant.paymentStatus === 'VACATED' ? (
+                      <div className="bg-slate-100 text-slate-600 px-2.5 py-1 rounded-lg text-xs font-bold border border-slate-200/50">
+                        Vacated
+                      </div>
+                    ) : tenant.paymentStatus === 'PAID' ? (
                       <div className="bg-emerald-50 text-emerald-600 px-2.5 py-1 rounded-lg text-xs font-bold border border-emerald-100/50">
                         Paid ✅
                       </div>

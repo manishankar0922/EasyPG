@@ -11,6 +11,7 @@ export const createTenantSchema = z.object({
     photoUrl: z.string().min(1, "Photo is required"),
     aadhaarPhotoUrl: z.string().or(z.literal('')).nullable().optional(),
     collegeName: z.string().max(150).or(z.literal('')).nullable().optional(),
+    location: z.string().max(150).or(z.literal('')).nullable().optional(),
     status: TenantStatusEnum.optional(),
     // Admission & Bed fields
     roomId: z.string().min(5),
@@ -32,6 +33,7 @@ export const updateTenantSchema = z.object({
     photoUrl: z.string().url().or(z.string().length(0)).nullable().optional(),
     aadhaarPhotoUrl: z.string().url().or(z.string().length(0)).nullable().optional(),
     collegeName: z.string().max(150).or(z.literal('')).nullable().optional(),
+    location: z.string().max(150).or(z.literal('')).nullable().optional(),
     status: TenantStatusEnum.optional(),
   }),
   params: z.object({

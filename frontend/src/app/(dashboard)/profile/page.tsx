@@ -73,25 +73,29 @@ export default function ProfilePage() {
         </div>
 
         {/* Subscription Card */}
-        <div 
-          onClick={() => router.push('/dashboard/subscription')}
-          className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100 active:bg-slate-50 transition-colors cursor-pointer"
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 bg-orange-50 rounded-xl flex items-center justify-center">
-                <CreditCard className="h-5 w-5 text-orange-500" />
+        {user?.role === 'OWNER' && (
+          <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 bg-orange-50 rounded-xl flex items-center justify-center">
+                  <CreditCard className="h-5 w-5 text-orange-500" />
+                </div>
+                <div>
+                  <h2 className="font-black text-slate-900">Current Plan</h2>
+                  <p className="text-xs font-bold text-orange-600 mt-0.5 uppercase tracking-wide">
+                    {user?.plan || 'STANDARD'} • {user?.subscriptionStatus || 'ACTIVE'}
+                  </p>
+                </div>
               </div>
-              <div>
-                <h2 className="font-black text-slate-900">Subscription Plans</h2>
-                <p className="text-xs font-semibold text-slate-500">Manage your U9PGs access</p>
+              <div className="h-8 px-3 bg-slate-100 rounded-full flex items-center justify-center cursor-help">
+                <span className="text-xs font-bold text-slate-600">Active</span>
               </div>
             </div>
-            <div className="h-8 px-3 bg-slate-100 rounded-full flex items-center justify-center">
-              <span className="text-xs font-bold text-slate-600">View</span>
-            </div>
+            <p className="text-xs font-medium text-slate-400 mt-4 text-center bg-slate-50 p-2 rounded-xl border border-slate-100">
+              To upgrade or manage billing, please contact U9PGs Support.
+            </p>
           </div>
-        </div>
+        )}
 
         {/* Hostel Details Card */}
         <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100">
