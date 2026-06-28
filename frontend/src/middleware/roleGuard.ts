@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUserRole } from '@/hooks/useUserRole';
+import { useAuthStore } from '@/store/auth-store';
 
 export function useRoleGuard(allowedRoles: ('admin' | 'owner' | 'warden' | 'staff')[]) {
   const { normalizedRole, role } = useUserRole();
@@ -12,14 +13,22 @@ export function useRoleGuard(allowedRoles: ('admin' | 'owner' | 'warden' | 'staf
 
   useEffect(() => {
     if (!role) {
-      // Wait for auth to hydrate. If it takes too long or they are logged out,
-      // they should be caught by a generic auth guard, but let's handle it:
-      const timer = setTimeout(() => {
-        if (!role) {
-          router.replace('/login');
-        }
-      }, 1000);
-      return () => clearTimeout(timer);
+      // If no role in Zustand, we might be out of sync with HttpOnly cookie.
+      // Attempt to restore session before forcefully redirecting.
+      import('@/lib/api').then(({ default: api }) => {
+        api.get('/auth/me')
+          .then(res => {
+            if (res.data.success && res.data.data) {
+              useAuthStore.getState().setAuth(res.data.data, 'restored-from-cookie');
+            } else {
+              router.replace('/login');
+            }
+          })
+          .catch(() => {
+            router.replace('/login');
+          });
+      });
+      return;
     }
 
     if (!allowedRoles.includes(normalizedRole as any)) {

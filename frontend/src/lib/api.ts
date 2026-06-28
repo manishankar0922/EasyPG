@@ -7,7 +7,7 @@ if (!API_BASE_URL && process.env.NODE_ENV === 'production') {
 }
 
 const api = axios.create({
-  baseURL: API_BASE_URL || 'http://localhost:3001/api/v1', // localhost is dev-only fallback
+  baseURL: API_BASE_URL || '/api-backend/v1', // proxy through Next.js rewrites
   timeout: 60000, // 60s — Render free tier cold starts can take up to 50s
   headers: {
     'Content-Type': 'application/json'
@@ -144,7 +144,7 @@ export const apiCall = async (
   options: RequestInit = {}
 ) => {
   const token = getToken();
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || '/api-backend/v1';
 
   const response = await fetch(`${apiUrl}${endpoint}`, {
     ...options,

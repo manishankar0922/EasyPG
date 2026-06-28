@@ -6,10 +6,12 @@ interface User {
   name: string;
   role: 'SUPER_ADMIN' | 'SUPERADMIN' | 'OWNER' | 'WARDEN' | 'STAFF' | 'TENANT';
   organizationId: string | null;
+  organisationId?: string | null;
   branchId: string | null;
   status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
   avatar?: string;
   branchName?: string;
+  organisationName?: string;
   phone?: string;
   email?: string;
   plan?: string;

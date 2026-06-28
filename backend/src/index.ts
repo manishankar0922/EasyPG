@@ -8,6 +8,7 @@ import swaggerUi from 'swagger-ui-express';
 import swaggerJsdoc from 'swagger-jsdoc';
 import { errorHandler } from './middlewares/error.middleware';
 import { requestLogger } from './middlewares/requestLogger';
+import logger from './lib/logger';
 import { startWorkers, serverAdapter } from './config/queue';
 import { generalLimiter, paymentLimiter, uploadLimiter, superadminWriteLimiter, userAwareLimiter } from './middlewares/rateLimiter';
 import { requireAuth, requireRole } from './middlewares/auth.middleware';
@@ -19,11 +20,11 @@ import prisma from './config/db';
 
 process.on('unhandledRejection', (reason: any) => {
   const msg = reason?.message || String(reason);
-  console.error('⚠️ Unhandled Promise Rejection:', msg);
+  logger.error('Unhandled Promise Rejection', { message: msg });
 });
 
 process.on('uncaughtException', (error: any) => {
-  console.error('⚠️ Uncaught Exception:', error?.message || error);
+  logger.error('Uncaught Exception', { message: error?.message || error });
 });
 
 // Import all routers
@@ -68,7 +69,8 @@ app.use(additionalSecurityHeaders);
 const allowedOrigins = [
   process.env.FRONTEND_URL || 'http://localhost:3000',
   'http://localhost:3000',
-  'http://localhost:3001'
+  'http://localhost:3001',
+  'http://127.0.0.1:3000'
 ];
 
 app.use(cors({
@@ -81,21 +83,15 @@ app.use(cors({
       return callback(null, true);
     }
     
-    // Allow dynamic subdomains (e.g., https://admin.u9pgs.in, https://tenant.u9pgs.in)
-    const baseDomain = process.env.BASE_DOMAIN || 'u9pgs.in';
     const originUrl = new URL(origin);
-    
-    if (originUrl.hostname.endsWith(`.${baseDomain}`) || originUrl.hostname === baseDomain) {
-      return callback(null, true);
-    }
 
     // Allow *.localhost for local testing
     if (originUrl.hostname.endsWith('.localhost') || originUrl.hostname === 'localhost') {
       return callback(null, true);
     }
 
-    // Allow Vercel preview/production deployments
-    if (originUrl.hostname.endsWith('.vercel.app')) {
+    // Only allow specific Vercel production domains, not any *.vercel.app wildcard
+    if (process.env.FRONTEND_URL && origin === process.env.FRONTEND_URL) {
       return callback(null, true);
     }
     
@@ -214,7 +210,12 @@ const swaggerOptions = {
 };
 
 const swaggerSpec = swaggerJsdoc(swaggerOptions);
-app.use('/api/v1/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+// OpenAPI Swagger — development only, gated in production (prevents API surface mapping by attackers)
+if (process.env.NODE_ENV !== 'production') {
+  app.use('/api/v1/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+} else {
+  app.use('/api/v1/docs', requireAuth, requireRole('SUPERADMIN', 'SUPER_ADMIN'), swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+}
 
 // Health endpoints
 app.get('/api/v1/health', (req: Request, res: Response) => {
@@ -222,7 +223,7 @@ app.get('/api/v1/health', (req: Request, res: Response) => {
 });
 
 // DB health — protected: internal DB counts must not be exposed publicly
-app.get('/api/v1/health/db', requireAuth, requireRole('SUPERADMIN', 'SUPER_ADMIN'), async (req: Request, res: Response) => {
+app.get('/api/v1/health/db', async (req: Request, res: Response) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
     // Only return counts in development; production exposes minimal info
@@ -253,7 +254,7 @@ app.get('/api/v1/health/db', requireAuth, requireRole('SUPERADMIN', 'SUPER_ADMIN
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/admissions', admissionRoutes);
 app.use('/api/v1/tenant-auth', tenantAuthRoutes);
-app.use('/api/v1/tenant-portal', tenantPortalRoutes);
+app.use('/api/v1/tenant-portal', userAwareLimiter, tenantPortalRoutes);
 
 // STEP 7 — Protected routes (auth required)
 app.use('/api/v1/users', userRoutes);

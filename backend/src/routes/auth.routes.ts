@@ -165,6 +165,10 @@ router.post('/login',
           role: user.role,
           organisationId: user.organisationId,
           branchId: user.branchId,
+          // Branch name is used by WhatsApp receipts to show hostel name instead of "U9PGs"
+          branchName: user.branch?.name || null,
+          // Organisation name as fallback for owners (no specific branch)
+          organisationName: user.organisation?.name || null,
           plan: (() => {
             const sub = user.organisation?.subscription;
             if (!sub) return 'PRO';
