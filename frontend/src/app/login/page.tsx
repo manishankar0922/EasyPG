@@ -40,8 +40,8 @@ export default function AdminLogin() {
       localStorage.setItem('u9pgs_token', data.token);
       localStorage.setItem('u9pgs_user', JSON.stringify(data.user));
       
-      // Fire-and-forget
-      setServerSideCookies(data.token, data.user.role);
+      // Ensure cookie is fully written before redirecting!
+      await setServerSideCookies(data.token, data.user.role);
       setAuth(data.user, data.token);
 
       const role = data.user.role;
