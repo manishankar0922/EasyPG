@@ -14,7 +14,12 @@ router.get('/', async (req, res) => {
   const orgId = req.user!.organizationId;
   const { role, branchId: userBranchId } = req.user!;
 
+  const page = Number(req.query.page) || 1;
+  const limit = Number(req.query.limit) || 50;
+  
   const invoices = await prisma.invoice.findMany({
+    skip: (page - 1) * limit,
+    take: limit,
     where: {
       organizationId: orgId,
       ...(role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && {
@@ -23,7 +28,16 @@ router.get('/', async (req, res) => {
       ...(status && { status: status as any }),
       ...(tenantId && { tenantId: tenantId as string }),
     },
-    include: { tenant: true },
+    select: {
+      id: true,
+      month: true,
+      amount: true,
+      dueDate: true,
+      status: true,
+      createdAt: true,
+      tenantId: true,
+      tenant: { select: { id: true, name: true, phone: true } }
+    },
     orderBy: { createdAt: 'desc' }
   });
 

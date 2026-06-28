@@ -197,6 +197,7 @@ model Tenant {
   @@index([status])
   @@index([organizationId, status])
   @@index([phone])
+  @@index([name])
   @@map("tenants")
 }
 
@@ -228,6 +229,7 @@ model Admission {
   @@index([roomId, status])
   @@index([tenantId])
   @@index([organizationId])
+  @@index([checkinDate])
   @@map("admissions")
 }
 
@@ -254,6 +256,8 @@ model Invoice {
 
   @@index([tenantId])
   @@index([organizationId])
+  @@index([createdAt])
+  @@index([month])
   @@map("invoices")
 }
 
@@ -286,6 +290,8 @@ model Payment {
   @@index([ledgerId])
   @@index([invoiceId])
   @@index([organizationId])
+  @@index([paymentDate])
+  @@index([createdAt])
   @@map("payments")
 }
 

@@ -7,6 +7,11 @@ const globalForPrisma = globalThis as unknown as {
 const prisma =
   globalForPrisma.prisma ??
   new PrismaClient({
+    datasources: {
+      db: {
+        url: process.env.DATABASE_URL ? (process.env.DATABASE_URL + (process.env.DATABASE_URL.includes('?') ? '&' : '?') + 'connection_limit=20&pool_timeout=15') : undefined
+      }
+    },
     // Only log errors/warnings — query logging is a CPU and memory hog in production
     log: process.env.NODE_ENV === 'production'
       ? [

@@ -46,18 +46,28 @@ router.get('/', async (req, res) => {
           }
         })
       },
-      include: {
+      select: {
+        monthlyRent: true,
+        checkinDate: true,
+        checkoutDate: true,
         tenant: {
-          include: {
+          select: {
+            id: true,
+            name: true,
+            photoUrl: true,
+            status: true,
             invoices: {
-              where: {
-                createdAt: { gte: currentMonthStart }
-              }
+              where: { createdAt: { gte: currentMonthStart } },
+              select: { status: true }
             }
           }
         },
-        room: true,
-        bed: true,
+        room: {
+          select: { roomNumber: true }
+        },
+        bed: {
+          select: { bedNumber: true }
+        }
       },
       orderBy: { checkinDate: 'desc' }
     });
@@ -113,6 +123,7 @@ router.get('/search', async (req, res) => {
   const { role, branchId: userBranchId } = req.user!;
 
   const tenants = await prisma.tenant.findMany({
+    take: 20, // Limit results to prevent overwhelming the client and DB
     where: {
       organizationId: orgId,
       ...(role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && {
