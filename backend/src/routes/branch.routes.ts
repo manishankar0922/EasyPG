@@ -546,26 +546,50 @@ router.get('/:id/rooms', async (req, res) => {
     };
 
     if (floor) whereClause.floor = Number(floor);
-    if (status === 'VACANT') whereClause.occupiedCapacity = 0;
-    if (status === 'FULL') whereClause.occupiedCapacity = { gt: 0 }; 
 
     let rooms = await prisma.room.findMany({
       where: whereClause,
-      include: { beds: true }
+      select: {
+        id: true,
+        roomNumber: true,
+        floor: true,
+        roomType: true,
+        totalCapacity: true,
+        rentAmount: true,
+        genderType: true,
+        status: true,
+        hasAC: true,
+        beds: {
+          select: {
+            id: true,
+            bedNumber: true,
+            isOccupied: true
+          }
+        }
+      }
     });
 
-    if (status === 'FULL') rooms = rooms.filter(r => r.occupiedCapacity === r.totalCapacity);
-    if (status === 'PARTIAL') rooms = rooms.filter(r => r.occupiedCapacity > 0 && r.occupiedCapacity < r.totalCapacity);
+    let formattedRooms = rooms.map(r => {
+      const actualOccupied = r.beds.filter(b => b.isOccupied).length;
+      return {
+        ...r,
+        occupiedCapacity: actualOccupied
+      };
+    });
+
+    if (status === 'VACANT') formattedRooms = formattedRooms.filter(r => r.occupiedCapacity === 0);
+    if (status === 'FULL') formattedRooms = formattedRooms.filter(r => r.occupiedCapacity >= r.totalCapacity);
+    if (status === 'PARTIAL') formattedRooms = formattedRooms.filter(r => r.occupiedCapacity > 0 && r.occupiedCapacity < r.totalCapacity);
 
     if (sortBy === 'vacancy') {
-      rooms.sort((a, b) => (a.occupiedCapacity / a.totalCapacity) - (b.occupiedCapacity / b.totalCapacity));
+      formattedRooms.sort((a, b) => (a.occupiedCapacity / a.totalCapacity) - (b.occupiedCapacity / b.totalCapacity));
     } else if (sortBy === 'rent') {
-      rooms.sort((a, b) => Number(a.rentAmount) - Number(b.rentAmount));
+      formattedRooms.sort((a, b) => Number(a.rentAmount) - Number(b.rentAmount));
     } else {
-      rooms.sort((a, b) => a.floor - b.floor);
+      formattedRooms.sort((a, b) => a.floor - b.floor);
     }
 
-    res.json({ success: true, data: rooms });
+    res.json({ success: true, data: formattedRooms });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to fetch rooms' });
   }
