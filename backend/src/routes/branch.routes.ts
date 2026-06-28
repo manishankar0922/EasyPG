@@ -624,10 +624,11 @@ router.get('/:id/heatmap', requireProPlan, async (req, res) => {
     const heatmapData = rooms.reduce((acc: any, room) => {
       if (!acc[room.floor]) acc[room.floor] = [];
       
+      const actualOccupied = room.admissions.length;
       let status = 'INACTIVE';
       if (room.status !== 'INACTIVE') {
-        if (room.occupiedCapacity === 0) status = 'VACANT';
-        else if (room.occupiedCapacity === room.totalCapacity) status = 'FULL';
+        if (actualOccupied === 0) status = 'VACANT';
+        else if (actualOccupied >= room.totalCapacity) status = 'FULL';
         else status = 'PARTIAL';
       }
 
@@ -635,7 +636,7 @@ router.get('/:id/heatmap', requireProPlan, async (req, res) => {
         roomId: room.id,
         roomName: room.roomNumber,
         totalBeds: room.totalCapacity,
-        occupiedBeds: room.occupiedCapacity,
+        occupiedBeds: actualOccupied,
         status,
         hasAC: room.hasAC,
         tenants: (room as any).admissions.map((a: any) => ({

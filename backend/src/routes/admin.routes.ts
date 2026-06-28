@@ -536,10 +536,11 @@ router.get('/organisations/:orgId/heatmap', async (req, res) => {
     for (const room of rooms) {
       if (!byFloor[room.floor]) byFloor[room.floor] = [];
 
+      const actualOccupied = room.beds.filter(b => b.isOccupied).length;
       let status = 'INACTIVE';
       if (room.status !== 'INACTIVE') {
-        if (room.occupiedCapacity === 0) status = 'VACANT';
-        else if (room.occupiedCapacity === room.totalCapacity) status = 'FULL';
+        if (actualOccupied === 0) status = 'VACANT';
+        else if (actualOccupied >= room.totalCapacity) status = 'FULL';
         else status = 'PARTIAL';
       }
       // NO_BEDS: room exists but totalCapacity is 0
@@ -549,8 +550,8 @@ router.get('/organisations/:orgId/heatmap', async (req, res) => {
         roomId: room.id,
         roomName: room.roomNumber,
         totalBeds: room.totalCapacity,
-        occupiedBeds: room.occupiedCapacity,
-        vacantBeds: room.totalCapacity - room.occupiedCapacity,
+        occupiedBeds: actualOccupied,
+        vacantBeds: room.totalCapacity - actualOccupied,
         rentPerBed: Number(room.rentAmount),
         status,
       });

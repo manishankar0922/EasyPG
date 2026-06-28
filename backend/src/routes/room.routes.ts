@@ -35,13 +35,28 @@ router.get('/', async (req, res) => {
     prisma.room.count({ where: whereClause }),
     prisma.room.findMany({
       where: whereClause,
-      include: { 
-        branch: true,
+      select: {
+        id: true,
+        roomNumber: true,
+        floor: true,
+        roomType: true,
+        totalCapacity: true,
+        occupiedCapacity: true, // We'll keep this for backwards compatibility if frontend uses it, but beds.length is better
+        rentAmount: true,
+        genderType: true,
+        status: true,
+        hasAC: true,
+        branch: { select: { id: true, name: true } },
         beds: {
-          include: {
+          select: {
+            id: true,
+            bedNumber: true,
+            isOccupied: true,
             admissions: {
               where: { status: 'ACTIVE' },
-              include: { tenant: { select: { id: true, name: true, photoUrl: true } } }
+              select: {
+                tenant: { select: { id: true, name: true, photoUrl: true } }
+              }
             }
           }
         }
@@ -74,11 +89,24 @@ router.get('/availability', async (req, res) => {
       status: 'ACTIVE',
       ...(role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && { branchId: userBranchId })
     },
-    include: { branch: true }
+    select: {
+      id: true,
+      roomNumber: true,
+      floor: true,
+      totalCapacity: true,
+      rentAmount: true,
+      branch: { select: { id: true, name: true } },
+      beds: { select: { isOccupied: true } }
+    }
   });
 
-  const availableRooms = rooms.filter(r => r.occupiedCapacity < r.totalCapacity);
-  res.json({ success: true, data: availableRooms });
+  const availableRooms = rooms.filter(r => r.beds.filter(b => b.isOccupied).length < r.totalCapacity);
+  const formattedRooms = availableRooms.map(r => ({
+    ...r,
+    occupiedCapacity: r.beds.filter(b => b.isOccupied).length,
+    beds: undefined // Clean up payload
+  }));
+  res.json({ success: true, data: formattedRooms });
 });
 
 // GET /rooms/occupancy
@@ -91,11 +119,11 @@ router.get('/occupancy', async (req, res) => {
       organizationId: orgId,
       ...(role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && { branchId: userBranchId })
     },
-    select: { totalCapacity: true, occupiedCapacity: true }
+    select: { totalCapacity: true, beds: { select: { isOccupied: true } } }
   });
 
   const total = rooms.reduce((acc, r) => acc + r.totalCapacity, 0);
-  const occupied = rooms.reduce((acc, r) => acc + r.occupiedCapacity, 0);
+  const occupied = rooms.reduce((acc, r) => acc + r.beds.filter(b => b.isOccupied).length, 0);
 
   res.json({ 
     success: true, 
@@ -305,7 +333,8 @@ router.get('/:id/analytics', async (req, res) => {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
-    const occupancyRate = room.totalCapacity > 0 ? (room.occupiedCapacity / room.totalCapacity) * 100 : 0;
+    const actualOccupied = room.beds.filter(b => b.isOccupied).length;
+    const occupancyRate = room.totalCapacity > 0 ? (actualOccupied / room.totalCapacity) * 100 : 0;
     
     let expectedRent = 0;
     let collectedRent = 0;
