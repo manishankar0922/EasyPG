@@ -189,12 +189,14 @@ router.get('/:id/monthly-report', async (req, res) => {
         room: branchFilter,
         tenant: { organizationId: orgId }
       },
-      include: {
-        room: { include: { branch: true } },
+      select: {
+        monthlyRent: true,
+        room: { select: { branchId: true } },
         tenant: {
-          include: {
+          select: {
             rentLedgers: {
-              where: { month: queryMonth, year: queryYear }
+              where: { month: queryMonth, year: queryYear },
+              select: { paidAmount: true, balanceFromLastMonth: true }
             }
           }
         }
@@ -215,6 +217,9 @@ router.get('/:id/monthly-report', async (req, res) => {
             }
           }
         }
+      },
+      select: {
+        paidAmount: true
       }
     });
 
@@ -224,7 +229,18 @@ router.get('/:id/monthly-report', async (req, res) => {
         organizationId: orgId,
         room: branchFilter
       },
-      include: { room: { include: { branch: true } } }
+      select: {
+        room: {
+          select: {
+            branch: {
+              select: {
+                id: true,
+                name: true
+              }
+            }
+          }
+        }
+      }
     });
 
     // Calculate this month
