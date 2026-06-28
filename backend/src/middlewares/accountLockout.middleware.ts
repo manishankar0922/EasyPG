@@ -22,6 +22,8 @@
  */
 
 import { Request, Response, NextFunction } from 'express';
+import { redisConnection } from '../jobs/index';
+import logger from '../lib/logger';
 
 interface LockoutEntry {
   attempts: number;
@@ -29,8 +31,8 @@ interface LockoutEntry {
   lockCount: number;           // how many times this account has been locked
 }
 
-// In-memory store (replace with Redis adapter in production)
-const lockoutStore = new Map<string, LockoutEntry>();
+// In-memory store (fallback for dev)
+const memoryStore = new Map<string, LockoutEntry>();
 
 const MAX_ATTEMPTS = 5;  // Failed attempts before lockout
 const LOCKOUT_DURATIONS = [
@@ -40,14 +42,59 @@ const LOCKOUT_DURATIONS = [
 ];
 
 const WINDOW_MS = 30 * 60 * 1000; // Reset attempt counter after 30 min of no failures
+const isProd = process.env.NODE_ENV === 'production';
+
+const getEntry = async (identifier: string): Promise<LockoutEntry | null> => {
+  if (isProd) {
+    try {
+      const data = await redisConnection.get(`lockout:${identifier}`);
+      return data ? JSON.parse(data) : null;
+    } catch (err) {
+      logger.error('Redis getEntry error', { error: err });
+      return null;
+    }
+  }
+  return memoryStore.get(identifier) || null;
+};
+
+const setEntry = async (identifier: string, entry: LockoutEntry, ttlMs: number): Promise<void> => {
+  if (isProd) {
+    try {
+      await redisConnection.set(`lockout:${identifier}`, JSON.stringify(entry), 'PX', ttlMs);
+    } catch (err) {
+      logger.error('Redis setEntry error', { error: err });
+    }
+    return;
+  }
+  
+  memoryStore.set(identifier, entry);
+  setTimeout(() => {
+    const current = memoryStore.get(identifier);
+    if (current && !current.lockedUntil && Date.now() >= (Date.now() + ttlMs - 1000)) { // rough check
+      memoryStore.delete(identifier);
+    }
+  }, ttlMs);
+};
+
+const deleteEntry = async (identifier: string): Promise<void> => {
+  if (isProd) {
+    try {
+      await redisConnection.del(`lockout:${identifier}`);
+    } catch (err) {
+      logger.error('Redis deleteEntry error', { error: err });
+    }
+    return;
+  }
+  memoryStore.delete(identifier);
+};
 
 /**
  * Records a FAILED login attempt for the given identifier.
  * Returns { locked: true, lockedUntil } if the account should now be locked.
  */
-export const recordFailedAttempt = (identifier: string): { locked: boolean; lockedUntil?: Date; remainingAttempts?: number } => {
+export const recordFailedAttempt = async (identifier: string): Promise<{ locked: boolean; lockedUntil?: Date; remainingAttempts?: number }> => {
   const now = Date.now();
-  const existing = lockoutStore.get(identifier) ?? { attempts: 0, lockedUntil: null, lockCount: 0 };
+  let existing = await getEntry(identifier) ?? { attempts: 0, lockedUntil: null, lockCount: 0 };
 
   // If currently locked, reject immediately
   if (existing.lockedUntil && now < existing.lockedUntil) {
@@ -70,19 +117,12 @@ export const recordFailedAttempt = (identifier: string): { locked: boolean; lock
     existing.lockCount += 1;
     existing.attempts = 0; // Reset counter after applying lockout
 
-    lockoutStore.set(identifier, existing);
+    // ttl is max of lockDuration or window
+    await setEntry(identifier, existing, Math.max(lockDuration, WINDOW_MS));
     return { locked: true, lockedUntil: new Date(existing.lockedUntil) };
   }
 
-  lockoutStore.set(identifier, existing);
-
-  // Schedule cleanup to avoid memory growth
-  setTimeout(() => {
-    const entry = lockoutStore.get(identifier);
-    if (entry && !entry.lockedUntil && Date.now() - now > WINDOW_MS) {
-      lockoutStore.delete(identifier);
-    }
-  }, WINDOW_MS);
+  await setEntry(identifier, existing, WINDOW_MS);
 
   return {
     locked: false,
@@ -93,24 +133,25 @@ export const recordFailedAttempt = (identifier: string): { locked: boolean; lock
 /**
  * Clears the lockout state for an identifier after a SUCCESSFUL login.
  */
-export const clearLockout = (identifier: string): void => {
-  lockoutStore.delete(identifier);
+export const clearLockout = async (identifier: string): Promise<void> => {
+  await deleteEntry(identifier);
 };
 
 /**
  * Checks if an identifier is currently locked.
  * Use at the start of login handlers to reject locked accounts early.
  */
-export const checkLockout = (identifier: string): { locked: boolean; lockedUntil?: Date } => {
+export const checkLockout = async (identifier: string): Promise<{ locked: boolean; lockedUntil?: Date }> => {
   const now = Date.now();
-  const entry = lockoutStore.get(identifier);
+  const entry = await getEntry(identifier);
 
   if (!entry || !entry.lockedUntil) return { locked: false };
+  
   if (now >= entry.lockedUntil) {
     // Lock expired
     entry.lockedUntil = null;
     entry.attempts = 0;
-    lockoutStore.set(identifier, entry);
+    await setEntry(identifier, entry, WINDOW_MS);
     return { locked: false };
   }
 
@@ -122,25 +163,29 @@ export const checkLockout = (identifier: string): { locked: boolean; lockedUntil
  * Expects the identifier in req.body.email or req.body.phone.
  * Must be called AFTER body parsing middleware.
  */
-export const accountLockoutMiddleware = (req: Request, res: Response, next: NextFunction): void => {
-  const identifier = (req.body?.email || req.body?.phone || '').toString().toLowerCase().trim();
+export const accountLockoutMiddleware = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const identifier = (req.body?.email || req.body?.phone || '').toString().toLowerCase().trim();
 
-  if (!identifier) {
+    if (!identifier) {
+      next();
+      return;
+    }
+
+    const { locked, lockedUntil } = await checkLockout(identifier);
+
+    if (locked) {
+      res.status(423).json({
+        success: false,
+        error: 'Account temporarily locked due to too many failed login attempts.',
+        lockedUntil: lockedUntil?.toISOString(),
+        retryAfter: lockedUntil ? Math.ceil((lockedUntil.getTime() - Date.now()) / 1000) : null,
+      });
+      return;
+    }
+
     next();
-    return;
+  } catch (err) {
+    next(err);
   }
-
-  const { locked, lockedUntil } = checkLockout(identifier);
-
-  if (locked) {
-    res.status(423).json({
-      success: false,
-      error: 'Account temporarily locked due to too many failed login attempts.',
-      lockedUntil: lockedUntil?.toISOString(),
-      retryAfter: lockedUntil ? Math.ceil((lockedUntil.getTime() - Date.now()) / 1000) : null,
-    });
-    return;
-  }
-
-  next();
 };

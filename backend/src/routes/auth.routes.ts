@@ -4,7 +4,7 @@ import jwt from 'jsonwebtoken'
 import crypto from 'crypto'
 import { z } from 'zod'
 import prisma from '../config/db'
-import { authLimiter } from '../middlewares/rateLimiter'
+import { authLimiter, passwordResetLimiter } from '../middlewares/rateLimiter'
 import { validate } from '../middlewares/validate'
 import { requireAuth, requireRole } from '../middlewares/auth.middleware'
 import {
@@ -12,6 +12,8 @@ import {
   recordFailedAttempt,
   clearLockout,
 } from '../middlewares/accountLockout.middleware'
+import { getClientIp } from '../middlewares/ipBlacklist.middleware'
+import { logSecurityEvent, SecurityEventType } from '../lib/securityAudit'
 
 // Dummy hash used for timing-safe comparison when user does not exist.
 // Without this, an attacker can determine valid emails by measuring response time:
@@ -41,14 +43,30 @@ const loginSchema = z.object({
 const createOwnerSchema = z.object({
   name: z.string().min(2, 'Name is required').max(100, 'Name too long').trim(),
   email: z.string().email('Invalid email').max(254).toLowerCase().trim(),
-  password: z.string().min(8, 'Minimum 8 characters').max(128, 'Password too long')
-    .regex(/[a-z]/, 'Must contain lowercase')
-    .regex(/[A-Z]/, 'Must contain uppercase')
-    .regex(/[0-9]/, 'Must contain a number')
-    .regex(/[^a-zA-Z0-9]/, 'Must contain a special character'),
+  password: z.string()
+    .min(8, 'Password must be at least 8 characters')
+    .max(128, 'Password too long') // Prevent hashing large inputs (OWASP DoS)
+    .regex(/[A-Z]/, 'Must contain an uppercase letter')
+    .regex(/[a-z]/, 'Must contain a lowercase letter')
+    .regex(/[0-9]/, 'Must contain a number'),
   phone: z.string().regex(/^[6-9]\d{9}$/, 'Invalid Indian mobile number').optional(),
-  organisationId: z.string().min(5, 'Invalid organisation ID').max(40),
-}).strict(); // reject unexpected fields
+  organisationId: z.string().cuid('Invalid organisation ID format'),
+}).strict()
+
+const forgotPasswordSchema = z.object({
+  email: z.string().email().max(254)
+}).strict();
+
+const resetPasswordSchema = z.object({
+  email: z.string().email().max(254),
+  token: z.string(),
+  newPassword: z.string()
+    .min(8, 'Password must be at least 8 characters')
+    .max(128, 'Password too long')
+    .regex(/[A-Z]/, 'Must contain an uppercase letter')
+    .regex(/[a-z]/, 'Must contain a lowercase letter')
+    .regex(/[0-9]/, 'Must contain a number'),
+}).strict();
 
 const router = Router()
 
@@ -96,7 +114,14 @@ router.post('/login',
 
       if (!user || !isValid) {
         // Record failed attempt for account lockout tracking
-        const lockResult = recordFailedAttempt(identifier);
+        const lockResult = await recordFailedAttempt(identifier);
+        
+        await logSecurityEvent({
+          eventType: SecurityEventType.LOGIN_FAILURE,
+          userId: user ? user.id : undefined,
+          req,
+          metadata: { identifier, locked: lockResult.locked }
+        });
 
         // Generic error message — never reveal whether email exists or password is wrong
         if (lockResult.locked) {
@@ -128,7 +153,7 @@ router.post('/login',
       }
 
       // ✅ Login successful — clear lockout state
-      clearLockout(identifier);
+      await clearLockout(identifier);
 
       // ── SESSION HIJACKING PREVENTION (FINGERPRINTING) ──
       // Hash the User-Agent and embed it in the JWT.
@@ -144,6 +169,7 @@ router.post('/login',
           organisationId: user.organisationId,
           branchId: user.branchId,
           fingerprint,
+          tokenVersion: user.tokenVersion,
         },
         JWT_SECRET,
         {
@@ -182,7 +208,13 @@ router.post('/login',
           })(),
           subscriptionStatus: user.organisation?.subscription?.status || 'ACTIVE'
         }
-      })
+      });
+
+      logSecurityEvent({
+        eventType: SecurityEventType.LOGIN_SUCCESS,
+        userId: user?.id,
+        req
+      });
 
     } catch (error) {
       next(error)
@@ -237,6 +269,87 @@ router.post('/create-owner',
 // GET /api/v1/auth/me
 router.get('/me', requireAuth, async (req: any, res) => {
   res.json({ success: true, data: req.user });
+});
+
+// POST /api/v1/auth/forgot-password
+router.post('/forgot-password', passwordResetLimiter, validate(forgotPasswordSchema), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { email } = req.body;
+    const user = await prisma.user.findUnique({ where: { email: email.toLowerCase().trim() } });
+    
+    // Always return success to prevent email enumeration
+    const successMsg = { success: true, message: 'If an account exists, a password reset link has been sent.' };
+
+    if (!user || !user.isActive) {
+      return res.status(200).json(successMsg);
+    }
+
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetTokenHash = await bcrypt.hash(resetToken, 10);
+    const resetTokenExpiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { resetTokenHash, resetTokenExpiresAt }
+    });
+
+    logSecurityEvent({
+      eventType: SecurityEventType.PASSWORD_RESET_REQUEST,
+      userId: user.id,
+      req,
+      metadata: { ip: getClientIp(req) }
+    });
+
+    // In a real application, you would send an email here with the `resetToken`.
+    // await sendEmail(user.email, `Your token is: ${resetToken}`);
+    
+    res.status(200).json(successMsg);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/v1/auth/reset-password
+router.post('/reset-password', passwordResetLimiter, validate(resetPasswordSchema), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { email, token, newPassword } = req.body;
+    const user = await prisma.user.findUnique({ where: { email: email.toLowerCase().trim() } });
+
+    if (!user || !user.resetTokenHash || !user.resetTokenExpiresAt) {
+      return res.status(400).json({ success: false, error: 'Invalid or expired token' });
+    }
+
+    if (new Date() > user.resetTokenExpiresAt) {
+      return res.status(400).json({ success: false, error: 'Token has expired' });
+    }
+
+    const isValidToken = await bcrypt.compare(token, user.resetTokenHash);
+    if (!isValidToken) {
+      return res.status(400).json({ success: false, error: 'Invalid token' });
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { 
+        passwordHash, 
+        resetTokenHash: null, 
+        resetTokenExpiresAt: null,
+        tokenVersion: { increment: 1 } // Invalidate existing JWTs
+      }
+    });
+
+    logSecurityEvent({
+      eventType: SecurityEventType.PASSWORD_RESET_SUCCESS,
+      userId: user.id,
+      req
+    });
+
+    res.status(200).json({ success: true, message: 'Password has been reset successfully. Please log in.' });
+  } catch (error) {
+    next(error);
+  }
 });
 
 export default router

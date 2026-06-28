@@ -408,6 +408,21 @@ model SystemLog {
   @@map("system_logs")
 }
 
+model SecurityEvent {
+  id           String   @id @default(cuid())
+  eventType    String   @map("event_type") @db.VarChar(50) // LOGIN_SUCCESS, PASSWORD_RESET, etc.
+  userId       String?  @map("user_id")
+  targetUserId String?  @map("target_user_id")
+  ipAddress    String?  @map("ip_address") @db.VarChar(50)
+  userAgent    String?  @map("user_agent") @db.Text
+  metadata     Json?
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([userId, createdAt])
+  @@index([eventType, createdAt])
+  @@map("security_events")
+}
+
 model Broadcast {
   id        String   @id @default(cuid())
   title     String   @db.VarChar(100)
@@ -420,19 +435,22 @@ model Broadcast {
 }
 
 model User {
-  id             String        @id @default(cuid())
-  name           String
-  email          String?       @unique
-  passwordHash   String?
-  phone          String?       @unique
-  role           Role          @default(WARDEN)
-  organisationId String?       @map("organization_id")
-  organisation   Organization? @relation(fields: [organisationId], references: [id])
-  branchId       String?       @map("branch_id")
-  branch         Branch?       @relation(fields: [branchId], references: [id])
-  isActive       Boolean       @default(true)
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  id                  String        @id @default(cuid())
+  name                String
+  email               String?       @unique
+  passwordHash        String?
+  phone               String?       @unique
+  role                Role          @default(WARDEN)
+  organisationId      String?       @map("organization_id")
+  organisation        Organization? @relation(fields: [organisationId], references: [id])
+  branchId            String?       @map("branch_id")
+  branch              Branch?       @relation(fields: [branchId], references: [id])
+  isActive            Boolean       @default(true)
+  tokenVersion        Int           @default(0) @map("token_version")
+  resetTokenHash      String?       @map("reset_token_hash")
+  resetTokenExpiresAt DateTime?     @map("reset_token_expires_at")
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
 
   recordedPayments Payment[] @relation("PaymentRecordedBy")
 

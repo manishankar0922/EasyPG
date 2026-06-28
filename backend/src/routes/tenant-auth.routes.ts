@@ -83,7 +83,7 @@ router.post('/login',
 
       if (!tenant || !isValidPassword) {
         // Record failed attempt for account lockout tracking
-        const lockResult = recordFailedAttempt(sanitizedPhone);
+        const lockResult = await recordFailedAttempt(sanitizedPhone);
 
         if (lockResult.locked) {
           return res.status(423).json({
