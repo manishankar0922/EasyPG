@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import prisma from '../config/db';
 import { addIpStrike, getClientIp } from './ipBlacklist.middleware';
+import { logSecurityEvent, SecurityEventType } from '../lib/securityAudit';
 
 declare global {
   namespace Express {
@@ -51,6 +52,7 @@ export const requireAuth = async (
       organisationId: string;
       branchId: string;
       fingerprint?: string;
+      tokenVersion?: number;
     };
 
     // ── SESSION HIJACKING PREVENTION (FINGERPRINT VERIFICATION) ──
@@ -60,7 +62,13 @@ export const requireAuth = async (
       
       if (decoded.fingerprint !== currentFingerprint) {
         // Token was stolen and is being used from a different browser/device
-        addIpStrike(getClientIp(req), 'Session Hijacking Attempt (Fingerprint Mismatch)');
+        await addIpStrike(getClientIp(req), 'Session Hijacking Attempt (Fingerprint Mismatch)');
+        await logSecurityEvent({
+          eventType: SecurityEventType.SESSION_HIJACK_ATTEMPT,
+          userId: decoded.userId,
+          req,
+          metadata: { decodedFingerprint: decoded.fingerprint, currentFingerprint }
+        });
         return res.status(401).json({
           success: false,
           error: 'Session hijacking detected or browser changed. Please login again.',
@@ -91,6 +99,7 @@ export const requireAuth = async (
         isActive: true,
         organisationId: true,
         branchId: true,
+        tokenVersion: true,
         organisation: {
           select: { subscription: true }
         }
@@ -108,6 +117,13 @@ export const requireAuth = async (
       return res.status(403).json({
         success: false,
         error: 'Account deactivated. Contact admin.'
+      });
+    }
+
+    if (decoded.tokenVersion !== undefined && decoded.tokenVersion !== user.tokenVersion) {
+      return res.status(401).json({
+        success: false,
+        error: 'Session invalidated due to security changes. Please login again.'
       });
     }
 

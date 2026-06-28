@@ -289,7 +289,7 @@ app.use(errorHandler);
 const PORT = process.env.PORT || 3001;
 if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
   app.listen(PORT, () => {
-    console.log(`
+    logger.info(`
     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     🚀 U9PGs Server Running
     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -310,12 +310,12 @@ if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
       setInterval(async () => {
         try {
           const response = await fetch(PING_URL, { method: 'GET', signal: AbortSignal.timeout(5000) });
-          if (!response.ok) console.warn(`⚠️ Keep-alive ping failed: ${response.status}`);
+          if (!response.ok) logger.warn(`⚠️ Keep-alive ping failed: ${response.status}`);
         } catch (err: any) {
-          console.warn(`⚠️ Keep-alive ping error: ${err.message}`);
+          logger.warn(`⚠️ Keep-alive ping error: ${err.message}`);
         }
       }, 14 * 60 * 1000); // Every 14 minutes
-      console.log(`🔔 Keep-alive ping active → ${PING_URL}`);
+      logger.info(`🔔 Keep-alive ping active → ${PING_URL}`);
     }
     // ──────────────────────────────────────────────────────────────────────
   });
@@ -323,7 +323,7 @@ if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
   // Graceful shutdown — disconnect Prisma before process exits
   // Prevents zombie Postgres connections on Render restarts
   const gracefulShutdown = async (signal: string) => {
-    console.log(`${signal} received. Disconnecting Prisma...`);
+    logger.info(`${signal} received. Disconnecting Prisma...`);
     await prisma.$disconnect();
     process.exit(0);
   };
