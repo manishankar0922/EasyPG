@@ -12,8 +12,8 @@ export default function ProfilePage() {
   const { t, lang, switchLanguage } = useLanguage();
   const router = useRouter();
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     router.push('/login');
   };
 
