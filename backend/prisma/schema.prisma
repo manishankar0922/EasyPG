@@ -176,6 +176,7 @@ model Tenant {
   photoUrl        String?       @map("photo_url") @db.Text
   aadhaarPhotoUrl String?       @map("aadhaar_photo_url") @db.Text
   collegeName     String?       @map("college_name") @db.VarChar(150)
+  location        String?       @db.VarChar(150)
   status          TenantStatus? @default(ACTIVE)
   isVerified      Boolean       @default(false) @map("is_verified")
   createdAt       DateTime      @default(now()) @map("created_at")

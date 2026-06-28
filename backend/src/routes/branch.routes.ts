@@ -182,34 +182,26 @@ router.get('/:id/monthly-report', async (req, res) => {
 
     const branchFilter = branchId === 'all' ? {} : { branchId };
     
-    // 1. Fetch RentLedger for this month
-    const thisMonthLedgers = await prisma.rentLedger.findMany({
+    // 1. Fetch Active Admissions with RentLedgers for this month
+    const activeAdmissions = await prisma.admission.findMany({
       where: {
-        month: queryMonth,
-        year: queryYear,
-        tenant: {
-          organizationId: orgId,
-          admissions: {
-            some: {
-              room: branchFilter,
-              status: 'ACTIVE'
-            }
-          }
-        }
+        status: 'ACTIVE',
+        room: branchFilter,
+        tenant: { organizationId: orgId }
       },
       include: {
+        room: { include: { branch: true } },
         tenant: {
           include: {
-            admissions: {
-              where: { status: 'ACTIVE' },
-              include: { room: { include: { branch: true } } }
+            rentLedgers: {
+              where: { month: queryMonth, year: queryYear }
             }
           }
         }
       }
     });
 
-    // 2. Fetch RentLedger for last month
+    // 2. Fetch RentLedger for last month (we keep this for vsLastMonth diff)
     const lastMonthLedgers = await prisma.rentLedger.findMany({
       where: {
         month: lastMonth,
@@ -238,19 +230,22 @@ router.get('/:id/monthly-report', async (req, res) => {
     // Calculate this month
     let expectedRent = 0;
     let collectedRent = 0;
+    let occupiedBeds = activeAdmissions.length;
     
-    thisMonthLedgers.forEach(ledger => {
-      expectedRent += ledger.totalDue;
-      collectedRent += ledger.paidAmount;
+    activeAdmissions.forEach(admission => {
+      const ledger = admission.tenant.rentLedgers[0];
+      if (ledger) {
+        expectedRent += ledger.totalDue;
+        collectedRent += ledger.paidAmount;
+      } else {
+        expectedRent += Number(admission.monthlyRent);
+      }
     });
 
     const pendingRent = expectedRent - collectedRent;
     const collectionRate = expectedRent > 0 ? Math.round((collectedRent / expectedRent) * 100) : 0;
 
     const totalBeds = beds.length;
-    // For past months, thisMonthLedgers.length accurately represents how many tenants were billed.
-    // However, it could be greater than totalBeds if people moved in/out. We cap it at totalBeds just in case.
-    const occupiedBeds = Math.min(thisMonthLedgers.length, totalBeds);
     const occupancyRate = totalBeds > 0 ? Math.round((occupiedBeds / totalBeds) * 100) : 0;
 
     // Calculate last month
@@ -281,14 +276,18 @@ router.get('/:id/monthly-report', async (req, res) => {
       branchStats[bId].totalBeds++;
     });
 
-    // Group ledgers by branch (for occupied beds & rent)
-    thisMonthLedgers.forEach(ledger => {
-      const admission = ledger.tenant.admissions[0];
-      if (admission && admission.room.branch) {
+    // Group admissions by branch (for occupied beds & rent)
+    activeAdmissions.forEach(admission => {
+      if (admission.room.branch) {
         const bId = admission.room.branch.id;
         if (branchStats[bId]) {
-          branchStats[bId].expectedRent += ledger.totalDue;
-          branchStats[bId].collectedRent += ledger.paidAmount;
+          const ledger = admission.tenant.rentLedgers[0];
+          if (ledger) {
+            branchStats[bId].expectedRent += ledger.totalDue;
+            branchStats[bId].collectedRent += ledger.paidAmount;
+          } else {
+            branchStats[bId].expectedRent += Number(admission.monthlyRent);
+          }
           branchStats[bId].occupiedBeds++;
         }
       }

@@ -26,13 +26,15 @@ router.get('/', async (req, res) => {
     const page = Number(req.query.page) || 1;
     const limit = Number(req.query.limit) || 50;
     const skip = (page - 1) * limit;
+    
+    const isVacatedFilter = req.query.status === 'VACATED';
 
-    const activeAdmissions = await prisma.admission.findMany({
+    const admissionsQuery = await prisma.admission.findMany({
       skip,
       take: limit,
       where: {
         organizationId: orgId,
-        status: 'ACTIVE',
+        status: isVacatedFilter ? 'COMPLETED' : 'ACTIVE',
         ...(branchId && { room: { branchId } }),
         ...(newThisMonth === 'true' && { checkinDate: { gte: currentMonthStart } }),
         ...(search && {
@@ -60,7 +62,7 @@ router.get('/', async (req, res) => {
       orderBy: { checkinDate: 'desc' }
     });
 
-    let formattedTenants = activeAdmissions.map(admission => {
+    let formattedTenants = admissionsQuery.map(admission => {
       const currentMonthInvoices = admission.tenant.invoices as any[];
       const fullyPaidInvoice = currentMonthInvoices.find(inv => inv.status === 'PAID');
       
@@ -74,8 +76,10 @@ router.get('/', async (req, res) => {
         roomNumber: admission.room.roomNumber,
         bedName: admission.bed?.bedNumber || '',
         moveInDate: admission.checkinDate,
-        paymentStatus: isPaid ? 'PAID' : 'UNPAID',
+        checkoutDate: admission.checkoutDate,
+        paymentStatus: isVacatedFilter ? 'VACATED' : (isPaid ? 'PAID' : 'UNPAID'),
         rentPending: rentPending,
+        status: admission.tenant.status
       };
     });
 
@@ -288,7 +292,7 @@ router.post('/:id/vacate-notice', validate(z.object({
 // Create tenant
 router.post('/', validate(createTenantSchema), async (req, res) => {
   const { 
-    name, phone, parentPhone, aadhaarLast4, photoUrl, aadhaarPhotoUrl, collegeName, status,
+    name, phone, parentPhone, aadhaarLast4, photoUrl, aadhaarPhotoUrl, collegeName, location, status,
     roomId, bedId, monthlyRent, checkinDate, depositAmount, pastDues, isVerified
   } = req.body;
   const orgId = req.user!.organizationId;
@@ -309,7 +313,7 @@ router.post('/', validate(createTenantSchema), async (req, res) => {
       // 2. Create Tenant
       const tenant = await tx.tenant.create({
         data: {
-          name, phone, parentPhone, aadhaarLast4, photoUrl, aadhaarPhotoUrl, collegeName,
+          name, phone, parentPhone, aadhaarLast4, photoUrl, aadhaarPhotoUrl, collegeName, location,
           status: status || 'ACTIVE',
           isVerified: isVerified || false,
           organizationId: orgId,
