@@ -36,7 +36,7 @@ api.interceptors.request.use((config) => {
 // Handle all responses
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
     const status = error.response?.status
     const data = error.response?.data
     const url = error.config?.url
@@ -71,7 +71,13 @@ api.interceptors.response.use(
       localStorage.removeItem('u9-auth-token');
       localStorage.removeItem('u9pgs_user');
       localStorage.removeItem('u9-auth-storage'); // zustand persisted store
+      
       if (typeof window !== 'undefined') {
+        try {
+          await fetch('/api/auth/clear-session', { method: 'POST', credentials: 'same-origin' });
+        } catch (e) {
+          // ignore
+        }
         // Hard redirect — clears any in-memory React state too
         window.location.href = '/login';
       }
