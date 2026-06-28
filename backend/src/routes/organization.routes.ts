@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import prisma from '../config/db';
-import { authMiddleware } from '../middlewares/auth.middleware';
+import { authMiddleware, requireRole } from '../middlewares/auth.middleware';
 import { validate } from '../middlewares/validation.middleware';
 import { updateOrganizationSchema } from '../schemas/organization.schema';
 import { z } from 'zod';
@@ -11,7 +11,8 @@ const router = Router();
 router.use(authMiddleware);
 
 // Create Organization (Internal/Admin Onboarding)
-router.post('/', validate(z.object({
+// Restricted to SUPERADMINs only to prevent authenticated users (e.g. Wardens) from spawning spam organizations.
+router.post('/', requireRole('SUPERADMIN', 'SUPER_ADMIN'), validate(z.object({
   body: z.object({
     name: z.string().min(2).max(100),
     ownerName: z.string().min(2).max(100),

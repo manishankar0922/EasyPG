@@ -13,6 +13,15 @@ import SuccessAnimation from '@/components/shared/SuccessAnimation';
 import { useLanguage } from '@/context/LanguageContext';
 import { toast } from 'sonner';
 
+// Derive a friendly hostel/sender name from the user's auth context.
+// Priority: branchName (warden) > organisationName (owner) > generic fallback
+// Never shows 'U9PGs' to tenants — they should see their hostel's name.
+const getSenderName = (user: any): string => {
+  if (user?.branchName && user.branchName.trim()) return user.branchName.trim();
+  if ((user as any)?.organisationName && (user as any).organisationName.trim()) return (user as any).organisationName.trim();
+  return 'Hostel Management';
+};
+
 export default function TenantDetailPage() {
   const { id } = useParams();
   const { t, lang } = useLanguage();
@@ -296,7 +305,12 @@ export default function TenantDetailPage() {
                     </div>
                   )}
                   <button 
-                    onClick={() => handleWhatsAppReceipt(`https://wa.me/91${tenant.phone}?text=${encodeURIComponent(`Hello *${tenant.name}*,\n\nThis is to confirm that we have successfully received your rent payment of *₹${paidAmountThisMonth.toLocaleString()}* for the month of *${new Date().toLocaleString('en-IN', { month: 'long', year: 'numeric' })}*.\n\nThank you!\n- U9PGs Management`)}`)}
+                    onClick={() => {
+                      const msg = encodeURIComponent(
+                        `Hello *${tenant.name}*,\n\nThis is to confirm that we have successfully received your rent payment of *\u20b9${paidAmountThisMonth.toLocaleString()}* for the month of *${new Date().toLocaleString('en-IN', { month: 'long', year: 'numeric' })}*.\n\nThank you!\n- ${getSenderName(user)}`
+                      );
+                      handleWhatsAppReceipt(`https://wa.me/91${tenant.phone}?text=${msg}`);
+                    }}
                     className="ml-5 mt-2 inline-flex items-center gap-1.5 text-[11px] font-bold text-[#25D366] hover:text-[#1ead51] transition-colors bg-[#25D366]/10 px-2 py-1 rounded-md w-fit"
                   >
                     <MessageCircle className="h-3.5 w-3.5" /> {lang === 'te' ? 'WhatsApp రసీదు షేర్ చేయండి' : 'Share WhatsApp Receipt'}
@@ -493,11 +507,15 @@ export default function TenantDetailPage() {
               <SuccessAnimation message={t.paymentRecorded} />
               <div className="mt-8 w-full space-y-3">
                 <button 
-                  onClick={() => handleWhatsAppReceipt(`https://wa.me/91${tenant.phone}?text=${encodeURIComponent(
-                    `Hello *${tenant.name}*,\n\nWe have successfully received your payment of *₹${paymentAmount}* via *${paymentMode.replace('_', ' ')}*.\n\n` + 
-                    (rentPending - Number(paymentAmount) > 0 ? `Remaining Due: *₹${rentPending - Number(paymentAmount)}*\n\n` : '') +
-                    `Thank you!\n- U9PGs Management`
-                  )}`)}
+                  onClick={() => {
+                    const remaining = rentPending - Number(paymentAmount);
+                    const msg = encodeURIComponent(
+                      `Hello *${tenant.name}*,\n\nWe have successfully received your payment of *\u20b9${paymentAmount}* via *${paymentMode.replace('_', ' ')}*.\n\n` +
+                      (remaining > 0 ? `Remaining Due: *\u20b9${remaining}*\n\n` : '') +
+                      `Thank you!\n- ${getSenderName(user)}`
+                    );
+                    handleWhatsAppReceipt(`https://wa.me/91${tenant.phone}?text=${msg}`);
+                  }}
                   className={cn(
                     "w-full h-14 rounded-2xl font-bold text-lg transition-transform flex items-center justify-center gap-2 shadow-lg",
                     user?.plan === 'BASIC' && user?.subscriptionStatus !== 'TRIAL'
@@ -636,7 +654,10 @@ export default function TenantDetailPage() {
                 </p>
                 <div className="w-full space-y-3">
                   <a 
-                    href={`https://wa.me/91${tenant.phone}?text=${encodeURIComponent(`Hello ${tenant.name},\n\nYour checkout has been processed successfully. We wish you all the best in your future endeavors!\n\nThank you for staying with us,\n- Management`)}`}
+                    href={(() => {
+                      const msg = encodeURIComponent(`Hello ${tenant.name},\n\nYour checkout has been processed successfully. We wish you all the best in your future endeavors!\n\nThank you for staying with us,\n- ${getSenderName(user)}`);
+                      return `https://wa.me/91${tenant.phone}?text=${msg}`;
+                    })()}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="w-full h-14 bg-[#25D366] text-white rounded-2xl font-bold text-lg active:scale-95 transition-transform flex items-center justify-center gap-2 shadow-lg shadow-[#25D366]/20"

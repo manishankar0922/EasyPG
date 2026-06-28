@@ -59,7 +59,7 @@ export const requestLogger = (req: Request, res: Response, next: NextFunction) =
       const responseTime = Date.now() - start;
       const userId = (req as any).user?.id || (req as any).auth?.userId || 'anonymous';
       
-      const logData = {
+      const logData: any = {
         method: req.method,
         url: req.originalUrl || req.url,
         statusCode: res.statusCode,
@@ -67,6 +67,10 @@ export const requestLogger = (req: Request, res: Response, next: NextFunction) =
         userId,
         ip: req.ip,
       };
+
+      if (req.method !== 'GET') {
+        logData.payload = redactDeep(req.body);
+      }
 
       if (res.statusCode >= 500) {
         logger.error('API Request Failed', logData);

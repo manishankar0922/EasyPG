@@ -56,7 +56,7 @@ export default function MobileCameraCapture({ label, onUploadComplete, onUploadS
           0.85
         );
       };
-      img.onerror = (e) => reject(e);
+      img.onerror = () => reject(new Error('Failed to load image for compression'));
     });
   };
 
@@ -71,16 +71,16 @@ export default function MobileCameraCapture({ label, onUploadComplete, onUploadS
                        folderPath?.includes('complaint') ? 'complaints' : 'documents';
 
     const sigRes = await api.post('/upload/signature', { folder: folderType });
-    const { signature, timestamp, folder, cloudName, apiKey } = sigRes.data.data;
+    const { signature, timestamp, folder, cloudName, apiKey, allowedFormats } = sigRes.data.data;
 
-    // 2. Prepare signed payload
+    // 2. Prepare signed payload — must exactly match the params the backend signed
     const formData = new FormData()
     formData.append('file', blob)
     formData.append('api_key', apiKey)
     formData.append('timestamp', timestamp.toString())
     formData.append('signature', signature)
     formData.append('folder', folder)
-    if (docType) formData.append('public_id', docType)
+    if (allowedFormats) formData.append('allowed_formats', allowedFormats)
 
     // Robust API pattern: Exponential Backoff & Timeout Handling
     const fetchWithRetry = async (url: string, options: RequestInit, retries = 3, backoff = 1000): Promise<Response> => {
@@ -142,7 +142,7 @@ export default function MobileCameraCapture({ label, onUploadComplete, onUploadS
       setPreview(secureUrl);
       setPendingFile(null); // Clear pending file on success
     } catch (err: any) {
-      console.error('Upload error:', err);
+      console.error('Upload error:', err?.message || err, err?.response?.data || '');
       setError(
         lang === 'te'
           ? 'ఫోటో అప్లోడ్ విఫలమైంది. మీ internet connection చెక్ చేయండి.'

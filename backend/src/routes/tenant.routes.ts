@@ -440,6 +440,12 @@ router.patch('/:id/vacate', async (req, res) => {
         data: { status: 'COMPLETED', checkoutDate: new Date() }
       });
 
+      // Resolve any pending VacateNotice
+      await tx.vacateNotice.updateMany({
+        where: { tenantId, organizationId: orgId, status: 'PENDING' },
+        data: { status: 'CONFIRMED', actualVacateDate: new Date() }
+      });
+
       // Free up bed
       if (admission.bedId) {
         await tx.bed.update({
@@ -469,38 +475,56 @@ router.delete('/:id', validate(z.object({ params: z.object({ id: z.string().min(
   const tenantId = req.params.id as string;
   const orgId = req.user!.organizationId;
 
-  // Check for active admissions
-  const activeAdmissions = await prisma.admission.count({
-    where: { tenantId, organizationId: orgId, status: 'ACTIVE' }
-  });
+  try {
+    await prisma.$transaction(async (tx) => {
+      // 1. Retrieve the tenant to verify existence and ownership
+      const tenant = await tx.tenant.findFirst({
+        where: { id: tenantId, organizationId: orgId },
+        include: { admissions: { where: { status: 'ACTIVE' } } }
+      });
 
-  if (activeAdmissions > 0) {
-    return res.status(400).json({ 
-      success: false, 
-      error: 'Cannot delete tenant with an active admission. Please checkout first.' 
+      if (!tenant) {
+        throw new Error('NOT_FOUND');
+      }
+
+      if (tenant.admissions.length > 0) {
+        throw new Error('ACTIVE_ADMISSION');
+      }
+
+      // 2. Delete deeply nested dependencies first, ensuring organizationId is enforced where applicable
+      // Payment, Invoice, Admission, VacateNotice, SecurityDeposit, Notification, Complaint all have organizationId in the schema.
+      // RentLedger does not have organizationId, so we strictly use tenantId which we just verified belongs to the organization.
+      await tx.payment.deleteMany({ where: { tenantId, organizationId: orgId } });
+      await tx.invoice.deleteMany({ where: { tenantId, organizationId: orgId } });
+      await tx.admission.deleteMany({ where: { tenantId, organizationId: orgId } });
+      await tx.rentLedger.deleteMany({ where: { tenantId } });
+      
+      // 3. Delete direct tenant dependencies
+      await tx.vacateNotice.deleteMany({ where: { tenantId, organizationId: orgId } });
+      await tx.securityDeposit.deleteMany({ where: { tenantId, organizationId: orgId } });
+      await tx.notification.deleteMany({ where: { tenantId, organizationId: orgId } });
+      await tx.complaint.deleteMany({ where: { tenantId, organizationId: orgId } });
+      
+      // 4. Finally delete the tenant using delete() instead of deleteMany()
+      await tx.tenant.delete({
+        where: { id: tenantId }
+      });
     });
+
+    res.json({ success: true, message: 'Tenant and related records deleted' });
+  } catch (error: any) {
+    if (error.message === 'NOT_FOUND') {
+      return res.status(404).json({ success: false, error: 'Tenant not found' });
+    }
+    if (error.message === 'ACTIVE_ADMISSION') {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Cannot delete tenant with an active admission. Please checkout first.' 
+      });
+    }
+    console.error('Delete tenant error:', error);
+    res.status(500).json({ success: false, error: 'Failed to delete tenant' });
   }
-
-  await prisma.$transaction(async (tx) => {
-    // 1. Delete deeply nested dependencies
-    await tx.payment.deleteMany({ where: { tenantId } });
-    await tx.invoice.deleteMany({ where: { tenantId } });
-    await tx.admission.deleteMany({ where: { tenantId } });
-    await tx.rentLedger.deleteMany({ where: { tenantId } });
-    
-    // 2. Delete direct tenant dependencies
-    await tx.vacateNotice.deleteMany({ where: { tenantId } });
-    await tx.securityDeposit.deleteMany({ where: { tenantId } });
-    await tx.notification.deleteMany({ where: { tenantId } });
-    await tx.complaint.deleteMany({ where: { tenantId } });
-    
-    // 3. Finally delete the tenant
-    await tx.tenant.deleteMany({
-      where: { id: tenantId, organizationId: orgId }
-    });
-  });
-
-  res.json({ success: true, message: 'Tenant and related records deleted' });
 });
 
 // Auto-Assign Bed

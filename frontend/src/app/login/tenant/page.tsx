@@ -22,10 +22,9 @@ export default function TenantLogin() {
       // Force React to yield to the browser paint cycle immediately
       await new Promise((resolve) => setTimeout(resolve, 10));
 
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
-      const endpoint = apiUrl.endsWith('/api/v1') ? '/tenant-auth/login' : '/api/v1/tenant-auth/login';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || '/api-backend/v1';
 
-      const response = await fetch(`${apiUrl}${endpoint}`, {
+      const response = await fetch(`${apiUrl}/tenant-auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone: phoneNumber.trim(), password: tenantPassword.trim() })

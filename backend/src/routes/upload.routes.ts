@@ -28,12 +28,17 @@ router.post('/signature', validate(signatureSchema), (req, res) => {
   const { folder } = req.body;
   const timestamp = Math.round(new Date().getTime() / 1000);
 
-  // Security: only allow images & pdfs, limit file size, enforce folder
-  const paramsToSign = {
+  // Security: only allow images & pdfs, enforce folder
+  const paramsToSign: Record<string, any> = {
     timestamp,
     folder: `u9pgs/${req.user!.organizationId}/${folder}`,
-    // max_file_size limit is not directly supported in the signature by default unless passed explicitly, but we can set constraints here.
   };
+
+  if (folder === 'documents' || folder === 'complaints') {
+    paramsToSign.allowed_formats = 'png,jpg,jpeg,webp,pdf';
+  } else {
+    paramsToSign.allowed_formats = 'png,jpg,jpeg,webp';
+  }
 
   try {
     const signature = cloudinary.utils.api_sign_request(
@@ -47,6 +52,7 @@ router.post('/signature', validate(signatureSchema), (req, res) => {
         signature,
         timestamp,
         folder: paramsToSign.folder,
+        allowedFormats: paramsToSign.allowed_formats,
         cloudName: process.env.CLOUDINARY_CLOUD_NAME,
         apiKey: process.env.CLOUDINARY_API_KEY,
       }

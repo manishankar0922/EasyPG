@@ -1,6 +1,9 @@
 import { Router } from 'express';
 import prisma from '../config/db';
 import { authMiddleware } from '../middlewares/auth.middleware';
+import { validate } from '../middlewares/validation.middleware';
+import { z } from 'zod';
+import { fields } from '../middlewares/validate';
 
 const router = Router();
 router.use(authMiddleware);
@@ -50,8 +53,17 @@ router.get('/status', async (req, res) => {
   }
 });
 
+const requestSchema = z.object({
+  body: z.object({
+    plan: z.enum(['BASIC', 'PRO', 'ENTERPRISE']),
+    upiRefNumber: z.string().min(5).max(50),
+    screenshotUrl: fields.url,
+    amount: z.number().optional()
+  })
+});
+
 // POST /api/subscription/request
-router.post('/request', async (req, res) => {
+router.post('/request', validate(requestSchema), async (req, res) => {
   const orgId = req.user!.organisationId || req.user!.organizationId;
   const { plan, upiRefNumber, screenshotUrl, amount } = req.body;
 

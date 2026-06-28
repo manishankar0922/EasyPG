@@ -82,8 +82,8 @@ export default function SubscriptionPage() {
         if (res.data.success) {
           setStatus(res.data.data);
         }
-      } catch (err) {
-        console.error(err);
+      } catch {
+        // Non-critical — subscription page still renders without status
       } finally {
         setLoading(false);
       }
@@ -236,11 +236,86 @@ export default function SubscriptionPage() {
           </div>
         )}
 
+
+        {/* ── CURRENT PLAN CARD (Owner sees this at the top) ── */}
+        {status && (
+          <div className={`relative overflow-hidden rounded-3xl p-6 ${
+            status.status === 'TRIAL' ? 'bg-gradient-to-br from-blue-600 to-indigo-700' :
+            status.status === 'ACTIVE' ? 'bg-gradient-to-br from-emerald-600 to-teal-700' :
+            status.status === 'SUSPENDED' ? 'bg-gradient-to-br from-rose-600 to-red-700' :
+            'bg-gradient-to-br from-orange-500 to-amber-600'
+          } text-white shadow-xl`}>
+            {/* Decorative circle */}
+            <div className="absolute -right-8 -top-8 h-36 w-36 rounded-full bg-white/10" />
+            <div className="absolute -right-2 -bottom-6 h-24 w-24 rounded-full bg-white/10" />
+
+            <p className="text-white/70 text-xs font-bold uppercase tracking-widest mb-2 relative z-10">
+              {lang === 'te' ? 'మీ ప్రస్తుత ప్లాన్' : 'Your Current Plan'}
+            </p>
+
+            <div className="flex items-center justify-between relative z-10">
+              <div>
+                <h2 className="text-3xl font-black leading-none">
+                  {PLANS[status.plan as keyof typeof PLANS]?.name || status.plan}
+                </h2>
+                <div className="mt-1 flex items-center gap-2">
+                  <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-black ${
+                    status.status === 'TRIAL' ? 'bg-white/20 text-white' :
+                    status.status === 'ACTIVE' ? 'bg-white/20 text-white' :
+                    'bg-red-900/30 text-white'
+                  }`}>
+                    {status.status === 'TRIAL' ? '⏳ Free Trial' :
+                     status.status === 'ACTIVE' ? '✅ Active' :
+                     status.status === 'SUSPENDED' ? '🚫 Suspended' : status.status}
+                  </span>
+                </div>
+              </div>
+
+              {status.plan && PLANS[status.plan as keyof typeof PLANS] && (
+                <div className="text-right">
+                  <p className="text-white/70 text-xs font-bold uppercase tracking-widest">Monthly</p>
+                  <p className="text-2xl font-black">₹{PLANS[status.plan as keyof typeof PLANS]?.price || '—'}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Trial countdown */}
+            {status.status === 'TRIAL' && status.trialEndsAt && (() => {
+              const daysLeft = Math.ceil((new Date(status.trialEndsAt).getTime() - Date.now()) / (1000 * 3600 * 24));
+              return daysLeft >= 0 ? (
+                <div className="mt-4 relative z-10 bg-white/15 rounded-2xl p-3 flex items-center justify-between">
+                  <div>
+                    <p className="text-white font-bold text-sm">
+                      {lang === 'te' ? `${daysLeft} రోజులు మిగిలి ఉన్నాయి` : `${daysLeft} day${daysLeft !== 1 ? 's' : ''} remaining`}
+                    </p>
+                    <p className="text-white/60 text-xs font-medium mt-0.5">
+                      Ends {new Date(status.trialEndsAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    </p>
+                  </div>
+                  <div className="h-10 w-10 rounded-full bg-white/20 flex items-center justify-center">
+                    <span className="text-lg">⏰</span>
+                  </div>
+                </div>
+              ) : null;
+            })()}
+
+            {/* Renewal date for active subscriptions */}
+            {status.status === 'ACTIVE' && status.renewsAt && (
+              <div className="mt-4 relative z-10 bg-white/15 rounded-2xl p-3">
+                <p className="text-white/70 text-xs font-bold uppercase tracking-widest mb-0.5">Renews On</p>
+                <p className="text-white font-bold text-sm">
+                  {new Date(status.renewsAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
         {isTrial && trialDaysLeft >= 0 && (
           <div className="bg-blue-50 border border-blue-200 p-4 rounded-2xl flex items-center justify-between">
             <div>
               <p className="font-bold text-blue-800">⏳ Trial ends in {trialDaysLeft} days</p>
-              <p className="text-xs text-blue-600 font-medium">Upgrade to keep access</p>
+              <p className="text-xs text-blue-600 font-medium">Upgrade below to keep access</p>
             </div>
           </div>
         )}

@@ -22,10 +22,9 @@ export default function AdminLogin() {
       // Force React to yield to the browser paint cycle immediately
       await new Promise((resolve) => setTimeout(resolve, 10));
 
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
-      const endpoint = apiUrl.endsWith('/api/v1') ? '/auth/login' : '/api/v1/auth/login';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || '/api-backend/v1';
 
-      const response = await fetch(`${apiUrl}${endpoint}`, {
+      const response = await fetch(`${apiUrl}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim().toLowerCase(), password })
@@ -41,17 +40,19 @@ export default function AdminLogin() {
       localStorage.setItem('u9pgs_token', data.token);
       localStorage.setItem('u9pgs_user', JSON.stringify(data.user));
       
-      await setServerSideCookies(data.token, data.user.role);
+      // Fire-and-forget
+      setServerSideCookies(data.token, data.user.role);
       setAuth(data.user, data.token);
 
       const role = data.user.role;
       if (role === 'SUPERADMIN' || role === 'SUPER_ADMIN') {
-        router.push('/superadmin/dashboard');
+        router.replace('/superadmin/dashboard');
       } else {
-        router.push('/dashboard');
+        router.replace('/dashboard');
       }
     } catch (err: any) {
-      setError('Cannot reach server or login failed.');
+      console.error('Login error:', err);
+      setError(`Cannot reach server or login failed. ${err.message || ''}`);
     } finally {
       setLoading(false);
     }
