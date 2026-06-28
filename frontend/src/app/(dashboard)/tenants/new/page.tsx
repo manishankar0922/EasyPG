@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import MobileCameraCapture from '@/components/shared/MobileCameraCapture';
 import LoadingScreen from '@/components/shared/LoadingScreen';
-import { Loader2, UserPlus, Phone, Calendar, Banknote, BedDouble, AlertCircle, CheckCircle2, MessageCircle, User, CreditCard, School } from 'lucide-react';
+import { Loader2, UserPlus, Phone, Calendar, Banknote, BedDouble, AlertCircle, CheckCircle2, MessageCircle, User, CreditCard, School, MapPin } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/auth-store';
 import { toast } from 'sonner';
@@ -416,7 +416,7 @@ export default function AddTenantPage() {
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-slate-600">Location / Native Address (Optional)</label>
               <div className="relative">
-                <AlertCircle className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
+                <MapPin className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
                 <input 
                   type="text"
                   placeholder="e.g. Hyderabad, Telangana"

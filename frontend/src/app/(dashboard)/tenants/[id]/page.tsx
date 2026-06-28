@@ -90,6 +90,7 @@ export default function TenantDetailPage() {
   const roomNumber = activeAdmission?.room?.roomNumber || 'N/A';
   const bedName = activeAdmission?.bed?.name ? `Bed ${activeAdmission.bed.name}` : '';
   const checkinDate = activeAdmission?.checkinDate ? new Date(activeAdmission.checkinDate) : null;
+  const checkoutDate = activeAdmission?.checkoutDate ? new Date(activeAdmission.checkoutDate) : null;
   const rentAmount = activeAdmission?.monthlyRent || 0;
 
   // Compute current month's invoice
@@ -224,6 +225,11 @@ export default function TenantDetailPage() {
           {checkinDate && (
             <p className="text-xs font-medium text-slate-400 bg-slate-50 px-3 py-1 rounded-full">
               {t.stayingSince} {checkinDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+            </p>
+          )}
+          {checkoutDate && (
+            <p className="mt-1 text-xs font-medium text-orange-600 bg-orange-50 px-3 py-1 rounded-full border border-orange-100">
+              {lang === 'te' ? 'ఖాళీ చేసిన తేదీ:' : 'Moved out on:'} {checkoutDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
             </p>
           )}
 

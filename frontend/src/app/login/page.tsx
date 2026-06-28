@@ -59,55 +59,60 @@ export default function AdminLogin() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 relative overflow-hidden">
-      {/* Soft B2B Background */}
-      <div className="absolute top-0 w-full h-[400px] bg-gradient-to-b from-blue-600/10 to-transparent"></div>
+    <div className="flex min-h-screen items-center justify-center bg-[#FAFAFA] relative overflow-hidden font-sans selection:bg-slate-900 selection:text-white">
+      {/* Premium Cinematic Background Elements */}
+      <div className="absolute top-0 w-full h-[500px] bg-gradient-to-b from-slate-200/50 to-transparent"></div>
+      <div className="absolute -top-[20%] -left-[10%] w-[50%] h-[50%] bg-blue-400/10 blur-[120px] rounded-full pointer-events-none"></div>
+      <div className="absolute -bottom-[20%] -right-[10%] w-[50%] h-[50%] bg-indigo-400/10 blur-[120px] rounded-full pointer-events-none"></div>
       
-      <div className="w-full max-w-[400px] space-y-8 bg-white p-10 rounded-[2.5rem] shadow-2xl shadow-blue-900/5 relative z-10 m-4 sm:m-0 border border-slate-100">
+      <div className="w-full max-w-[420px] space-y-8 bg-white/80 backdrop-blur-xl p-10 sm:p-12 rounded-[2.5rem] shadow-[0_8px_40px_rgb(0,0,0,0.04)] relative z-10 border border-white/60 mx-4">
         <div className="text-center">
-          <div className="mx-auto w-16 h-16 rounded-2xl bg-blue-600 flex items-center justify-center mb-6 shadow-lg shadow-blue-600/30">
-            <span className="text-2xl font-black text-white">U9</span>
+          <div className="mx-auto w-16 h-16 rounded-3xl bg-slate-900 flex items-center justify-center mb-8 shadow-2xl shadow-slate-900/20">
+            <span className="text-2xl font-bold tracking-tight text-white">U9</span>
           </div>
-          <h1 className="text-2xl font-bold text-slate-900 mb-1">PG Manager</h1>
-          <p className="text-sm text-slate-500 font-medium">Log in to your dashboard</p>
+          <h1 className="text-[1.75rem] font-bold text-slate-900 tracking-tight leading-tight mb-2">Welcome back</h1>
+          <p className="text-sm text-slate-500 font-medium tracking-wide">Enter your credentials to access the workspace.</p>
         </div>
 
         {error && (
-          <div className="w-full p-4 rounded-xl bg-red-50 text-red-600 text-sm text-center font-bold">
-            {error}
+          <div className="flex items-center gap-3 w-full p-4 rounded-2xl border border-red-200 bg-red-50/50 text-red-600 text-sm font-medium animate-in fade-in slide-in-from-top-2 duration-300">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0 text-red-500"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <p className="leading-snug">{error}</p>
           </div>
         )}
 
-        <form className="mt-8 space-y-5" onSubmit={handleLogin}>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Email Address</label>
+        <form className="mt-8 space-y-6" onSubmit={handleLogin}>
+          <div className="space-y-5">
+            <div className="group">
+              <label className="block text-[0.7rem] font-bold uppercase tracking-widest text-slate-400 mb-2.5 transition-colors group-focus-within:text-slate-900">Email Address</label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <Mail className="h-5 w-5 text-slate-400" />
+                  <Mail className="h-5 w-5 text-slate-400 transition-colors group-focus-within:text-slate-900" />
                 </div>
                 <input
                   type="email"
                   required
-                  className="block w-full rounded-xl border border-slate-300 bg-white pl-11 pr-5 py-3.5 text-slate-900 placeholder-slate-400 transition-all focus:border-blue-600 focus:ring-1 focus:ring-blue-600 focus:outline-none [&:-webkit-autofill]:bg-white [&:-webkit-autofill]:[-webkit-text-fill-color:#0f172a] [&:-webkit-autofill]:[transition:background-color_5000s_ease-in-out_0s]"
-                  placeholder="owner@pg.com"
+                  className="block w-full rounded-2xl border-2 border-slate-100 bg-slate-50/50 pl-12 pr-5 py-4 text-slate-900 font-medium placeholder-slate-400 transition-all hover:bg-white focus:bg-white focus:border-slate-900 focus:ring-0 focus:outline-none [&:-webkit-autofill]:shadow-[inset_0_0_0px_1000px_#ffffff] [&:-webkit-autofill]:[-webkit-text-fill-color:#0f172a]"
+                  placeholder="name@company.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                 />
               </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Password</label>
+            <div className="group">
+              <div className="flex items-center justify-between mb-2.5">
+                <label className="block text-[0.7rem] font-bold uppercase tracking-widest text-slate-400 transition-colors group-focus-within:text-slate-900">Password</label>
+              </div>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-slate-400" />
+                  <Lock className="h-5 w-5 text-slate-400 transition-colors group-focus-within:text-slate-900" />
                 </div>
                 <input
                   type="password"
                   required
-                  className="block w-full rounded-xl border border-slate-300 bg-white pl-11 pr-5 py-3.5 text-slate-900 placeholder-slate-400 transition-all focus:border-blue-600 focus:ring-1 focus:ring-blue-600 focus:outline-none [&:-webkit-autofill]:bg-white [&:-webkit-autofill]:[-webkit-text-fill-color:#0f172a] [&:-webkit-autofill]:[transition:background-color_5000s_ease-in-out_0s]"
-                  placeholder="••••••••"
+                  className="block w-full rounded-2xl border-2 border-slate-100 bg-slate-50/50 pl-12 pr-5 py-4 text-slate-900 font-medium placeholder-slate-400 transition-all hover:bg-white focus:bg-white focus:border-slate-900 focus:ring-0 focus:outline-none [&:-webkit-autofill]:shadow-[inset_0_0_0px_1000px_#ffffff] [&:-webkit-autofill]:[-webkit-text-fill-color:#0f172a]"
+                  placeholder="••••••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                 />
@@ -118,7 +123,7 @@ export default function AdminLogin() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full flex items-center justify-center rounded-2xl bg-blue-600 px-4 py-4 text-sm font-bold text-white transition-all hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-600/30 disabled:opacity-50 mt-4 shadow-lg shadow-blue-600/20"
+            className="w-full flex items-center justify-center rounded-2xl bg-slate-900 px-4 py-4 text-[0.95rem] font-bold text-white transition-all hover:bg-slate-800 hover:shadow-xl hover:shadow-slate-900/20 hover:-translate-y-0.5 focus:outline-none focus:ring-4 focus:ring-slate-900/10 disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-none mt-2"
           >
             {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <span>Sign In Securely</span>}
           </button>

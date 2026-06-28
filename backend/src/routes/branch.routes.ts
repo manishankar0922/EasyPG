@@ -234,11 +234,14 @@ router.get('/:id/monthly-report', async (req, res) => {
     
     activeAdmissions.forEach(admission => {
       const ledger = admission.tenant.rentLedgers[0];
+      const baseRent = Number(admission.monthlyRent) || 0;
+      
       if (ledger) {
-        expectedRent += ledger.totalDue;
+        // Stable calculation: Base Rent + Past Dues
+        expectedRent += baseRent + (ledger.balanceFromLastMonth || 0);
         collectedRent += ledger.paidAmount;
       } else {
-        expectedRent += Number(admission.monthlyRent);
+        expectedRent += baseRent;
       }
     });
 

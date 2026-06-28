@@ -107,7 +107,7 @@ export const subscriptionReminderWorker = new Worker(
         ]);
 
         const ownerPhone = sub.organization.ownerPhone;
-        const msg = `⚠️ మీ U9PGs సబ్‌స్క్రిప్షన్ గడువు ముగిసింది. దయచేసి మీ ప్లాన్‌ను రెన్యూవల్ చేయండి.`;
+        const msg = `⚠️ మీ EasyPG సబ్‌స్క్రిప్షన్ గడువు ముగిసింది. దయచేసి మీ ప్లాన్‌ను రెన్యూవల్ చేయండి.`;
         console.log(`[WhatsApp Mock] Locked Expired Sub: ${sub.organization.name} | Msg: ${msg}`);
       }
 
