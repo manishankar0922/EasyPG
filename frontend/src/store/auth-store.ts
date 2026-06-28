@@ -22,7 +22,7 @@ interface AuthState {
   user: User | null;
   token: string | null;
   setAuth: (user: User, token: string) => void;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 /**
@@ -84,10 +84,10 @@ export const useAuthStore = create<AuthState>()(
         setServerSideCookies(token, safeUser.role);
         set({ user: safeUser, token });
       },
-      logout: () => {
+      logout: async () => {
         localStorage.removeItem('u9-auth-token');
         localStorage.removeItem('u9pgs_token');
-        clearServerSideCookies();
+        await clearServerSideCookies();
         set({ user: null, token: null });
       },
     }),

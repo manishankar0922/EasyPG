@@ -46,8 +46,8 @@ export default function Sidebar() {
   const user = useAuthStore((state) => state.user);
   const { isAdmin } = useUserRole();
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     router.push('/login');
   };
 

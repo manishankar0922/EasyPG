@@ -27,8 +27,8 @@ export default function TenantDashboard() {
     fetchDashboard();
   }, []);
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     router.push('/login');
   };
 

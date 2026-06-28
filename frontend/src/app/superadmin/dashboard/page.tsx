@@ -70,8 +70,8 @@ export default function SuperAdminDashboard() {
             <ShieldAlert className="h-5 w-5 text-rose-600" />
           </div>
           <button 
-            onClick={() => {
-              logout();
+            onClick={async () => {
+              await logout();
               router.push('/login');
             }}
             className="flex items-center justify-center h-10 w-10 rounded-xl bg-slate-800 border border-slate-700 text-slate-400 hover:text-rose-400 hover:border-rose-900/50 hover:bg-rose-950/20 transition-all shrink-0 ml-1"
