@@ -59,12 +59,10 @@ api.interceptors.response.use(
 
     // No response = backend not reachable
     if (!error.response) {
-      return Promise.reject(
-        new Error(
-          'Backend not reachable. ' +
-          'Is server running on port 3001?'
-        )
-      )
+      const message = process.env.NODE_ENV === 'production'
+        ? 'Backend server is unreachable. Please check your internet connection or try again in a few moments (the server may be starting up).'
+        : 'Backend not reachable. Is server running on port 3001?';
+      return Promise.reject(new Error(message));
     }
 
     if (status === 401) {

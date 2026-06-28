@@ -90,7 +90,30 @@ app.use(cors({
       return callback(null, true);
     }
 
-    // Only allow specific Vercel production domains, not any *.vercel.app wildcard
+    // Allow subdomains/prefixes of the production frontend URL
+    if (process.env.FRONTEND_URL) {
+      try {
+        const frontendUrlObj = new URL(process.env.FRONTEND_URL);
+        const frontendHost = frontendUrlObj.hostname;
+        const originUrlObj = new URL(origin);
+        const originHost = originUrlObj.hostname;
+
+        // Check if originHost equals frontendHost or is a prefixed version (e.g. admin-frontend-nine-eta-26.vercel.app or admin.frontend-nine-eta-26.vercel.app)
+        const isMatched = originHost === frontendHost ||
+          originHost.endsWith(`.${frontendHost}`) ||
+          originHost.startsWith(`admin-${frontendHost}`) ||
+          originHost.startsWith(`dev-${frontendHost}`) ||
+          originHost.startsWith(`tenant-${frontendHost}`) ||
+          originHost.startsWith(`tenet-${frontendHost}`);
+
+        if (isMatched && originUrlObj.protocol === frontendUrlObj.protocol) {
+          return callback(null, true);
+        }
+      } catch (e) {
+        // Fall back to exact match check
+      }
+    }
+
     if (process.env.FRONTEND_URL && origin === process.env.FRONTEND_URL) {
       return callback(null, true);
     }
