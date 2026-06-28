@@ -18,10 +18,12 @@ const nextConfig: NextConfig = {
     ],
   },
   async rewrites() {
+    const isProduction = process.env.NODE_ENV === 'production';
+    const backendUrl = isProduction ? 'https://u9pgs.onrender.com' : 'http://127.0.0.1:3001';
     return [
       {
         source: '/api-backend/:path*',
-        destination: 'http://127.0.0.1:3001/api/:path*',
+        destination: `${backendUrl}/api/:path*`,
       },
     ];
   },
