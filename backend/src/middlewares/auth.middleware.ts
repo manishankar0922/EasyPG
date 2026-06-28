@@ -31,6 +31,22 @@ export const requireAuth = async (
 
     const token = authHeader.split(' ')[1];
 
+    // Check Redis Blacklist for logged out tokens
+    if (process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'development') {
+      try {
+        const { redisConnection } = require('../jobs/index');
+        const isBlacklisted = await redisConnection.get(`bl:${token}`);
+        if (isBlacklisted) {
+          return res.status(401).json({
+            success: false,
+            error: 'Token has been invalidated (logged out). Please login again.'
+          });
+        }
+      } catch (e) {
+        // Fallback gracefully if Redis fails
+      }
+    }
+
     if (!process.env.JWT_SECRET) {
       console.error('❌ JWT_SECRET missing from .env!');
       return res.status(500).json({
