@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import Image from 'next/image';
-import { Phone, MessageCircle, IndianRupee, ArrowLeft, Loader2, CheckCircle2, AlertCircle, Lock } from 'lucide-react';
+import { Phone, MessageCircle, IndianRupee, ArrowLeft, Loader2, CheckCircle2, AlertCircle, Lock, Building2, CreditCard } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { useAuthStore } from '@/store/auth-store';
 import { cn } from '@/lib/utils';
@@ -388,7 +388,7 @@ export default function TenantDetailPage() {
             {tenant.collegeName && (
               <div className="flex items-center gap-3">
                 <div className="h-10 w-10 rounded-full bg-slate-50 flex items-center justify-center flex-shrink-0">
-                  <span className="text-lg">🏢</span>
+                  <Building2 className="h-5 w-5 text-slate-400" />
                 </div>
                 <div>
                   <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">{lang === 'te' ? 'కళాశాల / ఆఫీస్' : "College / Workplace"}</p>
@@ -401,7 +401,7 @@ export default function TenantDetailPage() {
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
                   <div className="h-10 w-10 rounded-full bg-slate-50 flex items-center justify-center flex-shrink-0">
-                    <span className="text-lg">🪪</span>
+                    <CreditCard className="h-5 w-5 text-slate-400" />
                   </div>
                   <div>
                     <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">{lang === 'te' ? 'ఆధార్ (చివరి 4 అంకెలు)' : "Aadhaar (Last 4)"}</p>
@@ -472,7 +472,7 @@ export default function TenantDetailPage() {
                       "text-xs font-bold px-2.5 py-1 rounded-md inline-block",
                       isInvPaid ? "text-emerald-700 bg-emerald-100" : "text-rose-700 bg-rose-100"
                     )}>
-                      {isInvPaid ? `${t.paid} ✅` : t.notPaid}
+                      {isInvPaid ? t.paid : t.notPaid}
                     </div>
                     {latestPayment?.paymentMode && (
                       <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wider">
@@ -652,7 +652,7 @@ export default function TenantDetailPage() {
             {isVacateSuccess ? (
               <div className="flex flex-col items-center justify-center pt-4 pb-2 animate-in zoom-in-95 duration-500">
                 <div className="h-20 w-20 bg-emerald-100 rounded-full flex items-center justify-center mb-4">
-                  <span className="text-4xl">👋</span>
+                  <CheckCircle2 className="h-10 w-10 text-emerald-600" />
                 </div>
                 <h3 className="text-2xl font-black text-slate-900 mb-2">Tenant Vacated</h3>
                 <p className="text-slate-500 text-center mb-8">

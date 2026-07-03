@@ -4,8 +4,9 @@ import { useEffect, useState } from 'react';
 import api from '@/lib/api';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Search, Plus, ChevronRight, User } from 'lucide-react';
+import { Search, Plus, ChevronRight, User, CheckCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { formatCurrency } from '@/lib/format';
 import { useAuthStore } from '@/store/auth-store';
 import { useLanguage } from '@/context/LanguageContext';
 import { useBranch } from '@/context/BranchContext';
@@ -82,10 +83,10 @@ export default function TenantsMobilePage() {
         <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-1">
           {[
             { id: 'ALL', label: t.all },
-            { id: 'PAID', label: `${t.paid} ✅` },
-            { id: 'UNPAID', label: `${t.notPaid} ❌` },
+            { id: 'PAID', label: t.paid },
+            { id: 'UNPAID', label: t.notPaid },
             { id: 'NEW', label: t.newThisMonth },
-            { id: 'VACATED', label: 'Vacated 🚪' }
+            { id: 'VACATED', label: t.vacated }
           ].map(chip => (
             <button
               key={chip.id}
@@ -112,16 +113,16 @@ export default function TenantsMobilePage() {
             <div className="h-24 w-24 bg-blue-50 rounded-full flex items-center justify-center mb-4">
               <User className="h-12 w-12 text-blue-200" />
             </div>
-            <h3 className="text-xl font-bold text-slate-900 mb-2">No tenants yet</h3>
+            <h3 className="text-xl font-bold text-slate-900 mb-2">{t.noTenantsYet}</h3>
             <p className="text-slate-500 mb-8">
-              {searchQuery ? "Try searching for a different name." : "Add your first tenant to get started!"}
+              {searchQuery ? t.tryDifferentSearch : t.addFirstTenantHint}
             </p>
             {!searchQuery && (
               <Link 
                 href="/tenants/new"
                 className="bg-blue-600 text-white px-8 py-3 rounded-2xl font-bold shadow-lg shadow-blue-600/20 active:scale-95 transition-transform"
               >
-                Add First Tenant
+                {t.addFirstTenant}
               </Link>
             )}
           </div>
@@ -160,15 +161,16 @@ export default function TenantsMobilePage() {
                   <div className="flex flex-col items-end gap-2 flex-shrink-0">
                     {tenant.paymentStatus === 'VACATED' ? (
                       <div className="bg-slate-100 text-slate-600 px-2.5 py-1 rounded-lg text-xs font-bold border border-slate-200/50">
-                        Vacated
+                        {t.vacated}
                       </div>
                     ) : tenant.paymentStatus === 'PAID' ? (
-                      <div className="bg-emerald-50 text-emerald-600 px-2.5 py-1 rounded-lg text-xs font-bold border border-emerald-100/50">
-                        Paid ✅
+                      <div className="flex items-center gap-1 bg-emerald-50 text-emerald-600 px-2.5 py-1 rounded-lg text-xs font-bold border border-emerald-100/50">
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        {t.paid}
                       </div>
                     ) : (
-                      <div className="bg-rose-50 text-rose-600 px-2.5 py-1 rounded-lg text-xs font-bold border border-rose-100/50">
-                        ₹{tenant.rentPending} due
+                      <div className="bg-rose-50 text-rose-600 px-2.5 py-1 rounded-lg text-xs font-bold border border-rose-100/50 tabular-nums">
+                        {formatCurrency(tenant.rentPending)} {t.due}
                       </div>
                     )}
                     <ChevronRight className="h-5 w-5 text-slate-300" />

@@ -264,9 +264,9 @@ export default function SubscriptionPage() {
                     status.status === 'ACTIVE' ? 'bg-white/20 text-white' :
                     'bg-red-900/30 text-white'
                   }`}>
-                    {status.status === 'TRIAL' ? '⏳ Free Trial' :
-                     status.status === 'ACTIVE' ? '✅ Active' :
-                     status.status === 'SUSPENDED' ? '🚫 Suspended' : status.status}
+                    {status.status === 'TRIAL' ? 'Free Trial' :
+                     status.status === 'ACTIVE' ? 'Active' :
+                     status.status === 'SUSPENDED' ? 'Suspended' : status.status}
                   </span>
                 </div>
               </div>

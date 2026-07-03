@@ -19,9 +19,11 @@ export const createRoomSchema = z.object({
 export const updateRoomSchema = z.object({
   body: z.object({
     roomNumber: z.string().min(1).max(20).optional(),
+    floor: z.number().int().min(0).max(100).optional(),
+    hasAC: z.boolean().optional(),
     roomType: RoomTypeEnum.optional(),
-    totalCapacity: z.number().int().positive().optional(),
-    rentAmount: z.number().positive().optional(),
+    totalCapacity: z.number().int().positive().max(20).optional(),
+    rentAmount: z.number().positive().max(500000).optional(),
     genderType: GenderTypeEnum.optional(),
     status: RoomStatusEnum.optional(),
   }),

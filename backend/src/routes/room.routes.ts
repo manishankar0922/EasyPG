@@ -242,17 +242,88 @@ router.post('/', validate(createRoomSchema), async (req, res) => {
   }
 });
 
-// Update room
+// Update room (owner/warden edit after creation: number, floor, type, capacity, rent, gender, AC)
+// Capacity changes keep the Bed records in sync:
+//  - increase → create new beds continuing the letter sequence
+//  - decrease → only allowed down to the number of beds that are unoccupied AND
+//    have no admission history; those beds are removed, occupied ones never are
 router.patch('/:id', validate(updateRoomSchema), async (req, res) => {
-  const roomId = req.params.id as string;
-  const room = await prisma.room.updateMany({
-    where: { id: roomId, organizationId: req.user!.organizationId as string },
-    data: req.body
-  });
+  const roomId = String(req.params.id);
+  const orgId = req.user!.organizationId as string;
+  const { role, branchId: userBranchId } = req.user!;
 
-  if (room.count === 0) return res.status(404).json({ success: false, error: 'Room not found' });
-  
-  await CacheService.deleteByPattern(`heatmap:${req.user!.organizationId}:*`);
+  const existing = await prisma.room.findFirst({
+    where: { id: roomId, organizationId: orgId },
+    include: { beds: { include: { _count: { select: { admissions: true } } } } }
+  });
+  if (!existing) return res.status(404).json({ success: false, error: 'Room not found' });
+
+  // Branch isolation: wardens/staff may only edit rooms in their own branch
+  if (role !== 'OWNER' && role !== 'SUPERADMIN' && role !== 'SUPER_ADMIN' && userBranchId !== existing.branchId) {
+    return res.status(403).json({ success: false, error: 'You can only edit rooms in your assigned branch' });
+  }
+
+  const { totalCapacity: newCapacity, ...rest } = req.body as {
+    totalCapacity?: number;
+    [key: string]: unknown;
+  };
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      // Handle capacity change with bed sync
+      if (newCapacity !== undefined && newCapacity !== existing.totalCapacity) {
+        if (newCapacity < existing.occupiedCapacity) {
+          throw Object.assign(
+            new Error(`Cannot reduce capacity below current occupancy (${existing.occupiedCapacity} occupied).`),
+            { statusCode: 400 }
+          );
+        }
+
+        if (newCapacity > existing.totalCapacity) {
+          // Add beds, continuing the letter sequence after the current count
+          const bedData = [];
+          for (let b = existing.beds.length + 1; b <= newCapacity; b++) {
+            bedData.push({
+              organizationId: orgId,
+              roomId,
+              bedNumber: `Bed ${String.fromCharCode(64 + b)}`,
+            });
+          }
+          if (bedData.length > 0) await tx.bed.createMany({ data: bedData });
+        } else {
+          // Remove beds: only unoccupied beds with no admission history are deletable
+          const removable = existing.beds
+            .filter((bed) => !bed.isOccupied && bed._count.admissions === 0)
+            .sort((a, b) => b.bedNumber.localeCompare(a.bedNumber)); // drop highest letters first
+          const toRemove = existing.beds.length - newCapacity;
+          if (removable.length < toRemove) {
+            throw Object.assign(
+              new Error('Cannot reduce capacity: some beds are occupied or have admission history.'),
+              { statusCode: 400 }
+            );
+          }
+          const removeIds = removable.slice(0, toRemove).map((bed) => bed.id);
+          await tx.bed.deleteMany({ where: { id: { in: removeIds }, organizationId: orgId } });
+        }
+      }
+
+      await tx.room.update({
+        where: { id: roomId },
+        data: {
+          ...rest,
+          ...(newCapacity !== undefined && { totalCapacity: newCapacity }),
+        },
+      });
+    });
+  } catch (error: any) {
+    if (error?.statusCode === 400) {
+      return res.status(400).json({ success: false, error: error.message });
+    }
+    console.error('Failed to update room:', error);
+    return res.status(500).json({ success: false, error: 'Failed to update room' });
+  }
+
+  await CacheService.deleteByPattern(`heatmap:${orgId}:*`);
   res.json({ success: true, message: 'Room updated' });
 });
 

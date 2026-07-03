@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import MobileCameraCapture from '@/components/shared/MobileCameraCapture';
 import LoadingScreen from '@/components/shared/LoadingScreen';
-import { Loader2, UserPlus, Phone, Calendar, Banknote, BedDouble, AlertCircle, CheckCircle2, MessageCircle, User, CreditCard, School, MapPin } from 'lucide-react';
+import { Loader2, UserPlus, Phone, Calendar, Banknote, BedDouble, AlertCircle, CheckCircle2, MessageCircle, User, CreditCard, School, MapPin, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/auth-store';
 import { toast } from 'sonner';
@@ -230,7 +230,9 @@ export default function AddTenantPage() {
   if (!Array.isArray(rooms) || rooms.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center p-8 gap-3 min-h-screen bg-slate-50">
-        <span className="text-4xl">🛏️</span>
+        <div className="h-20 w-20 bg-blue-50 rounded-full flex items-center justify-center">
+          <BedDouble className="h-10 w-10 text-blue-300" />
+        </div>
         <p className="text-gray-500 text-center">
           No rooms found. Ask your admin to set up rooms first.
         </p>
@@ -654,9 +656,10 @@ export default function AddTenantPage() {
                           setPastDues(newDues);
                           if (newDues.length === 0) setHasPreviousDues(false);
                         }}
-                        className="p-3 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition"
+                        aria-label="Remove due"
+                        className="p-3 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition cursor-pointer"
                       >
-                        ✕
+                        <X className="h-4 w-4" />
                       </button>
                     </div>
                   ))}

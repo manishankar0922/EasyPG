@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation';
 import { Search, History, CheckCircle2, IndianRupee, BarChart3, MessageCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
+import { formatCurrency } from '@/lib/format';
 import MonthlyReport from '@/components/invoices/MonthlyReport';
 import { useLanguage } from '@/context/LanguageContext';
 import { toast } from 'sonner';
@@ -193,12 +194,15 @@ export default function QuickPaymentPage() {
                 
                 {tenant.rentPending > 0 ? (
                   <div className="text-right">
-                    <p className="font-black text-rose-600">₹{tenant.rentPending}</p>
+                    <p className="font-black text-rose-600 tabular-nums">{formatCurrency(tenant.rentPending)}</p>
                     <p className="text-[10px] font-bold text-rose-400 uppercase">{t.due}</p>
                   </div>
                 ) : (
                   <div className="text-right">
-                    <p className="font-black text-emerald-600">{t.paid} ✅</p>
+                    <p className="flex items-center justify-end gap-1 font-black text-emerald-600">
+                      <CheckCircle2 className="h-4 w-4" />
+                      {t.paid}
+                    </p>
                   </div>
                 )}
               </motion.button>
@@ -322,7 +326,7 @@ export default function QuickPaymentPage() {
         <div className="p-4 flex-1 flex flex-col animate-in fade-in">
           <div className="bg-emerald-50 rounded-3xl p-6 border border-emerald-100 mb-6 flex flex-col items-center text-center">
             <p className="text-sm font-bold text-emerald-600 uppercase tracking-widest mb-1">{t.totalCollected}</p>
-            <p className="text-4xl font-black text-emerald-700">₹{totalCollectedThisMonth.toLocaleString()}</p>
+            <p className="text-4xl font-black text-emerald-700 tabular-nums">{formatCurrency(totalCollectedThisMonth)}</p>
           </div>
 
           <motion.div 
@@ -351,7 +355,7 @@ export default function QuickPaymentPage() {
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="font-black text-emerald-600 text-lg">₹{Number(payment.amount).toLocaleString()}</p>
+                  <p className="font-black text-emerald-600 text-lg tabular-nums">{formatCurrency(Number(payment.amount))}</p>
                 </div>
               </motion.div>
             ))}
