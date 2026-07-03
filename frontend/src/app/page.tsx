@@ -1,20 +1,27 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth-store';
 
 export default function RootPage() {
   const router = useRouter();
   const token = useAuthStore((state) => state.token);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
+    
     if (token) {
       router.replace('/dashboard');
     } else {
       router.replace('/login');
     }
-  }, [token, router]);
+  }, [token, router, mounted]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-50">
