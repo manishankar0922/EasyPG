@@ -11,10 +11,12 @@ const router = Router();
 // Apply auth middleware to protect all admin endpoints
 router.use(authMiddleware);
 
-// Middleware to enforce SUPER_ADMIN role
+// Middleware to enforce the superadmin role
+// SECURITY (audit #10): match EXACTLY the canonical Prisma enum value. The old
+// allow-list ('admin', 'ADMIN', 'superadmin', 'SUPER_ADMIN') was a latent
+// escalation trap for any future role or case-variant token.
 const requireSuperAdmin = (req: any, res: any, next: any) => {
-  const allowed = ['SUPER_ADMIN', 'SUPERADMIN', 'superadmin', 'admin', 'ADMIN'];
-  if (!allowed.includes(req.user?.role)) {
+  if (req.user?.role !== 'SUPERADMIN') {
     return res.status(403).json({ success: false, error: 'Access denied: Super Admin role required' });
   }
   next();
@@ -53,8 +55,24 @@ router.post('/organizations/:id/impersonate', async (req, res) => {
       return res.status(500).json({ success: false, error: 'Server configuration error' });
     }
     const JWT_SECRET = process.env.JWT_SECRET;
-    // Generate a temporary JWT token valid for 2 hours
-    const token = jwt.sign({ id: profile.id, role: profile.role, organizationId: profile.organizationId }, JWT_SECRET, { expiresIn: '2h' });
+    // SECURITY (audit #11): impersonation tokens carry the same claims as normal
+    // login tokens (userId, iss/aud, fingerprint) so requireAuth verifies them
+    // fully — no un-fingerprinted / un-auditable side-channel tokens.
+    const crypto = require('crypto');
+    const userAgent = req.headers['user-agent'] || 'unknown';
+    const fingerprint = crypto.createHash('sha256').update(userAgent).digest('hex');
+    const token = jwt.sign(
+      {
+        userId: profile.id,
+        role: profile.role,
+        organisationId: profile.organizationId,
+        branchId: profile.branchId,
+        fingerprint,
+        impersonatedBy: req.user?.id, // audit trail: which superadmin minted this
+      },
+      JWT_SECRET,
+      { expiresIn: '2h', issuer: 'u9pgs-api', audience: 'u9pgs-app' }
+    );
 
     res.json({
       success: true,

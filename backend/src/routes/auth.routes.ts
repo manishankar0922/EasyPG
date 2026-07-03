@@ -361,8 +361,12 @@ router.post('/logout', requireAuth, async (req: Request, res: Response, next: Ne
       
       try {
         const { redisConnection } = require('../jobs/index');
-        // Blacklist the token in Redis for 24 hours (or matching token expiration)
-        await redisConnection.set(`bl:${token}`, 'true', 'EX', 60 * 60 * 24);
+        // SECURITY (audit #5): blacklist for the token's REMAINING lifetime, not a
+        // fixed 24h — a 7d token blacklisted for 24h becomes valid again on day 2.
+        const decoded = jwt.decode(token) as { exp?: number } | null;
+        const nowSec = Math.floor(Date.now() / 1000);
+        const remaining = decoded?.exp ? decoded.exp - nowSec : 60 * 60 * 24 * 30;
+        await redisConnection.set(`bl:${token}`, 'true', 'EX', Math.max(remaining, 60));
       } catch (e) {
         console.error('Failed to blacklist JWT in Redis', e);
       }
