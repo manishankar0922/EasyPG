@@ -6,6 +6,7 @@ import { useAuthStore } from '@/store/auth-store';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { Search, History, CheckCircle2, IndianRupee, BarChart3, MessageCircle } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import MonthlyReport from '@/components/invoices/MonthlyReport';
 import { useLanguage } from '@/context/LanguageContext';
@@ -159,12 +160,20 @@ export default function QuickPaymentPage() {
             />
           </div>
 
-          <div className="flex-1 bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden divide-y divide-slate-100">
-            {tenants.map(tenant => (
-              <button
+          <motion.div 
+            className="flex-1 bg-white/70 backdrop-blur-xl rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white/60 overflow-hidden divide-y divide-white/50"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <AnimatePresence>
+            {tenants.map((tenant, i) => (
+              <motion.button
                 key={tenant.id}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: i * 0.05 }}
                 onClick={() => handleSelectTenant(tenant)}
-                className="w-full flex items-center justify-between p-4 min-h-[64px] active:bg-slate-50 transition-colors"
+                className="w-full flex items-center justify-between p-4 min-h-[64px] active:bg-white/50 hover:bg-white/40 transition-colors"
               >
                 <div className="flex items-center gap-3">
                   <div className="h-12 w-12 rounded-full bg-slate-100 overflow-hidden relative flex-shrink-0">
@@ -192,8 +201,9 @@ export default function QuickPaymentPage() {
                     <p className="font-black text-emerald-600">{t.paid} ✅</p>
                   </div>
                 )}
-              </button>
+              </motion.button>
             ))}
+            </AnimatePresence>
 
             {tenants.length === 0 && searchQuery && (
               <div className="p-8 text-center text-slate-500 font-bold">
@@ -205,7 +215,7 @@ export default function QuickPaymentPage() {
                 {lang === 'te' ? 'వెతకడానికి పేరు టైప్ చేయండి...' : 'Type a name to search...'}
               </div>
             )}
-          </div>
+          </motion.div>
         </div>
       )}
 
@@ -315,9 +325,20 @@ export default function QuickPaymentPage() {
             <p className="text-4xl font-black text-emerald-700">₹{totalCollectedThisMonth.toLocaleString()}</p>
           </div>
 
-          <div className="flex-1 bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden divide-y divide-slate-100">
-            {history.map(payment => (
-              <div key={payment.id} className="p-4 flex items-center justify-between">
+          <motion.div 
+            className="flex-1 bg-white/70 backdrop-blur-xl rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white/60 overflow-hidden divide-y divide-white/50"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <AnimatePresence>
+            {history.map((payment, i) => (
+              <motion.div 
+                key={payment.id} 
+                className="p-4 flex items-center justify-between hover:bg-white/40 transition-colors"
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: i * 0.05 }}
+              >
                 <div>
                   <p className="font-bold text-slate-900 text-base leading-tight mb-1">{payment.invoice.tenant.name}</p>
                   <div className="flex items-center gap-2">
@@ -332,14 +353,15 @@ export default function QuickPaymentPage() {
                 <div className="text-right">
                   <p className="font-black text-emerald-600 text-lg">₹{Number(payment.amount).toLocaleString()}</p>
                 </div>
-              </div>
+              </motion.div>
             ))}
+            </AnimatePresence>
             {history.length === 0 && (
               <div className="p-8 text-center text-slate-500 font-medium">
                 No payments recorded this month yet.
               </div>
             )}
-          </div>
+          </motion.div>
         </div>
       )}
 

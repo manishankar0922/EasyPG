@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/auth-store';
-import { Building2, Layers, Users, IndianRupee, Plus, ShieldAlert, LogOut } from 'lucide-react';
+import { Building2, Layers, Users, IndianRupee, Plus, ShieldAlert, LogOut, Clock, CheckCircle2, AlertTriangle, TrendingUp, ArrowRight } from 'lucide-react';
 import OrgTable from '@/components/superadmin/OrgTable';
 import DevLoader from '@/components/superadmin/DevLoader';
 import Link from 'next/link';
@@ -13,20 +13,24 @@ export default function SuperAdminDashboard() {
   const { user, logout } = useAuthStore();
   const router = useRouter();
   const [data, setData] = useState<any>(null);
+  const [subStats, setSubStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function fetchDashboard() {
-      try {
-        const res = await api.get('/superadmin/dashboard');
-        if (res.data.success) {
-          setData(res.data.data);
-        }
-      } catch (err) {
-        console.error('Failed to load superadmin dashboard', err);
-      } finally {
-        setLoading(false);
+      const [dash, subs] = await Promise.allSettled([
+        api.get('/superadmin/dashboard'),
+        api.get('/superadmin/subscription-stats'),
+      ]);
+      if (dash.status === 'fulfilled' && dash.value.data?.success) {
+        setData(dash.value.data.data);
+      } else if (dash.status === 'rejected') {
+        console.error('Failed to load superadmin dashboard', dash.reason);
       }
+      if (subs.status === 'fulfilled' && subs.value.data?.success) {
+        setSubStats(subs.value.data.data);
+      }
+      setLoading(false);
     }
     fetchDashboard();
   }, []);
@@ -44,6 +48,17 @@ export default function SuperAdminDashboard() {
   };
 
   const organisations = data?.organisations || [];
+
+  const subs = subStats || {
+    pendingRequests: 0,
+    activeSubscriptions: 0,
+    trialUsers: 0,
+    expiredUsers: 0,
+    monthlyRevenue: 0,
+  };
+  const subTotal = Math.max(1, subs.activeSubscriptions + subs.trialUsers + subs.expiredUsers);
+  const pct = (n: number) => `${((n / subTotal) * 100).toFixed(0)}%`;
+  const inr = (n: number) => `₹${Number(n || 0).toLocaleString('en-IN')}`;
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans pb-20">
@@ -145,6 +160,80 @@ export default function SuperAdminDashboard() {
               <p className="text-xs text-slate-400 mt-1">Processed this month</p>
             </div>
           </div>
+        </div>
+
+        {/* SaaS Analytics: Subscription health + MRR + Pending approvals */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {/* Subscription Health (spans 2 cols on desktop) */}
+          <div className="lg:col-span-2 bg-slate-800/40 rounded-2xl p-5 border border-slate-700/60">
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <h3 className="text-sm font-bold text-white">Subscription Health</h3>
+                <p className="text-xs text-slate-400 mt-0.5">{subTotal} total subscriptions</p>
+              </div>
+              <div className="flex items-center gap-1.5 text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-lg">
+                <TrendingUp className="h-3.5 w-3.5" />
+                <span className="text-xs font-bold">{inr(subs.monthlyRevenue)} MRR</span>
+              </div>
+            </div>
+
+            {/* Segmented bar */}
+            <div className="flex h-3 w-full overflow-hidden rounded-full bg-slate-700/40 mb-5">
+              <div className="bg-emerald-500 transition-all duration-500" style={{ width: pct(subs.activeSubscriptions) }} />
+              <div className="bg-amber-500 transition-all duration-500" style={{ width: pct(subs.trialUsers) }} />
+              <div className="bg-rose-500 transition-all duration-500" style={{ width: pct(subs.expiredUsers) }} />
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { label: 'Active', value: subs.activeSubscriptions, color: 'text-emerald-400', dot: 'bg-emerald-500', icon: CheckCircle2 },
+                { label: 'Trial', value: subs.trialUsers, color: 'text-amber-400', dot: 'bg-amber-500', icon: Clock },
+                { label: 'Expired', value: subs.expiredUsers, color: 'text-rose-400', dot: 'bg-rose-500', icon: AlertTriangle },
+              ].map((s) => (
+                <div key={s.label} className="rounded-xl bg-slate-900/40 border border-slate-700/40 p-3">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <span className={`h-2 w-2 rounded-full ${s.dot}`} />
+                    <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">{s.label}</span>
+                  </div>
+                  <p className={`text-2xl font-black ${s.color}`}>{s.value}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Pending Approvals — actionable */}
+          <Link
+            href="/superadmin/subscriptions"
+            className={`group rounded-2xl p-5 border transition-all flex flex-col justify-between ${
+              subs.pendingRequests > 0
+                ? 'bg-amber-500/10 border-amber-500/40 hover:bg-amber-500/20'
+                : 'bg-slate-800/40 border-slate-700/60 hover:bg-slate-800/70'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <div className={`h-12 w-12 rounded-xl flex items-center justify-center ${
+                subs.pendingRequests > 0 ? 'bg-amber-500/20 text-amber-400' : 'bg-slate-700/40 text-slate-400'
+              }`}>
+                <Clock className="h-6 w-6" />
+              </div>
+              {subs.pendingRequests > 0 && (
+                <span className="h-2.5 w-2.5 rounded-full bg-amber-400 animate-pulse" />
+              )}
+            </div>
+            <div className="mt-4">
+              <p className="text-sm font-bold text-slate-300 uppercase tracking-wider mb-1">Pending Approvals</p>
+              <div className="flex items-baseline gap-2">
+                <h2 className="text-3xl font-black text-white">{subs.pendingRequests}</h2>
+                <span className="text-xs font-semibold text-slate-400">payment requests</span>
+              </div>
+            </div>
+            <div className={`mt-4 flex items-center gap-1.5 text-sm font-bold ${
+              subs.pendingRequests > 0 ? 'text-amber-400' : 'text-slate-400'
+            }`}>
+              Review requests
+              <ArrowRight className="h-4 w-4 group-hover:translate-x-0.5 transition-transform" />
+            </div>
+          </Link>
         </div>
 
         {/* Action Bar & Table */}

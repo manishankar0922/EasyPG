@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Loader2, Users, Receipt, FilterX } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import api from '@/lib/api';
 
 interface Room {
@@ -100,16 +101,26 @@ export default function RoomDirectory({ branchId }: { branchId: string }) {
           </Button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+        <motion.div 
+          className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ staggerChildren: 0.05 }}
+        >
+          <AnimatePresence>
           {rooms.map(room => {
             const isFull = room.occupiedCapacity === room.totalCapacity;
             const isVacant = room.occupiedCapacity === 0;
 
             return (
-              <div 
+              <motion.div 
                 key={room.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ type: "spring", stiffness: 300, damping: 24 }}
                 onClick={() => setSelectedRoom(room)}
-                className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm active:scale-95 transition-transform cursor-pointer"
+                className="bg-white/70 backdrop-blur-xl border border-white/60 rounded-3xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_12px_40px_rgb(0,0,0,0.08)] hover:-translate-y-1 transition-all cursor-pointer"
               >
                 <div className="flex justify-between items-start mb-3">
                   <div>
@@ -134,10 +145,11 @@ export default function RoomDirectory({ branchId }: { branchId: string }) {
                     <Badge variant="secondary" className="bg-blue-50 text-blue-700">AC</Badge>
                   )}
                 </div>
-              </div>
+              </motion.div>
             );
           })}
-        </div>
+          </AnimatePresence>
+        </motion.div>
       )}
 
       {/* Mobile-friendly Bottom Drawer for Room Details */}

@@ -44,6 +44,7 @@ import superadminRoutes from './routes/superadmin.routes';
 import rentLedgerRoutes from './routes/rent-ledger.routes';
 import vacateNoticeRoutes from './routes/vacate-notice.routes';
 import subscriptionRoutes from './routes/subscription.routes';
+import complaintRoutes from './routes/complaint.routes';
 import tenantAuthRoutes from './routes/tenant-auth.routes';
 import tenantPortalRoutes from './routes/tenant-portal.routes';
 
@@ -52,7 +53,7 @@ dotenv.config();
 const app = express();
 
 // Trust proxy for rate limiting behind reverse proxies (Render, Heroku, etc.)
-app.set('trust proxy', true);
+app.set('trust proxy', 1);
 
 // STEP 0.5 — IP Blacklisting (Application WAF)
 // Drops requests from banned IPs instantly before any processing
@@ -296,6 +297,7 @@ app.use('/api/v1/superadmin', superadminWriteLimiter, superadminRoutes); // hour
 app.use('/api/v1/rent-ledger', userAwareLimiter, rentLedgerRoutes);
 app.use('/api/v1/vacate-notices', vacateNoticeRoutes);
 app.use('/api/v1/subscription', subscriptionRoutes);
+app.use('/api/v1/complaints', userAwareLimiter, complaintRoutes);
 
 // STEP 8 — 404 handler (after all routes)
 // NOTE: Do NOT leak availableRoutes — it's a roadmap for attackers

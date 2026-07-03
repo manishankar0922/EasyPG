@@ -56,6 +56,17 @@ export default function ProfilePage() {
               English
             </button>
             <button
+              onClick={() => switchLanguage('hi')}
+              className={cn(
+                "flex-1 h-14 rounded-2xl font-black transition-all border-2 text-lg",
+                lang === 'hi'
+                  ? "bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-600/30"
+                  : "bg-white text-slate-500 border-slate-200 active:bg-slate-50"
+              )}
+            >
+              हिंदी
+            </button>
+            <button
               onClick={() => switchLanguage('te')}
               className={cn(
                 "flex-1 h-14 rounded-2xl font-black transition-all border-2 text-lg",
