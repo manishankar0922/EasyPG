@@ -30,8 +30,9 @@ export function middleware(request: NextRequest) {
   
   const isSuperAdminRoute = pathname.startsWith('/superadmin');
   
-  const isDashboardRoute = 
+  const isDashboardRoute =
     pathname.startsWith('/dashboard') ||
+    pathname.startsWith('/reports') ||
     pathname.startsWith('/branches') ||
     pathname.startsWith('/rooms') ||
     pathname.startsWith('/tenants') ||
@@ -187,6 +188,7 @@ export const config = {
     '/login',
     '/superadmin/:path*',
     '/dashboard/:path*',
+    '/reports/:path*',
     '/branches/:path*',
     '/rooms/:path*',
     '/tenants/:path*',

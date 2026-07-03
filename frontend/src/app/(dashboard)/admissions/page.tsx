@@ -13,6 +13,7 @@ import {
   X,
   AlertCircle
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
@@ -118,9 +119,9 @@ export default function AdmissionsPage() {
           <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
         </div>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="overflow-hidden rounded-3xl border border-white/60 bg-white/70 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
           <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
+            <thead className="bg-white/50 text-xs font-semibold uppercase text-slate-500 border-b border-white/60">
               <tr>
                 <th className="px-6 py-4">Tenant</th>
                 <th className="px-6 py-4">Room & Branch</th>
@@ -129,9 +130,17 @@ export default function AdmissionsPage() {
                 <th className="px-6 py-4 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
-              {admissions.map((adm) => (
-                <tr key={adm.id} className="hover:bg-slate-50 transition">
+            <tbody className="divide-y divide-white/50">
+              <AnimatePresence>
+              {admissions.map((adm, i) => (
+                <motion.tr 
+                  key={adm.id} 
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ delay: i * 0.05 }}
+                  className="hover:bg-white/50 transition-colors"
+                >
                   <td className="px-6 py-4">
                     <p className="font-semibold text-slate-900">{adm.tenant.name}</p>
                   </td>
@@ -173,8 +182,9 @@ export default function AdmissionsPage() {
                       </button>
                     )}
                   </td>
-                </tr>
+                </motion.tr>
               ))}
+              </AnimatePresence>
               {admissions.length === 0 && (
                 <tr>
                   <td colSpan={5} className="px-6 py-12 text-center text-slate-500">

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, Users, IndianRupee, Bed, User } from 'lucide-react';
+import { Home, Users, IndianRupee, Bed, User, AlertCircle, BarChart3 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/context/LanguageContext';
 
@@ -12,9 +12,11 @@ export default function BottomNav() {
 
   const navItems = [
     { name: t.home, href: '/dashboard', icon: Home },
+    { name: t.reports, href: '/reports', icon: BarChart3 },
     { name: t.tenants, href: '/tenants', icon: Users },
     { name: t.payments, href: '/invoices', icon: IndianRupee },
     { name: t.rooms, href: '/rooms', icon: Bed },
+    { name: 'Complaints', href: '/complaints', icon: AlertCircle },
     { name: t.profile, href: '/profile', icon: User },
   ];
 

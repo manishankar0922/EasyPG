@@ -3,7 +3,7 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 import { translations } from '@/lib/translations'
 
-type Lang = 'en' | 'te'
+type Lang = 'en' | 'hi' | 'te'
 
 interface LanguageContextType {
   lang: Lang
@@ -26,7 +26,7 @@ export function LanguageProvider({
 
   useEffect(() => {
     const saved = localStorage.getItem('u9pgs_lang') as Lang
-    if (saved === 'en' || saved === 'te') {
+    if (saved === 'en' || saved === 'hi' || saved === 'te') {
       setLang(saved)
     }
   }, [])

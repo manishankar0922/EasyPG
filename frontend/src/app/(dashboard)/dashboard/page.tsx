@@ -123,11 +123,11 @@ export default function MobileDashboard() {
         </div>
       </div>
 
-      <div className="p-4 md:p-8 space-y-4 md:space-y-8">
+      <div className="p-4 md:p-8 space-y-4 md:space-y-8 animate-fade-up">
         {/* Summary Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-6">
           {/* Card 1: Rent Pending */}
-          <div className={`bg-white rounded-2xl p-4 shadow-sm border flex flex-col justify-center min-h-[100px] active:scale-95 transition-transform ${
+          <div className={`bg-white rounded-2xl p-4 shadow-sm shadow-slate-900/[0.03] border flex flex-col justify-center min-h-[100px] transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98] ${
             d.rentPending.status === 'OVERDUE' ? 'border-rose-200' : 
             d.rentPending.status === 'PENDING' ? 'border-amber-200' : 
             'border-emerald-200'
@@ -153,7 +153,7 @@ export default function MobileDashboard() {
           </div>
 
           {/* Card 2: Collected */}
-          <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex flex-col justify-center min-h-[100px] active:scale-95 transition-transform">
+          <div className="bg-white rounded-2xl p-4 shadow-sm shadow-slate-900/[0.03] border border-slate-200/80 flex flex-col justify-center min-h-[100px] transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98]">
             <div className="flex items-center gap-1.5 text-emerald-500 mb-1">
               <Wallet className="h-4 w-4" />
               <span className="text-xs font-bold uppercase tracking-wider">{t.collectedThisMonth}</span>
@@ -167,7 +167,7 @@ export default function MobileDashboard() {
           </div>
 
           {/* Card 3: Empty Beds */}
-          <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex flex-col justify-center min-h-[100px] active:scale-95 transition-transform">
+          <div className="bg-white rounded-2xl p-4 shadow-sm shadow-slate-900/[0.03] border border-slate-200/80 flex flex-col justify-center min-h-[100px] transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98]">
             <div className="flex items-center gap-1.5 text-amber-500 mb-1">
               <Bed className="h-4 w-4" />
               <span className="text-xs font-bold uppercase tracking-wider">{t.emptyBeds}</span>
@@ -181,7 +181,7 @@ export default function MobileDashboard() {
           </div>
 
           {/* Card 4: Total Tenants */}
-          <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex flex-col justify-center min-h-[100px] active:scale-95 transition-transform">
+          <div className="bg-white rounded-2xl p-4 shadow-sm shadow-slate-900/[0.03] border border-slate-200/80 flex flex-col justify-center min-h-[100px] transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98]">
             <div className="flex items-center gap-1.5 text-blue-500 mb-1">
               <Users className="h-4 w-4" />
               <span className="text-xs font-bold uppercase tracking-wider">{t.totalTenants}</span>
