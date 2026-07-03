@@ -1,10 +1,15 @@
 import { Router, Request, Response } from 'express';
 import prisma from '../config/db';
 import jwt from 'jsonwebtoken';
+import { redisConnection } from '../jobs/index';
 
 const router = Router();
 
 // Middleware strictly for Tenants
+// SECURITY (audit #6): tenant tokens live 30 days, so the decoded payload cannot
+// be trusted wholesale. Each request re-checks: (a) the Redis blacklist (logout /
+// forced revocation), and (b) that the tenant still exists and is ACTIVE — a
+// vacated or deactivated tenant loses portal access immediately, not in 30 days.
 const requireTenantAuth = async (req: Request, res: Response, next: Function) => {
   try {
     const authHeader = req.headers.authorization;
@@ -23,6 +28,25 @@ const requireTenantAuth = async (req: Request, res: Response, next: Function) =>
       return res.status(403).json({ success: false, error: 'Access denied. Tenants only.' });
     }
 
+    // (a) Revocation check — same blacklist mechanism as staff auth
+    try {
+      const isBlacklisted = await redisConnection.get(`bl:${token}`);
+      if (isBlacklisted) {
+        return res.status(401).json({ success: false, error: 'Session expired. Please log in again.' });
+      }
+    } catch {
+      // Redis down: fail open on blacklist only (token signature already verified)
+    }
+
+    // (b) Liveness check — tenant must still exist and be ACTIVE
+    const tenant = await prisma.tenant.findFirst({
+      where: { id: decoded.tenantId, status: 'ACTIVE' },
+      select: { id: true, organizationId: true },
+    });
+    if (!tenant) {
+      return res.status(401).json({ success: false, error: 'Account is no longer active. Please contact your PG owner.' });
+    }
+
     req.user = decoded;
     next();
   } catch (error) {
@@ -31,6 +55,20 @@ const requireTenantAuth = async (req: Request, res: Response, next: Function) =>
 };
 
 router.use(requireTenantAuth);
+
+// POST /api/v1/tenant-portal/logout — revoke the current tenant token
+router.post('/logout', async (req: Request, res: Response) => {
+  try {
+    const token = req.headers.authorization!.split(' ')[1];
+    const decoded = jwt.decode(token) as { exp?: number } | null;
+    const nowSec = Math.floor(Date.now() / 1000);
+    const remaining = decoded?.exp ? decoded.exp - nowSec : 60 * 60 * 24 * 30;
+    await redisConnection.set(`bl:${token}`, 'true', 'EX', Math.max(remaining, 60));
+    res.json({ success: true, message: 'Logged out successfully' });
+  } catch {
+    res.json({ success: true, message: 'Logged out' });
+  }
+});
 
 // GET /api/v1/tenant-portal/dashboard
 router.get('/dashboard', async (req: Request, res: Response) => {

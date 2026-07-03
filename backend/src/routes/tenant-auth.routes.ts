@@ -74,12 +74,19 @@ router.post('/login',
         await new Promise(resolve => setTimeout(resolve, 10));
       }
 
-      // Fallback: If aadhaarLast4 is empty/missing, the password is the last 4 digits of the phone number
-      const expectedPassword = (tenant?.aadhaarLast4 && tenant.aadhaarLast4.trim() !== '') 
-        ? tenant.aadhaarLast4.trim() 
-        : tenant?.phone.slice(-4);
+      // SECURITY (audit #1): the PIN is aadhaarLast4 ONLY. The old fallback to the
+      // last 4 digits of the tenant's own phone number made the password derivable
+      // from the username — anyone knowing a tenant's phone could log in as them.
+      // Tenants without an Aadhaar PIN on file cannot log in until the owner sets one.
+      const expectedPassword = (tenant?.aadhaarLast4 && tenant.aadhaarLast4.trim() !== '')
+        ? tenant.aadhaarLast4.trim()
+        : null;
 
-      const isValidPassword = expectedPassword && password.trim() === expectedPassword;
+      // Constant-time comparison to avoid leaking PIN prefix via response timing
+      const supplied = password.trim();
+      const isValidPassword = !!expectedPassword &&
+        supplied.length === expectedPassword.length &&
+        crypto.timingSafeEqual(Buffer.from(supplied), Buffer.from(expectedPassword));
 
       if (!tenant || !isValidPassword) {
         // Record failed attempt for account lockout tracking

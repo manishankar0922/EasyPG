@@ -201,9 +201,21 @@ export const requireBranchAccess = async (req: Request, res: Response, next: Nex
     return next();
   }
 
+  // SECURITY (audit #8): branch isolation must fail CLOSED. Route queries build
+  // their branch filter as `userBranchId && {...}` — with a null branchId the
+  // filter silently disappears and a branch-less warden sees the whole org.
+  // Deny here instead until an owner assigns them a branch.
+  if (!req.user.branchId) {
+    return res.status(403).json({
+      success: false,
+      error: 'No branch assigned to your account. Ask your owner to assign you a branch.',
+      code: 'NO_BRANCH_ASSIGNED'
+    });
+  }
+
   // If request targets a specific branchId (param or query), verify it matches the user's branch.
   const requestedBranchId = req.params?.branchId || req.query?.branchId;
-  if (requestedBranchId && req.user.branchId && requestedBranchId !== req.user.branchId) {
+  if (requestedBranchId && requestedBranchId !== req.user.branchId) {
     return res.status(403).json({
       success: false,
       error: 'Access denied: You can only access data for your assigned branch.',

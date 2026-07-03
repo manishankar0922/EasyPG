@@ -99,13 +99,15 @@ app.use(cors({
         const originUrlObj = new URL(origin);
         const originHost = originUrlObj.hostname;
 
-        // Check if originHost equals frontendHost or is a prefixed version (e.g. admin-frontend-nine-eta-26.vercel.app or admin.frontend-nine-eta-26.vercel.app)
+        // SECURITY (audit #7): every check is ANCHORED — exact equality or a true
+        // subdomain suffix. `startsWith` was exploitable: an attacker-controlled
+        // host like `admin-<frontendHost>.attacker.com` passed the old check.
         const isMatched = originHost === frontendHost ||
           originHost.endsWith(`.${frontendHost}`) ||
-          originHost.startsWith(`admin-${frontendHost}`) ||
-          originHost.startsWith(`dev-${frontendHost}`) ||
-          originHost.startsWith(`tenant-${frontendHost}`) ||
-          originHost.startsWith(`tenet-${frontendHost}`);
+          originHost === `admin-${frontendHost}` ||
+          originHost === `dev-${frontendHost}` ||
+          originHost === `tenant-${frontendHost}` ||
+          originHost === `tenet-${frontendHost}`;
 
         if (isMatched && originUrlObj.protocol === frontendUrlObj.protocol) {
           return callback(null, true);

@@ -196,21 +196,55 @@ router.patch('/:id/assign-branch', validate(z.object({
 });
 
 // Update user
+// SECURITY (audit #2): never pass req.body straight to Prisma. Privileged fields
+// (role/branchId/status) are OWNER-only — a WARDEN/STAFF self-update could
+// otherwise escalate itself to OWNER via mass assignment.
 router.patch('/:id', validate(updateProfileSchema), async (req, res) => {
   const { organizationId, role: currentUserRole, id: currentUserId } = req.user!;
   const targetId = req.params.id as string;
+  const isOwner = currentUserRole === 'OWNER';
 
-  if (currentUserRole !== 'OWNER' && currentUserId !== targetId) {
+  if (!isOwner && currentUserId !== targetId) {
     return res.status(403).json({ success: false, error: 'Unauthorized to update this user' });
+  }
+
+  const { name, phone, role, branchId, status } = req.body;
+
+  // Anyone (self or owner) may update basic contact details
+  const data: Record<string, unknown> = {};
+  if (name !== undefined) data.name = name;
+  if (phone !== undefined) data.phone = phone;
+
+  // Privileged fields: OWNER only
+  if (role !== undefined || branchId !== undefined || status !== undefined) {
+    if (!isOwner) {
+      return res.status(403).json({ success: false, error: 'Only owners can change role, branch, or status' });
+    }
+    if (role !== undefined) data.role = role;
+    if (status !== undefined) data.status = status;
+    if (branchId !== undefined) {
+      // Verify the branch belongs to this organization before assigning
+      if (branchId !== null) {
+        const branch = await prisma.branch.findFirst({ where: { id: branchId, organizationId } });
+        if (!branch) {
+          return res.status(400).json({ success: false, error: 'Branch not found in your organization' });
+        }
+      }
+      data.branchId = branchId;
+    }
+  }
+
+  if (Object.keys(data).length === 0) {
+    return res.status(400).json({ success: false, error: 'No updatable fields provided' });
   }
 
   const result = await prisma.profile.updateMany({
     where: { id: targetId, organizationId },
-    data: req.body
+    data
   });
 
   if (result.count === 0) return res.status(404).json({ success: false, error: 'User not found' });
-  
+
   res.json({ success: true, message: 'User updated successfully' });
 });
 

@@ -58,9 +58,10 @@ const rateLimitHandler = (req: Request, res: Response) => {
  *  - Anonymous requests still fall back to IP-only keying
  */
 const userAwareKeyGenerator = (req: Request): string => {
-  const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim()
-    ?? req.socket?.remoteAddress
-    ?? 'unknown';
+  // SECURITY: use req.ip (derived via Express "trust proxy", set in index.ts) —
+  // never the raw X-Forwarded-For header, which is client-controlled and lets an
+  // attacker mint a fresh rate-limit bucket per request by spoofing the header.
+  const ip = req.ip ?? req.socket?.remoteAddress ?? 'unknown';
   const userId = (req as any).user?.id || null;
   // Format: "ip:userId" for authed users, "ip" for anonymous
   return userId ? `${ip}:${userId}` : ip;
@@ -88,7 +89,9 @@ export const generalLimiter = rateLimit({
 export const authLimiter = rateLimit({
   ...base,
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 500, // Increased drastically
+  // SECURITY: strict brute-force gate. 10 attempts / 15 min / IP is plenty for
+  // humans mistyping a password; anything higher effectively disables the control.
+  max: 10,
   message: { success: false, error: 'Too many login attempts. You have been temporarily blocked. Please wait 15 minutes.' },
   store: createRedisStore('auth'),
 });
@@ -98,7 +101,9 @@ export const authLimiter = rateLimit({
 export const tenantAuthLimiter = rateLimit({
   ...base,
   windowMs: 15 * 60 * 1000,
-  max: 500, // Increased drastically
+  // SECURITY: tenant login uses a 4-digit PIN (10,000-key space) — this limit is
+  // the primary brute-force defence alongside the per-account lockout. Keep strict.
+  max: 10,
   message: { success: false, error: 'Too many login attempts. You have been temporarily blocked. Please wait 15 minutes.' },
   store: createRedisStore('tenant_auth'),
 });

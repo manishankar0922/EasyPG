@@ -1,14 +1,26 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import prisma from '../config/db';
 import { authMiddleware } from '../middlewares/auth.middleware';
+import { validate } from '../middlewares/validate';
 
 const router = Router();
 router.use(authMiddleware);
 
+// SECURITY (audit #9): validate payment input — a raw req.body allowed negative
+// or non-numeric amounts to corrupt paidAmount and force PAID status.
+const payLedgerSchema = z.object({
+  amount: z.number({ error: 'Amount must be a number' })
+    .positive('Amount must be positive')
+    .max(500000, 'Amount exceeds maximum allowed'),
+  mode: z.string().max(30).optional(),
+  date: z.string().max(40).optional(),
+}).strict();
+
 // PATCH /api/rent-ledger/:ledgerId/pay
-router.patch('/:ledgerId/pay', async (req, res) => {
-  const { ledgerId } = req.params;
-  const { amount, mode, date } = req.body;
+router.patch('/:ledgerId/pay', validate(payLedgerSchema), async (req, res) => {
+  const ledgerId = String(req.params.ledgerId);
+  const { amount } = req.body as { amount: number };
 
   try {
     const ledger = await prisma.rentLedger.findUnique({
