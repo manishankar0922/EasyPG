@@ -7,7 +7,7 @@ import { VariableSizeList as WindowList } from 'react-window';
 import { useRef, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { LayoutGrid, List, Plus, Users, User, ArrowRight } from 'lucide-react';
+import { LayoutGrid, List, Plus, Users, User, ArrowRight, BedDouble } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/auth-store';
 import { useBranch } from '@/context/BranchContext';
@@ -123,7 +123,7 @@ export default function MobileRoomsPage() {
         {filteredRooms.length === 0 ? (
           <div className="text-center py-20 px-4">
             <div className="h-20 w-20 bg-slate-200 rounded-full mx-auto mb-4 flex items-center justify-center">
-              <span className="text-2xl">🛏️</span>
+              <BedDouble className="h-9 w-9 text-slate-400" />
             </div>
             <h3 className="text-xl font-bold text-slate-900 mb-2">{t.noRoomsFound}</h3>
             <p className="text-slate-500 font-medium">Try changing your filters.</p>

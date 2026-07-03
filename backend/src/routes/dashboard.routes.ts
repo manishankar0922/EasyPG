@@ -255,39 +255,34 @@ router.get('/revenue', async (req, res) => {
   }
 
   try {
-    const revenueByMonth: Record<string, number> = {};
+    // PERF: one round trip instead of 12 parallel aggregate queries (each of
+    // which carried a 4-level nested join). Fetch 12 months of (date, amount)
+    // pairs and bucket by month in JS — payment rows are tiny.
     const now = new Date();
-    
-    // Fetch only last 12 months to prevent OOM
-    const monthQueries = [];
-    
-    for (let i = 0; i < 12; i++) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const year = d.getFullYear();
-      const month = d.getMonth();
-      
-      const startOfMonth = new Date(year, month, 1);
-      const endOfMonth = new Date(year, month + 1, 0);
-      
-      const monthStr = `${year}-${(month + 1).toString().padStart(2, '0')}`;
-      
-      monthQueries.push(
-        prisma.payment.aggregate({
-          where: {
-            organizationId: orgId,
-            paymentDate: { gte: startOfMonth, lte: endOfMonth },
-            ...(role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && {
-              invoice: { tenant: { admissions: { some: { room: { branchId: userBranchId }, status: 'ACTIVE' } } } }
-            })
-          },
-          _sum: { amount: true }
-        }).then(res => {
-          revenueByMonth[monthStr] = Number(res._sum.amount || 0);
-        })
-      );
-    }
+    const windowStart = new Date(now.getFullYear(), now.getMonth() - 11, 1);
 
-    await Promise.all(monthQueries);
+    const payments = await prisma.payment.findMany({
+      where: {
+        organizationId: orgId,
+        paymentDate: { gte: windowStart },
+        ...(role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && {
+          invoice: { tenant: { admissions: { some: { room: { branchId: userBranchId }, status: 'ACTIVE' } } } }
+        })
+      },
+      select: { paymentDate: true, amount: true },
+    });
+
+    // Pre-seed all 12 buckets so empty months render as 0, not gaps
+    const revenueByMonth: Record<string, number> = {};
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      revenueByMonth[`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`] = 0;
+    }
+    for (const p of payments) {
+      const d = p.paymentDate;
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      if (key in revenueByMonth) revenueByMonth[key] += Number(p.amount);
+    }
 
     await CacheService.set(cacheKey, revenueByMonth, 300); // cache for 5 minutes
 
@@ -302,12 +297,22 @@ router.get('/revenue', async (req, res) => {
 router.get('/occupancy', async (req, res) => {
   const { role, branchId: userBranchId, organizationId: orgId } = req.user!;
 
+  const cacheKey = `dashboard:occupancy:${orgId}:${role}:${userBranchId || 'all'}`;
+  const cached = await CacheService.get(cacheKey);
+  if (cached) {
+    return res.json({ success: true, data: cached });
+  }
+
+  // PERF: select only the two counters we sum — not entire room rows
   const branches = await prisma.branch.findMany({
-    where: { 
+    where: {
       organizationId: orgId,
       ...(role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && { id: userBranchId })
     },
-    include: { rooms: true }
+    select: {
+      name: true,
+      rooms: { select: { totalCapacity: true, occupiedCapacity: true } }
+    }
   });
 
   const occupancyData = branches.map(b => {
@@ -321,6 +326,7 @@ router.get('/occupancy', async (req, res) => {
     };
   });
 
+  await CacheService.set(cacheKey, occupancyData, 60);
   res.json({ success: true, data: occupancyData });
 });
 
@@ -328,16 +334,33 @@ router.get('/occupancy', async (req, res) => {
 router.get('/pending-payments', async (req, res) => {
   const { role, branchId: userBranchId, organizationId: orgId } = req.user!;
 
+  const cacheKey = `dashboard:pending:${orgId}:${role}:${userBranchId || 'all'}`;
+  const cached = await CacheService.get(cacheKey);
+  if (cached) {
+    return res.json({ success: true, data: cached });
+  }
+
+  // PERF + PRIVACY: was `include: { tenant: true, payments: true }` with no limit —
+  // every unpaid invoice ever, carrying full tenant PII (Aadhaar, photos, parent
+  // phone) into a reports payload that renders 25 rows. Select only what the
+  // report shows and cap the result.
   const pendingInvoices = await prisma.invoice.findMany({
-    where: { 
-      organizationId: orgId, 
+    where: {
+      organizationId: orgId,
       status: { not: 'PAID' },
       ...(role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && {
         tenant: { admissions: { some: { room: { branchId: userBranchId }, status: 'ACTIVE' } } }
       })
     },
-    include: { tenant: true, payments: true },
-    orderBy: { dueDate: 'asc' }
+    select: {
+      id: true,
+      amount: true,
+      dueDate: true,
+      tenant: { select: { name: true } },
+      payments: { select: { amount: true } },
+    },
+    orderBy: { dueDate: 'asc' },
+    take: 200,
   });
 
   const formattedPending = pendingInvoices.map(inv => {
@@ -352,6 +375,7 @@ router.get('/pending-payments', async (req, res) => {
     };
   });
 
+  await CacheService.set(cacheKey, formattedPending, 60);
   res.json({ success: true, data: formattedPending });
 });
 

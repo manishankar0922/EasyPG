@@ -61,6 +61,17 @@ export function monthLabel(ym: string, lang: Lang = 'en'): string {
   return MONTHS_SHORT[lang]?.[idx] ?? ym;
 }
 
+/** "12 Jan 2026" — short, locale-aware date for lists and cards. */
+export function formatDate(value: string | Date, lang: Lang = 'en'): string {
+  const d = typeof value === 'string' ? new Date(value) : value;
+  if (Number.isNaN(d.getTime())) return '';
+  return new Intl.DateTimeFormat(LOCALE[lang], {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  }).format(d);
+}
+
 /** Trigger a client-side CSV download from an array of row objects. */
 export function downloadCsv(filename: string, rows: Record<string, string | number>[]): void {
   if (!rows.length) return;

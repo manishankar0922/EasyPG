@@ -7,7 +7,7 @@ import { useAuthStore } from '@/store/auth-store';
 import { useLanguage } from '@/context/LanguageContext';
 import { useBranch } from '@/context/BranchContext';
 import BranchSwitcher from '@/components/shared/BranchSwitcher';
-import { Bed, Users, IndianRupee, MessageCircle, Wallet } from 'lucide-react';
+import { Bed, Users, IndianRupee, MessageCircle, Wallet, DoorOpen } from 'lucide-react';
 import Image from 'next/image';
 import LoadingScreen from '@/components/shared/LoadingScreen';
 import TenantDashboard from '@/components/tenant/TenantDashboard';
@@ -199,7 +199,10 @@ export default function MobileDashboard() {
           {/* Upcoming Vacancies List */}
           {vacancies.length > 0 && (
             <div className="w-full">
-              <h2 className="text-lg font-black text-slate-900 mb-4 px-1">🚪 Upcoming Vacancies</h2>
+              <h2 className="flex items-center gap-2 text-lg font-black text-slate-900 mb-4 px-1">
+                <DoorOpen className="h-5 w-5 text-orange-500" />
+                Upcoming Vacancies
+              </h2>
               
               <div className="bg-white rounded-3xl shadow-sm border border-orange-200 overflow-hidden">
                 <div className="divide-y divide-orange-100">
