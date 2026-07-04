@@ -20,7 +20,7 @@ import { cn } from '@/lib/utils';
 interface Room {
   id: string;
   roomNumber: string;
-  roomType: string;
+  roomType: string | null;
   totalCapacity: number;
   occupiedCapacity: number;
   rentAmount: string;
@@ -159,7 +159,7 @@ export default function BranchDetailsPage() {
               </div>
               
               <h3 className="text-xl font-black text-slate-900">Room {room.roomNumber}</h3>
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-tighter mt-0.5">{room.roomType.replace('_', ' ')}</p>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-tighter mt-0.5">{room.roomType ? room.roomType.replace(/_/g, ' ') : '—'}</p>
               
               <div className="mt-6 flex items-center justify-between border-t border-slate-50 pt-4">
                 <div className="flex items-center space-x-2">

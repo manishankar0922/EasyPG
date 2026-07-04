@@ -32,7 +32,7 @@ interface Room {
   roomNumber: string;
   floor: number;
   hasAC: boolean;
-  roomType: string;
+  roomType: string | null;
   totalCapacity: number;
   occupiedCapacity: number;
   rentAmount: string;
@@ -218,7 +218,7 @@ export default function RoomDetailsPage() {
                   <Bed className="mr-3 h-5 w-5 text-slate-400" />
                   <span className="text-sm font-medium">Type</span>
                 </div>
-                <span className="text-sm font-bold text-slate-900">{room.roomType.replace('_', ' ')}</span>
+                <span className="text-sm font-bold text-slate-900">{room.roomType ? room.roomType.replace(/_/g, ' ') : '—'}</span>
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex items-center text-slate-600">
