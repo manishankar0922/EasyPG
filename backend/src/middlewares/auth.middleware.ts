@@ -194,9 +194,9 @@ export const attachUserContext = async (req: Request, res: Response, next: NextF
 };
 
 export const requireBranchAccess = async (req: Request, res: Response, next: NextFunction) => {
-  // Only enforce branch restriction for WARDEN and STAFF roles.
-  // OWNER, SUPERADMIN, SUPER_ADMIN can access any branch.
-  const restrictedRoles = ['WARDEN', 'STAFF'];
+  // Only enforce branch restriction for WARDEN.
+  // OWNER and SUPERADMIN can access any branch.
+  const restrictedRoles = ['WARDEN'];
   if (!req.user || !restrictedRoles.includes(req.user.role)) {
     return next();
   }

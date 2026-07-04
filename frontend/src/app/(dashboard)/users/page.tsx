@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Shield, User as UserIcon, Mail, Phone, Loader2, Plus, MoreVertical, Key, Ban, CheckCircle, Building, AlertCircle } from 'lucide-react';
+import { Shield, User as UserIcon, Mail, Phone, Loader2, Plus, MoreVertical, Key, Ban, CheckCircle, Building, AlertCircle, Copy, MessageCircle, X } from 'lucide-react';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/auth-store';
+import { useLanguage } from '@/context/LanguageContext';
 
 interface Branch {
   id: string;
@@ -15,15 +16,26 @@ interface Profile {
   name: string;
   email: string | null;
   phone: string | null;
-  role: 'OWNER' | 'WARDEN' | 'STAFF';
+  role: 'OWNER' | 'WARDEN';
   status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
   branchId: string | null;
   branch?: Branch | null;
   createdAt: string;
 }
 
+// Random, readable temp password (e.g. "W9ard-3kfx") — shown once, then only
+// resettable. Never a guessable default like warden@123.
+const genTempPassword = () => {
+  const chars = 'abcdefghjkmnpqrstuvwxyz23456789';
+  let s = '';
+  for (let i = 0; i < 8; i++) s += chars[Math.floor(Math.random() * chars.length)];
+  return `W${s.slice(0, 4)}-${s.slice(4)}`;
+};
+
 export default function UsersPage() {
   const currentUser = useAuthStore((state) => state.user);
+  const { t } = useLanguage();
+  const isOwner = currentUser?.role === 'OWNER';
   const [users, setUsers] = useState<Profile[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
@@ -32,15 +44,17 @@ export default function UsersPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  // Form State
+  // Form State — owners create WARDEN logins only
   const [formData, setFormData] = useState({
     email: '',
     name: '',
     phone: '',
-    role: 'STAFF' as 'WARDEN' | 'STAFF',
-    password: '',
     branchId: ''
   });
+
+  // Credentials of the login that was just created — shown ONCE for sharing
+  const [createdCreds, setCreatedCreds] = useState<{ name: string; email: string; password: string } | null>(null);
+  const [copiedCreds, setCopiedCreds] = useState(false);
 
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
 
@@ -108,14 +122,21 @@ export default function UsersPage() {
     setError('');
     setSuccess('');
 
+    // Generate the temp password client-side so we can show it to the owner
+    // exactly once — the API never echoes passwords back.
+    const tempPassword = genTempPassword();
+
     try {
-      const res = await api.post('/users', {
+      await api.post('/users', {
         ...formData,
+        role: 'WARDEN',
+        password: tempPassword,
         branchId: formData.branchId || null
       });
-      setSuccess(res.data.message);
       setShowModal(false);
-      setFormData({ email: '', name: '', phone: '', role: 'STAFF', password: '', branchId: '' });
+      setCreatedCreds({ name: formData.name, email: formData.email, password: tempPassword });
+      setCopiedCreds(false);
+      setFormData({ email: '', name: '', phone: '', branchId: '' });
       fetchData();
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'An error occurred';
@@ -125,10 +146,18 @@ export default function UsersPage() {
     }
   };
 
-  const getDefaultPassword = () => {
-    if (formData.role === 'WARDEN') return 'warden@123';
-    if (formData.role === 'STAFF') return 'staff@123';
-    return 'user@123';
+  const credsText = createdCreds
+    ? `U9PGs Warden Login\nName: ${createdCreds.name}\nEmail: ${createdCreds.email}\n${t.tempPassword}: ${createdCreds.password}`
+    : '';
+
+  const copyCreds = async () => {
+    try {
+      await navigator.clipboard.writeText(credsText);
+      setCopiedCreds(true);
+      setTimeout(() => setCopiedCreds(false), 2000);
+    } catch {
+      /* clipboard unavailable */
+    }
   };
 
   if (loading && users.length === 0) {
@@ -143,16 +172,16 @@ export default function UsersPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Team Management</h1>
-          <p className="text-slate-500">Manage your organization&apos;s staff and wardens.</p>
+          <h1 className="text-2xl font-bold text-slate-900">{t.staffTitle}</h1>
+          <p className="text-slate-500">{t.staffSubtitle}</p>
         </div>
-        {currentUser?.role !== 'STAFF' && (
+        {isOwner && (
           <button
             onClick={() => setShowModal(true)}
             className="flex items-center space-x-2 rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 transition"
           >
             <Plus className="h-5 w-5" />
-            <span>Add Member</span>
+            <span>{t.addWarden}</span>
           </button>
         )}
       </div>
@@ -366,14 +395,10 @@ export default function UsersPage() {
 
                 <div className="space-y-1.5">
                   <label className="text-sm font-semibold text-slate-700">Role</label>
-                  <select
-                    value={formData.role}
-                    onChange={(e) => setFormData({ ...formData, role: e.target.value as 'WARDEN' | 'STAFF' })}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50/30 py-3 px-4 text-sm outline-none focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all appearance-none"
-                  >
-                    {currentUser?.role === 'OWNER' && <option value="WARDEN">Warden</option>}
-                    <option value="STAFF">Staff</option>
-                  </select>
+                  <div className="flex h-[46px] items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4">
+                    <Shield className="h-4 w-4 text-blue-500" />
+                    <span className="text-sm font-bold text-slate-700">Warden</span>
+                  </div>
                 </div>
 
                 <div className="space-y-1.5">
@@ -381,11 +406,12 @@ export default function UsersPage() {
                   <div className="relative group">
                     <Building className="absolute left-3.5 top-3.5 h-4 w-4 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
                     <select
+                      required
                       value={formData.branchId}
                       onChange={(e) => setFormData({ ...formData, branchId: e.target.value })}
                       className="w-full rounded-xl border border-slate-200 bg-slate-50/30 py-3 pl-11 pr-4 text-sm outline-none focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all appearance-none"
                     >
-                      <option value="">Global / No Branch</option>
+                      <option value="">Select branch…</option>
                       {branches.map(b => (
                         <option key={b.id} value={b.id}>{b.name}</option>
                       ))}
@@ -394,29 +420,25 @@ export default function UsersPage() {
                 </div>
               </div>
 
-              {branches.length === 0 && formData.role === 'WARDEN' && (
+              {branches.length === 0 && (
                 <div className="rounded-xl bg-amber-50 p-4 border border-amber-100 flex items-start space-x-3">
                   <AlertCircle className="h-5 w-5 text-amber-500 mt-0.5" />
                   <div>
                     <p className="text-xs font-bold text-amber-800 uppercase tracking-wider">No Branches Found</p>
                     <p className="text-xs text-amber-700 mt-1 leading-relaxed">
-                      You are creating a Warden without a branch. It is recommended to create a branch first to enable data isolation for this user.
+                      A warden must be assigned to a branch. Ask your administrator to add a branch first.
                     </p>
                   </div>
                 </div>
               )}
 
               <div className="rounded-xl bg-blue-50/50 p-4 border border-blue-100/50">
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center justify-between mb-1">
                   <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">Initial Credentials</p>
                   <Shield className="h-4 w-4 text-blue-300" />
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-blue-800">Default Password:</span>
-                  <code className="rounded bg-blue-100 px-2 py-1 text-sm font-bold text-blue-900">{getDefaultPassword()}</code>
-                </div>
-                <p className="text-[10px] text-blue-500 mt-2 italic text-center">
-                  Users are encouraged to update their password upon first login.
+                <p className="text-xs text-blue-700 leading-relaxed">
+                  A secure temporary password will be generated and shown once after creation — copy or WhatsApp it to the warden.
                 </p>
               </div>
 
@@ -453,6 +475,62 @@ export default function UsersPage() {
                   </div>
                 ) : 'Confirm & Add Member'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Created credentials — shown exactly once */}
+      {createdCreds && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-[2px]">
+          <div className="relative w-full max-w-md rounded-2xl bg-white p-8 shadow-2xl animate-in zoom-in duration-200">
+            <button
+              onClick={() => setCreatedCreds(null)}
+              className="absolute right-4 top-4 rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
+            >
+              <X className="h-5 w-5" />
+            </button>
+
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50">
+              <CheckCircle className="h-8 w-8 text-emerald-500" />
+            </div>
+            <h2 className="text-center text-xl font-bold text-slate-900">{t.wardenCreated}</h2>
+            <p className="mt-1 text-center text-sm text-slate-500">{t.sharePassword}</p>
+
+            <div className="mt-6 space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm font-medium text-slate-500">Name</span>
+                <span className="text-sm font-bold text-slate-900">{createdCreds.name}</span>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm font-medium text-slate-500">Email</span>
+                <span className="truncate text-sm font-bold text-slate-900">{createdCreds.email}</span>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm font-medium text-slate-500">{t.tempPassword}</span>
+                <code className="rounded-lg bg-slate-900 px-2.5 py-1 text-sm font-bold tracking-wide text-white">
+                  {createdCreds.password}
+                </code>
+              </div>
+            </div>
+
+            <div className="mt-6 grid grid-cols-2 gap-3">
+              <button
+                onClick={copyCreds}
+                className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 transition"
+              >
+                <Copy className="h-4 w-4" />
+                {copiedCreds ? t.copied : t.copyDetails}
+              </button>
+              <a
+                href={`https://wa.me/?text=${encodeURIComponent(credsText)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 rounded-xl bg-emerald-500 py-3 text-sm font-bold text-white hover:bg-emerald-600 transition"
+              >
+                <MessageCircle className="h-4 w-4" />
+                {t.shareWhatsApp}
+              </a>
             </div>
           </div>
         </div>

@@ -226,7 +226,7 @@ router.post('/login',
 // Used by superadmin to create owner accounts — PROTECTED: SuperAdmin only
 router.post('/create-owner',
   requireAuth,
-  requireRole('SUPERADMIN', 'SUPER_ADMIN'),
+  requireRole('SUPERADMIN'),
   validate(createOwnerSchema), // Strict schema: type + length + password complexity
   async (req: Request, res: Response, next: NextFunction) => {
     try {

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import prisma from '../config/db';
-import { authMiddleware } from '../middlewares/auth.middleware';
+import { authMiddleware, requireRole } from '../middlewares/auth.middleware';
 import { validate } from '../middlewares/validation.middleware';
 import { createRoomSchema, updateRoomSchema } from '../schemas/room.schema';
 import { z } from 'zod';
@@ -15,9 +15,9 @@ router.get('/', async (req, res) => {
   const orgId = req.user!.organizationId as string;
   const { role, branchId: userBranchId } = req.user!;
 
-  // Branch Isolation: Wardens/Staff can only see their assigned branch
+  // Branch Isolation: Wardens can only see their assigned branch
   let effectiveBranchId = branchId as string;
-  if (role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId) {
+  if (role !== 'OWNER' && role !== 'SUPERADMIN' && userBranchId) {
     effectiveBranchId = userBranchId;
   }
 
@@ -87,7 +87,7 @@ router.get('/availability', async (req, res) => {
     where: { 
       organizationId: orgId, 
       status: 'ACTIVE',
-      ...(role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && { branchId: userBranchId })
+      ...(role !== 'OWNER' && role !== 'SUPERADMIN' && userBranchId && { branchId: userBranchId })
     },
     select: {
       id: true,
@@ -117,7 +117,7 @@ router.get('/occupancy', async (req, res) => {
   const rooms = await prisma.room.findMany({
     where: { 
       organizationId: orgId,
-      ...(role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && { branchId: userBranchId })
+      ...(role !== 'OWNER' && role !== 'SUPERADMIN' && userBranchId && { branchId: userBranchId })
     },
     select: { totalCapacity: true, beds: { select: { isOccupied: true } } }
   });
@@ -144,7 +144,7 @@ router.get('/:id', validate(z.object({ params: z.object({ id: z.string().min(5) 
     where: { 
       id: roomId, 
       organizationId: orgId,
-      ...(role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && { branchId: userBranchId })
+      ...(role !== 'OWNER' && role !== 'SUPERADMIN' && userBranchId && { branchId: userBranchId })
     },
     include: { 
       branch: true,
@@ -160,8 +160,9 @@ router.get('/:id', validate(z.object({ params: z.object({ id: z.string().min(5) 
   res.json({ success: true, data: room });
 });
 
-// Create room
-router.post('/', validate(createRoomSchema), async (req, res) => {
+// Create room — structural changes are developer (SUPERADMIN) only;
+// owners/wardens get view-only rooms and request changes from the administrator.
+router.post('/', requireRole('SUPERADMIN'), validate(createRoomSchema), async (req, res) => {
   const { branchId, roomNumber, roomType, totalCapacity, rentAmount, genderType, status } = req.body;
   const { role, branchId: userBranchId, organizationId: orgId } = req.user!;
 
@@ -170,7 +171,7 @@ router.post('/', validate(createRoomSchema), async (req, res) => {
   }
 
   // Branch Isolation Check
-  if (role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && userBranchId !== branchId) {
+  if (role !== 'OWNER' && role !== 'SUPERADMIN' && userBranchId && userBranchId !== branchId) {
     return res.status(403).json({ success: false, error: 'You can only create rooms in your assigned branch' });
   }
   
@@ -242,26 +243,20 @@ router.post('/', validate(createRoomSchema), async (req, res) => {
   }
 });
 
-// Update room (owner/warden edit after creation: number, floor, type, capacity, rent, gender, AC)
+// Update room (developer/SUPERADMIN only: number, floor, type, capacity, rent, gender, AC)
 // Capacity changes keep the Bed records in sync:
 //  - increase → create new beds continuing the letter sequence
 //  - decrease → only allowed down to the number of beds that are unoccupied AND
 //    have no admission history; those beds are removed, occupied ones never are
-router.patch('/:id', validate(updateRoomSchema), async (req, res) => {
+router.patch('/:id', requireRole('SUPERADMIN'), validate(updateRoomSchema), async (req, res) => {
   const roomId = String(req.params.id);
   const orgId = req.user!.organizationId as string;
-  const { role, branchId: userBranchId } = req.user!;
 
   const existing = await prisma.room.findFirst({
     where: { id: roomId, organizationId: orgId },
     include: { beds: { include: { _count: { select: { admissions: true } } } } }
   });
   if (!existing) return res.status(404).json({ success: false, error: 'Room not found' });
-
-  // Branch isolation: wardens/staff may only edit rooms in their own branch
-  if (role !== 'OWNER' && role !== 'SUPERADMIN' && role !== 'SUPER_ADMIN' && userBranchId !== existing.branchId) {
-    return res.status(403).json({ success: false, error: 'You can only edit rooms in your assigned branch' });
-  }
 
   const { totalCapacity: newCapacity, ...rest } = req.body as {
     totalCapacity?: number;
@@ -327,36 +322,33 @@ router.patch('/:id', validate(updateRoomSchema), async (req, res) => {
   res.json({ success: true, message: 'Room updated' });
 });
 
-// Block room
-router.patch('/:id/block', validate(z.object({ params: z.object({ id: z.string().min(5) }) })), async (req, res) => {
-  const roomId = req.params.id as string;
-  const room = await prisma.room.updateMany({
-    where: { id: roomId, organizationId: req.user!.organizationId as string },
-    data: { status: 'BLOCKED' }
-  });
+// Block / activate room — operational status change, allowed for owners and
+// wardens (own branch only), unlike structural edits which are SUPERADMIN-only.
+const setRoomStatus = (status: 'BLOCKED' | 'ACTIVE') =>
+  async (req: any, res: any) => {
+    const roomId = req.params.id as string;
+    const { role, branchId: userBranchId, organizationId: orgId } = req.user!;
 
-  if (room.count === 0) return res.status(404).json({ success: false, error: 'Room not found' });
-  
-  await CacheService.deleteByPattern(`heatmap:${req.user!.organizationId}:*`);
-  res.json({ success: true, message: 'Room blocked' });
-});
+    const room = await prisma.room.updateMany({
+      where: {
+        id: roomId,
+        organizationId: orgId,
+        ...(role !== 'OWNER' && role !== 'SUPERADMIN' && userBranchId && { branchId: userBranchId })
+      },
+      data: { status }
+    });
 
-// Activate room
-router.patch('/:id/activate', validate(z.object({ params: z.object({ id: z.string().min(5) }) })), async (req, res) => {
-  const roomId = req.params.id as string;
-  const room = await prisma.room.updateMany({
-    where: { id: roomId, organizationId: req.user!.organizationId as string },
-    data: { status: 'ACTIVE' }
-  });
+    if (room.count === 0) return res.status(404).json({ success: false, error: 'Room not found or access denied' });
 
-  if (room.count === 0) return res.status(404).json({ success: false, error: 'Room not found' });
-  
-  await CacheService.deleteByPattern(`heatmap:${req.user!.organizationId}:*`);
-  res.json({ success: true, message: 'Room activated' });
-});
+    await CacheService.deleteByPattern(`heatmap:${orgId}:*`);
+    res.json({ success: true, message: status === 'BLOCKED' ? 'Room blocked' : 'Room activated' });
+  };
 
-// Delete room
-router.delete('/:id', validate(z.object({ params: z.object({ id: z.string().min(5) }) })), async (req, res) => {
+router.patch('/:id/block', validate(z.object({ params: z.object({ id: z.string().min(5) }) })), setRoomStatus('BLOCKED'));
+router.patch('/:id/activate', validate(z.object({ params: z.object({ id: z.string().min(5) }) })), setRoomStatus('ACTIVE'));
+
+// Delete room — developer (SUPERADMIN) only
+router.delete('/:id', requireRole('SUPERADMIN'), validate(z.object({ params: z.object({ id: z.string().min(5) }) })), async (req, res) => {
   const roomId = req.params.id as string;
   const orgId = req.user!.organizationId as string;
 

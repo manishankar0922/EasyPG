@@ -1,6 +1,8 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useUserRole } from '@/hooks/useUserRole';
 import api from '@/lib/api';
 import {
   Bed,
@@ -58,10 +60,10 @@ export default function RoomDetailsPage() {
   const params = useParams();
   const router = useRouter();
   const roomId = params.id as string;
+  // Structure edits (capacity/rent/type) are developer-only; owners and
+  // wardens keep the operational block/activate control.
+  const { isAdmin } = useUserRole();
 
-  const [room, setRoom] = useState<Room | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [updating, setUpdating] = useState(false);
 
   // ── Edit sheet state ──
@@ -125,23 +127,19 @@ export default function RoomDetailsPage() {
     }
   };
 
-  const fetchRoom = useCallback(async () => {
-    try {
-      setLoading(true);
+  const { data: room, isLoading: loading, error: queryError, refetch } = useQuery<Room>({
+    queryKey: ['room', roomId],
+    queryFn: async () => {
       const { data } = await api.get(`/rooms/${roomId}`);
-      if (data.success) {
-        setRoom(data.data);
-      }
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to fetch room details');
-    } finally {
-      setLoading(false);
-    }
-  }, [roomId]);
-
-  useEffect(() => {
-    fetchRoom();
-  }, [fetchRoom]);
+      if (!data.success) throw new Error('Failed to fetch room details');
+      return data.data as Room;
+    },
+    enabled: !!roomId,
+    staleTime: 30 * 1000,
+    gcTime: 5 * 60 * 1000,
+  });
+  const error = queryError ? ((queryError as any).response?.data?.error || 'Failed to fetch room details') : '';
+  const fetchRoom = () => refetch();
 
   const toggleStatus = async () => {
     if (!room) return;
@@ -159,8 +157,18 @@ export default function RoomDetailsPage() {
   };
 
   if (loading) return (
-    <div className="flex h-64 items-center justify-center">
-      <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+    <div className="space-y-8">
+      <div className="flex items-center gap-4">
+        <div className="h-9 w-9 animate-pulse rounded-full bg-slate-200" />
+        <div className="space-y-2">
+          <div className="h-6 w-36 animate-pulse rounded bg-slate-200" />
+          <div className="h-4 w-24 animate-pulse rounded bg-slate-200" />
+        </div>
+      </div>
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+        <div className="h-72 animate-pulse rounded-2xl bg-slate-200 lg:col-span-1" />
+        <div className="h-72 animate-pulse rounded-2xl bg-slate-200 lg:col-span-2" />
+      </div>
     </div>
   );
 
@@ -184,13 +192,15 @@ export default function RoomDetailsPage() {
           </div>
         </div>
         <div className="flex items-center space-x-3">
-          <button
-            onClick={openEdit}
-            className="flex items-center space-x-2 rounded-xl px-4 py-2 text-sm font-bold bg-blue-50 text-blue-600 hover:bg-blue-100 transition-all cursor-pointer"
-          >
-            <Pencil className="h-4 w-4" />
-            <span>Edit</span>
-          </button>
+          {isAdmin && (
+            <button
+              onClick={openEdit}
+              className="flex items-center space-x-2 rounded-xl px-4 py-2 text-sm font-bold bg-blue-50 text-blue-600 hover:bg-blue-100 transition-all cursor-pointer"
+            >
+              <Pencil className="h-4 w-4" />
+              <span>Edit</span>
+            </button>
+          )}
           <button
             onClick={toggleStatus}
             disabled={updating}

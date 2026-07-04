@@ -12,12 +12,20 @@ router.use(authMiddleware);
 
 // List payments / History
 router.get('/', async (req, res) => {
-  const { invoiceId, tenantId, month, branchId: branchIdQuery } = req.query;
+  const { invoiceId, tenantId, month, branchId: branchIdQuery, page = '1', limit = '50' } = req.query;
   const orgId = req.user!.organizationId;
   const { role, branchId: userBranchId } = req.user!;
-  const branchId = userBranchId || branchIdQuery;
+
+  // OWNER/SUPERADMIN: org-wide unless a branch filter is requested; WARDEN is
+  // always pinned to their own branch (requireBranchAccess blocks other params).
+  const branchId = (role === 'OWNER' || role === 'SUPERADMIN')
+    ? (typeof branchIdQuery === 'string' && branchIdQuery !== 'all' && branchIdQuery !== '' ? branchIdQuery : undefined)
+    : userBranchId;
 
   const currentMonthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+
+  const pageNum = Math.max(parseInt(page as string) || 1, 1);
+  const limitNum = Math.min(Math.max(parseInt(limit as string) || 50, 1), 100);
 
   const payments = await prisma.payment.findMany({
     where: {
@@ -28,9 +36,12 @@ router.get('/', async (req, res) => {
       ...(branchId && { invoice: { tenant: { admissions: { some: { room: { branchId: branchId as string }, status: 'ACTIVE' } } } } })
     },
     include: {
-      invoice: { include: { tenant: true } }
+      // PERF + PRIVACY: only what payment lists render — not the full tenant row
+      invoice: { include: { tenant: { select: { id: true, name: true, phone: true, photoUrl: true } } } }
     },
-    orderBy: { createdAt: 'desc' }
+    orderBy: { createdAt: 'desc' },
+    skip: (pageNum - 1) * limitNum,
+    take: limitNum
   });
 
   res.json({ success: true, data: payments });
@@ -262,7 +273,7 @@ router.get('/report', async (req, res) => {
   const payments = await prisma.payment.findMany({
     where: {
       organizationId: orgId,
-      ...(role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && {
+      ...(role !== 'OWNER' && role !== 'SUPERADMIN' && userBranchId && {
         invoice: {
           tenant: {
             admissions: {

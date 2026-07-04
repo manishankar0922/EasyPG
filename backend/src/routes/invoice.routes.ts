@@ -22,7 +22,7 @@ router.get('/', async (req, res) => {
     take: limit,
     where: {
       organizationId: orgId,
-      ...(role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && {
+      ...(role !== 'OWNER' && role !== 'SUPERADMIN' && userBranchId && {
         tenant: { admissions: { some: { room: { branchId: userBranchId }, status: 'ACTIVE' } } }
       }),
       ...(status && { status: status as any }),
@@ -53,7 +53,7 @@ router.get('/overdue', async (req, res) => {
       organizationId: orgId,
       status: { not: 'PAID' },
       dueDate: { lt: new Date() },
-      ...(role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && {
+      ...(role !== 'OWNER' && role !== 'SUPERADMIN' && userBranchId && {
         tenant: { admissions: { some: { room: { branchId: userBranchId }, status: 'ACTIVE' } } }
       })
     },
@@ -73,7 +73,7 @@ router.post('/', validate(createInvoiceSchema), async (req, res) => {
     where: {
       id: tenantId,
       organizationId: orgId,
-      ...(role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && {
+      ...(role !== 'OWNER' && role !== 'SUPERADMIN' && userBranchId && {
         admissions: { some: { room: { branchId: userBranchId }, status: 'ACTIVE' } }
       })
     }
@@ -108,7 +108,7 @@ router.post('/generate-monthly', validate(z.object({
     where: { 
       organizationId: orgId, 
       status: 'ACTIVE',
-      ...(role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && {
+      ...(role !== 'OWNER' && role !== 'SUPERADMIN' && userBranchId && {
         room: { branchId: userBranchId }
       })
     },
@@ -145,7 +145,7 @@ router.patch('/:id', validate(updateInvoiceSchema), async (req, res) => {
     where: {
       id: invoiceId,
       organizationId: orgId,
-      ...(role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && {
+      ...(role !== 'OWNER' && role !== 'SUPERADMIN' && userBranchId && {
         tenant: { admissions: { some: { room: { branchId: userBranchId }, status: 'ACTIVE' } } }
       })
     }
@@ -177,7 +177,7 @@ router.delete('/:id', validate(z.object({ params: z.object({ id: z.string().min(
     where: {
       id: invoiceId,
       organizationId: orgId,
-      ...(role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && {
+      ...(role !== 'OWNER' && role !== 'SUPERADMIN' && userBranchId && {
         tenant: { admissions: { some: { room: { branchId: userBranchId }, status: 'ACTIVE' } } }
       })
     }
@@ -217,7 +217,7 @@ router.get('/tenant/:tenantId/pending', validate(z.object({ params: z.object({ t
     where: {
       id: tenantId,
       organizationId: orgId,
-      ...(role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && {
+      ...(role !== 'OWNER' && role !== 'SUPERADMIN' && userBranchId && {
         admissions: {
           some: {
             room: { branchId: userBranchId },

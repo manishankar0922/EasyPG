@@ -5,7 +5,7 @@ export const checkSubscription = async (req: Request, res: Response, next: NextF
   // Pass if not authenticated (handled by auth middleware)
   if (!req.user) return next();
 
-  if (req.user.role === 'SUPERADMIN' || req.user.role === 'superadmin' || req.user.role === 'SUPER_ADMIN') {
+  if (req.user.role === 'SUPERADMIN') {
     return next();
   }
 
@@ -112,7 +112,7 @@ export const checkSubscription = async (req: Request, res: Response, next: NextF
 export const requireProPlan = async (req: Request, res: Response, next: NextFunction) => {
   const sub = (req as any).subscription;
   
-  if (req.user?.role === 'SUPERADMIN' || req.user?.role === 'superadmin' || req.user?.role === 'SUPER_ADMIN') {
+  if (req.user?.role === 'SUPERADMIN') {
     return next();
   }
 

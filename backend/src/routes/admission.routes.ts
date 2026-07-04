@@ -16,7 +16,7 @@ router.get('/', async (req, res) => {
   const admissions = await prisma.admission.findMany({
     where: { 
       organizationId: orgId,
-      ...(role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && {
+      ...(role !== 'OWNER' && role !== 'SUPERADMIN' && userBranchId && {
         room: { branchId: userBranchId }
       })
     },
@@ -34,7 +34,7 @@ router.get('/active', async (req, res) => {
     where: { 
       organizationId: orgId, 
       status: 'ACTIVE',
-      ...(role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && {
+      ...(role !== 'OWNER' && role !== 'SUPERADMIN' && userBranchId && {
         room: { branchId: userBranchId }
       })
     },
@@ -52,7 +52,7 @@ router.get('/history', async (req, res) => {
     where: { 
       organizationId: orgId, 
       status: 'COMPLETED',
-      ...(role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && {
+      ...(role !== 'OWNER' && role !== 'SUPERADMIN' && userBranchId && {
         room: { branchId: userBranchId }
       })
     },
@@ -76,7 +76,7 @@ router.post('/checkin', validate(checkInSchema), async (req, res) => {
       if (room.occupiedCapacity >= room.totalCapacity) throw new Error('Room is full');
 
       // Warden Branch Lock Check
-      if (role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && room.branchId !== userBranchId) {
+      if (role !== 'OWNER' && role !== 'SUPERADMIN' && userBranchId && room.branchId !== userBranchId) {
         throw new Error('Access denied: Room belongs to another branch');
       }
 
@@ -128,7 +128,7 @@ router.post('/checkout/:id', validate(checkOutSchema), async (req, res) => {
       if (admission.status !== 'ACTIVE') throw new Error('Admission is not active');
 
       // Warden Branch Lock Check
-      if (role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && admission.room.branchId !== userBranchId) {
+      if (role !== 'OWNER' && role !== 'SUPERADMIN' && userBranchId && admission.room.branchId !== userBranchId) {
         throw new Error('Access denied: Admission belongs to another branch');
       }
 
@@ -172,7 +172,7 @@ router.post('/transfer/:id', validate(roomTransferSchema), async (req, res) => {
       if (admission.roomId === newRoomId) throw new Error('Cannot transfer to the same room');
 
       // Warden Branch Lock Check (source room)
-      if (role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && admission.room.branchId !== userBranchId) {
+      if (role !== 'OWNER' && role !== 'SUPERADMIN' && userBranchId && admission.room.branchId !== userBranchId) {
         throw new Error('Access denied: Source room belongs to another branch');
       }
 
@@ -182,7 +182,7 @@ router.post('/transfer/:id', validate(roomTransferSchema), async (req, res) => {
       if (newRoom.occupiedCapacity >= newRoom.totalCapacity) throw new Error('New room is full');
 
       // Warden Branch Lock Check (destination room)
-      if (role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && newRoom.branchId !== userBranchId) {
+      if (role !== 'OWNER' && role !== 'SUPERADMIN' && userBranchId && newRoom.branchId !== userBranchId) {
         throw new Error('Access denied: Destination room belongs to another branch');
       }
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import api from '@/lib/api';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -15,51 +16,42 @@ import SearchingAnimation from '@/components/shared/SearchingAnimation';
 type FilterType = 'ALL' | 'PAID' | 'UNPAID' | 'NEW' | 'VACATED';
 
 export default function TenantsMobilePage() {
-  const [tenants, setTenants] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterType>('ALL');
   const { user } = useAuthStore();
   const { activeBranchId } = useBranch();
   const { t } = useLanguage();
 
+  // Debounce only the search text; filter/branch changes fetch immediately
   useEffect(() => {
-    async function fetchTenants() {
-      try {
-        setLoading(true);
-        // Map our simple UI filters to API params
-        let statusParam = '';
-        let newParam = '';
-        if (activeFilter === 'PAID') statusParam = 'PAID';
-        if (activeFilter === 'UNPAID') statusParam = 'UNPAID';
-        if (activeFilter === 'NEW') newParam = 'true';
-
-        const res = await api.get('/tenants', {
-          params: {
-            search: searchQuery,
-            paymentStatus: statusParam,
-            newThisMonth: newParam,
-            status: activeFilter === 'VACATED' ? 'VACATED' : undefined,
-            branchId: activeBranchId || user?.branchId || ''
-          }
-        });
-
-        if (res.data.success) {
-          setTenants(res.data.data);
-        }
-      } catch (err) {
-        console.error('Failed to fetch tenants', err);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    // Debounce search slightly
-    const timer = setTimeout(() => {
-      fetchTenants();
-    }, 300);
+    const timer = setTimeout(() => setDebouncedSearch(searchQuery), 300);
     return () => clearTimeout(timer);
-  }, [searchQuery, activeFilter, user, activeBranchId]);
+  }, [searchQuery]);
+
+  const branchId = activeBranchId || user?.branchId || '';
+
+  // Cached + keepPreviousData: switching filters/branches keeps the current
+  // list on screen while fresh rows load, instead of flashing a spinner.
+  const { data: tenants = [], isLoading: loading } = useQuery({
+    queryKey: ['tenants', debouncedSearch, activeFilter, branchId],
+    queryFn: async () => {
+      const res = await api.get('/tenants', {
+        params: {
+          search: debouncedSearch,
+          paymentStatus: activeFilter === 'PAID' ? 'PAID' : activeFilter === 'UNPAID' ? 'UNPAID' : '',
+          newThisMonth: activeFilter === 'NEW' ? 'true' : '',
+          status: activeFilter === 'VACATED' ? 'VACATED' : undefined,
+          branchId
+        }
+      });
+      if (!res.data.success) throw new Error('Failed to fetch tenants');
+      return res.data.data as any[];
+    },
+    placeholderData: keepPreviousData,
+    staleTime: 30 * 1000,
+    gcTime: 5 * 60 * 1000,
+  });
 
   return (
     <div className="min-h-screen bg-slate-50 relative pb-20">

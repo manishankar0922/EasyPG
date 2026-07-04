@@ -34,18 +34,19 @@ router.get('/:id', validate(z.object({ params: z.object({ id: z.string().min(5) 
   res.json({ success: true, data: user });
 });
 
-// Create user (Hierarchical: OWNER creates anyone, WARDEN creates STAFF)
+// Create user — OWNER may create WARDEN logins only. Owners can never mint
+// another OWNER (privilege escalation) and wardens cannot create anyone.
 router.post('/', validate(createProfileSchema), async (req, res) => {
   const { organizationId, role: currentUserRole } = req.user!;
   const { email, password: providedPassword, name, phone, role: targetRole, branchId } = req.body;
 
   // 1. Hierarchy Check
-  if (currentUserRole === 'WARDEN' && targetRole !== 'STAFF') {
-    return res.status(403).json({ success: false, error: 'Wardens can only create Staff members' });
+  if (currentUserRole !== 'OWNER') {
+    return res.status(403).json({ success: false, error: 'Only owners can create staff logins' });
   }
 
-  if (currentUserRole !== 'OWNER' && currentUserRole !== 'WARDEN') {
-    return res.status(403).json({ success: false, error: 'Unauthorized to create users' });
+  if (targetRole !== 'WARDEN') {
+    return res.status(403).json({ success: false, error: 'Owners can only create Warden (staff) logins' });
   }
 
   // 2. Set Default Password if not provided
@@ -54,9 +55,7 @@ router.post('/', validate(createProfileSchema), async (req, res) => {
   let password = providedPassword;
   if (!password) {
     const genRandom = () => randomBytes(9).toString('base64url'); // 12 safe chars
-    if (targetRole === 'WARDEN') password = process.env.DEFAULT_WARDEN_PASSWORD || genRandom();
-    else if (targetRole === 'STAFF') password = process.env.DEFAULT_STAFF_PASSWORD || genRandom();
-    else password = process.env.DEFAULT_USER_PASSWORD || genRandom();
+    password = process.env.DEFAULT_WARDEN_PASSWORD || genRandom();
   }
 
   try {
@@ -219,6 +218,10 @@ router.patch('/:id', validate(updateProfileSchema), async (req, res) => {
   if (role !== undefined || branchId !== undefined || status !== undefined) {
     if (!isOwner) {
       return res.status(403).json({ success: false, error: 'Only owners can change role, branch, or status' });
+    }
+    // An owner can never grant a role above WARDEN (no self-serve OWNER/SUPERADMIN)
+    if (role !== undefined && role !== 'WARDEN') {
+      return res.status(403).json({ success: false, error: 'Staff role can only be WARDEN' });
     }
     if (role !== undefined) data.role = role;
     if (status !== undefined) data.status = status;
