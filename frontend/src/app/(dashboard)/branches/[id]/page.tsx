@@ -1,21 +1,18 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
-import { 
-  Building2, 
-  MapPin, 
-  Bed, 
-  Users, 
-  Plus, 
-  ArrowLeft, 
-  Loader2,
-  Settings,
+import {
+  MapPin,
+  Bed,
+  Users,
+  ArrowLeft,
   ArrowRight
 } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { useLanguage } from '@/context/LanguageContext';
 
 interface Room {
   id: string;
@@ -41,32 +38,40 @@ export default function BranchDetailsPage() {
   const params = useParams();
   const router = useRouter();
   const branchId = params.id as string;
+  const { t } = useLanguage();
 
-  const [branch, setBranch] = useState<Branch | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-
-  const fetchBranch = useCallback(async () => {
-    try {
-      setLoading(true);
+  const { data: branch, isLoading: loading, error: queryError } = useQuery<Branch>({
+    queryKey: ['branch', branchId],
+    queryFn: async () => {
       const { data } = await api.get(`/branches/${branchId}`);
-      if (data.success) {
-        setBranch(data.data);
-      }
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to fetch branch details');
-    } finally {
-      setLoading(false);
-    }
-  }, [branchId]);
-
-  useEffect(() => {
-    fetchBranch();
-  }, [fetchBranch]);
+      if (!data.success) throw new Error('Failed to fetch branch details');
+      return data.data as Branch;
+    },
+    enabled: !!branchId,
+    staleTime: 30 * 1000,
+    gcTime: 5 * 60 * 1000,
+  });
+  const error = queryError ? ((queryError as any).response?.data?.error || 'Failed to fetch branch details') : '';
 
   if (loading) return (
-    <div className="flex h-64 items-center justify-center">
-      <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+    <div className="space-y-8">
+      <div className="flex items-center gap-4">
+        <div className="h-10 w-10 animate-pulse rounded-full bg-slate-200" />
+        <div className="space-y-2">
+          <div className="h-6 w-44 animate-pulse rounded bg-slate-200" />
+          <div className="h-4 w-32 animate-pulse rounded bg-slate-200" />
+        </div>
+      </div>
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="h-28 animate-pulse rounded-2xl bg-slate-200" />
+        ))}
+      </div>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className="h-44 animate-pulse rounded-2xl bg-slate-200" />
+        ))}
+      </div>
     </div>
   );
 
@@ -91,19 +96,6 @@ export default function BranchDetailsPage() {
               {branch.address}
             </div>
           </div>
-        </div>
-        <div className="flex items-center space-x-3">
-          <button className="flex items-center space-x-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition">
-            <Settings className="h-4 w-4" />
-            <span>Manage Branch</span>
-          </button>
-          <Link 
-            href="/rooms/create"
-            className="flex items-center space-x-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700 transition shadow-lg shadow-blue-600/20"
-          >
-            <Plus className="h-4 w-4" />
-            <span>Add Room</span>
-          </Link>
         </div>
       </div>
 
@@ -138,10 +130,10 @@ export default function BranchDetailsPage() {
           <Bed className="mr-2 h-5 w-5 text-blue-600" />
           Room Inventory
         </h2>
-        
+
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {branch.rooms.map((room) => (
-            <Link 
+            <Link
               key={room.id}
               href={`/rooms/${room.id}`}
               className="group rounded-2xl border border-slate-200 bg-white p-5 hover:border-blue-300 hover:shadow-md transition-all"
@@ -157,10 +149,10 @@ export default function BranchDetailsPage() {
                   {room.status}
                 </span>
               </div>
-              
+
               <h3 className="text-xl font-black text-slate-900">Room {room.roomNumber}</h3>
               <p className="text-xs font-bold text-slate-400 uppercase tracking-tighter mt-0.5">{room.roomType ? room.roomType.replace(/_/g, ' ') : '—'}</p>
-              
+
               <div className="mt-6 flex items-center justify-between border-t border-slate-50 pt-4">
                 <div className="flex items-center space-x-2">
                   <Users className="h-4 w-4 text-slate-400" />
@@ -173,21 +165,14 @@ export default function BranchDetailsPage() {
               </div>
             </Link>
           ))}
-          
+
           {branch.rooms.length === 0 && (
             <div className="md:col-span-2 xl:col-span-3 rounded-2xl border border-dashed border-slate-200 p-12 text-center">
               <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-50 text-slate-300 mb-4">
                 <Bed className="h-6 w-6" />
               </div>
               <h3 className="text-lg font-bold text-slate-900">No rooms found</h3>
-              <p className="text-sm text-slate-500 mt-1">Start by adding rooms to this branch.</p>
-              <Link 
-                href="/rooms/create"
-                className="mt-6 inline-flex items-center space-x-2 rounded-xl bg-slate-900 px-6 py-2.5 text-sm font-bold text-white hover:bg-slate-800 transition"
-              >
-                <Plus className="h-4 w-4" />
-                <span>Add First Room</span>
-              </Link>
+              <p className="text-sm text-slate-500 mt-1">{t.viewOnlyStructure}</p>
             </div>
           )}
         </div>

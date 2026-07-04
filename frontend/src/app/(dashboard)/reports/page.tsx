@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import api from '@/lib/api';
 import { useLanguage } from '@/context/LanguageContext';
+import { useBranch } from '@/context/BranchContext';
+import { useUserRole } from '@/hooks/useUserRole';
 import { IndianRupee, Wallet, PieChart, Users, Download, Printer } from 'lucide-react';
 import { Card, CardHeader, StatTile, Skeleton, EmptyState } from '@/components/analytics/ui';
 import { AreaTrendChart, BarCompare, GaugeDonut, type TrendPoint, type BarDatum } from '@/components/analytics/charts';
@@ -29,6 +31,8 @@ type PendingRow = {
 
 export default function ReportsPage() {
   const { t, lang } = useLanguage();
+  const { branches } = useBranch();
+  const { isOwner } = useUserRole();
 
   const [overview, setOverview] = useState<Overview | null>(null);
   const [revenue, setRevenue] = useState<Record<string, number>>({});
@@ -37,16 +41,21 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Owners see every branch by default and can narrow to one; wardens are
+  // scoped to their own branch by the backend regardless of this value.
+  const [scope, setScope] = useState<string>('all');
+
   useEffect(() => {
     let cancelled = false;
     async function load() {
       setLoading(true);
       setError(null);
+      const params = scope !== 'all' ? { branchId: scope } : undefined;
       const [ov, rev, occ, pend] = await Promise.allSettled([
-        api.get('/dashboard/overview'),
-        api.get('/dashboard/revenue'),
-        api.get('/dashboard/occupancy'),
-        api.get('/dashboard/pending-payments'),
+        api.get('/dashboard/overview', { params }),
+        api.get('/dashboard/revenue', { params }),
+        api.get('/dashboard/occupancy', { params }),
+        api.get('/dashboard/pending-payments', { params }),
       ]);
       if (cancelled) return;
 
@@ -73,7 +82,7 @@ export default function ReportsPage() {
     return () => {
       cancelled = true;
     };
-  }, [t]);
+  }, [t, scope]);
 
   // revenue object -> ascending 12-month series
   const trend: TrendPoint[] = useMemo(() => {
@@ -139,6 +148,35 @@ export default function ReportsPage() {
       </header>
 
       <main className="mx-auto max-w-6xl space-y-5 p-4 md:p-6">
+        {/* Branch filter — owners can compare all branches or focus on one */}
+        {isOwner && branches.length > 1 && (
+          <div className="flex flex-wrap items-center gap-2 print:hidden">
+            <button
+              onClick={() => setScope('all')}
+              className={`rounded-full px-3.5 py-1.5 text-sm font-semibold transition-colors ${
+                scope === 'all'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              {t.allBranches}
+            </button>
+            {branches.map((b) => (
+              <button
+                key={b.id}
+                onClick={() => setScope(b.id)}
+                className={`rounded-full px-3.5 py-1.5 text-sm font-semibold transition-colors ${
+                  scope === b.id
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                {b.name}
+              </button>
+            ))}
+          </div>
+        )}
+
         {error && (
           <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">
             {error}

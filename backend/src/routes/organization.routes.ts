@@ -12,7 +12,7 @@ router.use(authMiddleware);
 
 // Create Organization (Internal/Admin Onboarding)
 // Restricted to SUPERADMINs only to prevent authenticated users (e.g. Wardens) from spawning spam organizations.
-router.post('/', requireRole('SUPERADMIN', 'SUPER_ADMIN'), validate(z.object({
+router.post('/', requireRole('SUPERADMIN'), validate(z.object({
   body: z.object({
     name: z.string().min(2).max(100),
     ownerName: z.string().min(2).max(100),
@@ -100,7 +100,7 @@ router.post('/setup-wizard', validate(z.object({
   const { organizationId, role } = req.user!;
   const { branches } = req.body;
 
-  if (role !== 'OWNER' && role !== 'SUPER_ADMIN') {
+  if (role !== 'OWNER' && role !== 'SUPERADMIN') {
     return res.status(403).json({ success: false, error: 'Unauthorized to use setup wizard' });
   }
 

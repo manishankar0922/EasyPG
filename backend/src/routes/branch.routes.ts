@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import prisma from '../config/db';
-import { authMiddleware } from '../middlewares/auth.middleware';
+import { authMiddleware, requireRole } from '../middlewares/auth.middleware';
 import { checkSubscription, requireProPlan } from '../middlewares/subscription.middleware';
 import { validate } from '../middlewares/validation.middleware';
 import { createBranchSchema, updateBranchSchema } from '../schemas/branch.schema';
@@ -385,8 +385,8 @@ router.get('/:id/upcoming-vacancies', validate(z.object({ params: z.object({ id:
   }
 });
 
-// Create branch
-router.post('/', validate(createBranchSchema), async (req, res) => {
+// Create branch — structural changes are developer (SUPERADMIN) only
+router.post('/', requireRole('SUPERADMIN'), validate(createBranchSchema), async (req, res) => {
   const { name, address, floors } = req.body;
   const orgId = req.user!.organizationId;
   
@@ -477,8 +477,8 @@ router.post('/', validate(createBranchSchema), async (req, res) => {
   }
 });
 
-// Update branch
-router.patch('/:id', validate(updateBranchSchema), async (req, res) => {
+// Update branch — developer (SUPERADMIN) only
+router.patch('/:id', requireRole('SUPERADMIN'), validate(updateBranchSchema), async (req, res) => {
   const { name, address } = req.body;
   const branchId = req.params.id as string;
   const branch = await prisma.branch.updateMany({
@@ -491,8 +491,8 @@ router.patch('/:id', validate(updateBranchSchema), async (req, res) => {
   res.json({ success: true, message: 'Branch updated successfully' });
 });
 
-// Delete branch
-router.delete('/:id', validate(z.object({ params: z.object({ id: z.string().min(5) }) })), async (req, res) => {
+// Delete branch — developer (SUPERADMIN) only
+router.delete('/:id', requireRole('SUPERADMIN'), validate(z.object({ params: z.object({ id: z.string().min(5) }) })), async (req, res) => {
   const branchId = req.params.id as string;
   const orgId = req.user!.organizationId as string;
 

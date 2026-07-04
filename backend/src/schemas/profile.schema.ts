@@ -1,6 +1,8 @@
 import { z } from 'zod';
 
-const RoleEnum = z.enum(['OWNER', 'WARDEN', 'STAFF']);
+// Matches the Prisma Role enum (minus SUPERADMIN, which is never self-served).
+// STAFF was removed — it never existed in the DB enum; WARDEN is the staff role.
+const RoleEnum = z.enum(['OWNER', 'WARDEN']);
 const StatusEnum = z.enum(['ACTIVE', 'INACTIVE', 'SUSPENDED']);
 
 export const createProfileSchema = z.object({

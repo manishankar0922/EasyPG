@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import api from '@/lib/api';
 import { useRouter } from 'next/navigation';
+import { useUserRole } from '@/hooks/useUserRole';
 import { Building2, MapPin, Loader2, ArrowLeft, Plus, X } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
@@ -28,6 +29,13 @@ type FloorPayload = {
 
 export default function CreateBranchPage() {
   const router = useRouter();
+  // Branch creation is developer (SUPERADMIN) only — backend enforces this;
+  // redirect org users away from the dead form.
+  const { isAdmin } = useUserRole();
+  useEffect(() => {
+    if (!isAdmin) router.replace('/branches');
+  }, [isAdmin, router]);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [formData, setFormData] = useState({ name: '', address: '' });

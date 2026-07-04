@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Bed, Building, Users, Loader2, ArrowLeft, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
+import { useUserRole } from '@/hooks/useUserRole';
 
 interface Branch {
   id: string;
@@ -14,6 +15,13 @@ interface Branch {
 
 export default function CreateRoomPage() {
   const router = useRouter();
+  // Room creation is developer (SUPERADMIN) only — the backend enforces this
+  // too; this guard just keeps org users from landing on a dead form.
+  const { isAdmin } = useUserRole();
+  useEffect(() => {
+    if (!isAdmin) router.replace('/rooms');
+  }, [isAdmin, router]);
+
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');

@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import Image from 'next/image';
 import { Phone, MessageCircle, IndianRupee, ArrowLeft, Loader2, CheckCircle2, AlertCircle, Lock, Building2, CreditCard } from 'lucide-react';
@@ -27,8 +28,6 @@ export default function TenantDetailPage() {
   const { t, lang } = useLanguage();
   const router = useRouter();
   const { user } = useAuthStore();
-  const [tenant, setTenant] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
 
   // Payment Sheet State
   const [isPaymentSheetOpen, setIsPaymentSheetOpen] = useState(false);
@@ -52,27 +51,36 @@ export default function TenantDetailPage() {
   // Document Viewer State
   const [viewImage, setViewImage] = useState<string | null>(null);
 
-  const fetchTenant = async () => {
-    try {
+  // Cached fetch: navigating back to a tenant you just viewed paints instantly
+  // from cache while a background refetch keeps it fresh.
+  const { data: tenant, isLoading: loading, refetch } = useQuery({
+    queryKey: ['tenant', id],
+    queryFn: async () => {
       const res = await api.get(`/tenants/${id}`);
-      if (res.data.success) {
-        setTenant(res.data.data);
-      }
-    } catch (err) {
-      console.error('Failed to load tenant', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchTenant();
-  }, [id]);
+      if (!res.data.success) throw new Error('Failed to load tenant');
+      return res.data.data;
+    },
+    enabled: !!id,
+    staleTime: 30 * 1000,
+    gcTime: 5 * 60 * 1000,
+  });
+  const fetchTenant = async () => { await refetch(); };
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 pb-20">
-        <Loader2 className="h-10 w-10 animate-spin text-blue-600" />
+      <div className="min-h-screen bg-slate-50 p-4 pb-20">
+        <div className="mx-auto max-w-2xl space-y-4 pt-4">
+          <div className="h-8 w-24 animate-pulse rounded-lg bg-slate-200" />
+          <div className="flex items-center gap-4">
+            <div className="h-20 w-20 animate-pulse rounded-full bg-slate-200" />
+            <div className="space-y-2">
+              <div className="h-5 w-40 animate-pulse rounded bg-slate-200" />
+              <div className="h-4 w-28 animate-pulse rounded bg-slate-200" />
+            </div>
+          </div>
+          <div className="h-40 animate-pulse rounded-2xl bg-slate-200" />
+          <div className="h-64 animate-pulse rounded-2xl bg-slate-200" />
+        </div>
       </div>
     );
   }
@@ -108,20 +116,23 @@ export default function TenantDetailPage() {
     }
   }
 
-  // Calculate total rent pending from ALL unpaid/partial invoices
+  // Total rent pending — the API now computes this over the FULL invoice
+  // history server-side (the payload only ships recent + unpaid invoices).
   let totalPendingRent = 0;
   let hasInvoices = false;
 
   if (tenant.invoices && tenant.invoices.length > 0) {
     hasInvoices = true;
-    totalPendingRent = tenant.invoices.reduce((total: number, inv: any) => {
-      if (inv.status !== 'PAID') {
-        const invAmount = Number(inv.amount);
-        const paidSoFar = inv.payments?.reduce((acc: number, p: any) => acc + Number(p.amount), 0) || 0;
-        return total + Math.max(0, invAmount - paidSoFar);
-      }
-      return total;
-    }, 0);
+    totalPendingRent = tenant.pendingTotal !== undefined
+      ? Number(tenant.pendingTotal)
+      : tenant.invoices.reduce((total: number, inv: any) => {
+          if (inv.status !== 'PAID') {
+            const invAmount = Number(inv.amount);
+            const paidSoFar = inv.payments?.reduce((acc: number, p: any) => acc + Number(p.amount), 0) || 0;
+            return total + Math.max(0, invAmount - paidSoFar);
+          }
+          return total;
+        }, 0);
   }
 
   // Default to rentAmount if no invoices exist yet

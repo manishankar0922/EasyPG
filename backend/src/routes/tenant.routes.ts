@@ -126,7 +126,7 @@ router.get('/search', async (req, res) => {
     take: 20, // Limit results to prevent overwhelming the client and DB
     where: {
       organizationId: orgId,
-      ...(role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && {
+      ...(role !== 'OWNER' && role !== 'SUPERADMIN' && userBranchId && {
         admissions: {
           some: {
             room: {
@@ -150,10 +150,10 @@ router.get('/:id', validate(z.object({ params: z.object({ id: z.string().min(5) 
   const { role, branchId: userBranchId, organizationId: orgId } = req.user!;
 
   const tenant = await prisma.tenant.findFirst({
-    where: { 
-      id: tenantId, 
+    where: {
+      id: tenantId,
       organizationId: orgId,
-      ...(role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && {
+      ...(role !== 'OWNER' && role !== 'SUPERADMIN' && userBranchId && {
         admissions: {
           some: {
             room: {
@@ -168,23 +168,6 @@ router.get('/:id', validate(z.object({ params: z.object({ id: z.string().min(5) 
         include: { room: { include: { branch: true } } },
         orderBy: { createdAt: 'desc' }
       },
-      invoices: {
-        include: { 
-          payments: {
-            include: { 
-              recordedBy: { 
-                select: { 
-                  name: true, 
-                  role: true,
-                  branch: { select: { name: true } }
-                } 
-              } 
-            },
-            orderBy: { createdAt: 'desc' }
-          }
-        },
-        orderBy: { createdAt: 'desc' }
-      },
       vacateNotice: {
         where: { status: 'PENDING' }
       }
@@ -193,7 +176,60 @@ router.get('/:id', validate(z.object({ params: z.object({ id: z.string().min(5) 
 
   if (!tenant) return res.status(404).json({ success: false, error: 'Tenant not found' });
 
-  res.json({ success: true, data: tenant });
+  // PERF: the old shape shipped EVERY invoice + payment (+ recorder & branch)
+  // a tenant ever had — long-tenured tenants made this the slowest detail view
+  // in the app. Ship the 12 most recent invoices plus every unpaid one (the
+  // payment selector needs those), and compute the exact pending total with
+  // two aggregates instead of client-side math over full history.
+  const invoiceInclude = {
+    payments: {
+      include: {
+        recordedBy: {
+          select: {
+            name: true,
+            role: true,
+            branch: { select: { name: true } }
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' as const }
+    }
+  };
+
+  const [recentInvoices, unpaidInvoices, invoiceAgg, paymentAgg] = await prisma.$transaction([
+    prisma.invoice.findMany({
+      where: { tenantId, organizationId: orgId },
+      include: invoiceInclude,
+      orderBy: { createdAt: 'desc' },
+      take: 12
+    }),
+    prisma.invoice.findMany({
+      where: { tenantId, organizationId: orgId, status: { not: 'PAID' } },
+      include: invoiceInclude,
+      orderBy: { createdAt: 'desc' }
+    }),
+    prisma.invoice.aggregate({
+      where: { tenantId, organizationId: orgId },
+      _sum: { amount: true }
+    }),
+    prisma.payment.aggregate({
+      where: { organizationId: orgId, invoice: { tenantId } },
+      _sum: { amount: true }
+    })
+  ]);
+
+  const seen = new Set(recentInvoices.map(i => i.id));
+  const invoices = [
+    ...recentInvoices,
+    ...unpaidInvoices.filter(i => !seen.has(i.id))
+  ].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
+  const pendingTotal = Math.max(
+    Number(invoiceAgg._sum.amount || 0) - Number(paymentAgg._sum.amount || 0),
+    0
+  );
+
+  res.json({ success: true, data: { ...tenant, invoices, pendingTotal } });
 });
 
 // GET /tenants/:id/history
@@ -205,7 +241,7 @@ router.get('/:id/history', validate(z.object({ params: z.object({ id: z.string()
     where: { 
       tenantId, 
       organizationId: orgId,
-      ...(role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && {
+      ...(role !== 'OWNER' && role !== 'SUPERADMIN' && userBranchId && {
         room: {
           branchId: userBranchId
         }

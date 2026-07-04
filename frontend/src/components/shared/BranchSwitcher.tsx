@@ -111,12 +111,9 @@ export default function BranchSwitcher() {
                 </button>
               ))}
 
-              <button 
-                onClick={() => alert('Please contact the super admin to provision a new branch.')}
-                className="w-full mt-4 flex items-center justify-center gap-2 p-4 rounded-2xl border border-dashed border-slate-300 text-slate-500 hover:text-slate-800 hover:bg-slate-50 hover:border-slate-400 transition-all font-bold text-sm"
-              >
-                + Add New Branch (contact admin)
-              </button>
+              <p className="mt-4 rounded-2xl border border-dashed border-slate-300 p-4 text-center text-sm font-medium text-slate-500">
+                Need another branch? Contact your administrator.
+              </p>
             </div>
           </div>
         </div>

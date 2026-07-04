@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { validate } from '../middlewares/validation.middleware';
 import { randomUUID } from 'crypto';
 import jwt from 'jsonwebtoken';
+import { CacheService } from '../services/cache';
 
 const router = Router();
 
@@ -600,6 +601,251 @@ router.get('/organisations/:orgId/rooms', async (req, res) => {
   } catch (err) {
     res.status(500).json({ success: false, error: 'Failed to fetch rooms' });
   }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Structure management (developer-only). Branch/room create-edit-delete moved
+// here from the org-facing routes: owners and wardens are view-only for
+// structure, so the developer manages it per organisation from this panel.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// GET /api/admin/organisations/:orgId/branches — branches with room counts
+router.get('/organisations/:orgId/branches', async (req, res) => {
+  const { orgId } = req.params as { orgId: string };
+  try {
+    const branches = await prisma.branch.findMany({
+      where: { organizationId: orgId },
+      include: { _count: { select: { rooms: true, users: true } } },
+      orderBy: { createdAt: 'asc' },
+    });
+    res.json({ success: true, data: branches });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'Failed to fetch branches' });
+  }
+});
+
+// POST /api/admin/organisations/:orgId/branches — create a branch (optionally with floors of rooms)
+const adminCreateBranchSchema = z.object({
+  body: z.object({
+    name: z.string().min(2).max(100),
+    address: z.string().min(2).max(300),
+    floors: z.array(z.object({
+      floorNumber: z.number().int().min(0).max(100),
+      roomCount: z.number().int().min(1).max(100),
+      bedsPerRoom: z.number().int().min(1).max(8),
+    })).optional(),
+  }),
+  params: z.object({ orgId: z.string().min(5) }),
+});
+
+router.post('/organisations/:orgId/branches', validate(adminCreateBranchSchema), async (req, res) => {
+  const { orgId } = req.params as { orgId: string };
+  const { name, address, floors } = req.body;
+
+  try {
+    const org = await prisma.organization.findUnique({
+      where: { id: orgId },
+      select: { maxBranches: true },
+    });
+    if (!org) return res.status(404).json({ success: false, error: 'Organization not found' });
+
+    const currentCount = await prisma.branch.count({ where: { organizationId: orgId } });
+    if (currentCount >= org.maxBranches) {
+      return res.status(403).json({
+        success: false,
+        error: `Branch limit reached (${org.maxBranches}). Raise the plan limit first.`,
+      });
+    }
+
+    const branch = await prisma.$transaction(async (tx) => {
+      const newBranch = await tx.branch.create({
+        data: {
+          name,
+          address,
+          organizationId: orgId,
+          floors: floors && floors.length > 0 ? floors.length : 1,
+        },
+      });
+
+      if (floors && floors.length > 0) {
+        for (const floor of floors) {
+          for (let r = 1; r <= floor.roomCount; r++) {
+            const roomName = `${floor.floorNumber}-${r.toString().padStart(2, '0')}`;
+            let roomType: any = 'CUSTOM';
+            if (floor.bedsPerRoom === 1) roomType = 'SINGLE';
+            if (floor.bedsPerRoom === 2) roomType = 'DOUBLE';
+            if (floor.bedsPerRoom === 3) roomType = 'TRIPLE';
+            if (floor.bedsPerRoom === 4) roomType = 'FOUR_SHARE';
+
+            const newRoom = await tx.room.create({
+              data: {
+                organizationId: orgId,
+                branchId: newBranch.id,
+                roomNumber: roomName,
+                floor: floor.floorNumber,
+                totalCapacity: floor.bedsPerRoom,
+                roomType,
+                rentAmount: 5000, // Default rent for bulk setup
+                genderType: 'BOYS', // Default gender for bulk setup
+              },
+            });
+
+            const bedData = [];
+            for (let b = 1; b <= floor.bedsPerRoom; b++) {
+              bedData.push({
+                organizationId: orgId,
+                roomId: newRoom.id,
+                bedNumber: `Bed ${String.fromCharCode(64 + b)}`,
+              });
+            }
+            await tx.bed.createMany({ data: bedData });
+          }
+        }
+      }
+
+      return newBranch;
+    });
+
+    await CacheService.deleteByPattern(`heatmap:${orgId}:*`);
+    res.status(201).json({ success: true, data: branch });
+  } catch (err) {
+    console.error('Admin branch create error:', err);
+    res.status(500).json({ success: false, error: 'Failed to create branch' });
+  }
+});
+
+// PATCH /api/admin/branches/:branchId — rename / re-address a branch
+const adminUpdateBranchSchema = z.object({
+  body: z.object({
+    name: z.string().min(2).max(100).optional(),
+    address: z.string().min(2).max(300).optional(),
+  }),
+  params: z.object({ branchId: z.string().min(5) }),
+});
+
+router.patch('/branches/:branchId', validate(adminUpdateBranchSchema), async (req, res) => {
+  const { branchId } = req.params as { branchId: string };
+  const { name, address } = req.body;
+
+  const result = await prisma.branch.update({
+    where: { id: branchId },
+    data: { ...(name !== undefined && { name }), ...(address !== undefined && { address }) },
+  }).catch(() => null);
+
+  if (!result) return res.status(404).json({ success: false, error: 'Branch not found' });
+  res.json({ success: true, data: result });
+});
+
+// DELETE /api/admin/branches/:branchId — blocked while rooms or staff exist
+router.delete('/branches/:branchId', async (req, res) => {
+  const { branchId } = req.params as { branchId: string };
+
+  const branch = await prisma.branch.findUnique({
+    where: { id: branchId },
+    include: { _count: { select: { rooms: true, users: true } } },
+  });
+  if (!branch) return res.status(404).json({ success: false, error: 'Branch not found' });
+
+  if (branch._count.rooms > 0) {
+    return res.status(400).json({ success: false, error: 'Cannot delete a branch with rooms. Delete or move its rooms first.' });
+  }
+  if (branch._count.users > 0) {
+    return res.status(400).json({ success: false, error: 'Cannot delete a branch with assigned staff. Unassign them first.' });
+  }
+
+  await prisma.branch.delete({ where: { id: branchId } });
+  await CacheService.deleteByPattern(`heatmap:${branch.organizationId}:*`);
+  res.json({ success: true, message: 'Branch deleted' });
+});
+
+// POST /api/admin/organisations/:orgId/branches/:branchId/rooms — add a room with beds
+const adminCreateRoomSchema = z.object({
+  body: z.object({
+    roomNumber: z.string().min(1).max(20),
+    floor: z.number().int().min(0).max(100).optional(),
+    roomType: z.enum(['SINGLE', 'DOUBLE', 'TRIPLE', 'FOUR_SHARE', 'FIVE_SHARE', 'CUSTOM']).optional(),
+    totalCapacity: z.number().int().min(1).max(8),
+    rentAmount: z.number().positive().max(500000),
+    genderType: z.enum(['BOYS', 'GIRLS', 'UNISEX']).optional(),
+  }),
+  params: z.object({ orgId: z.string().min(5), branchId: z.string().min(5) }),
+});
+
+router.post('/organisations/:orgId/branches/:branchId/rooms', validate(adminCreateRoomSchema), async (req, res) => {
+  const { orgId, branchId } = req.params as { orgId: string; branchId: string };
+  const { roomNumber, floor, roomType, totalCapacity, rentAmount, genderType } = req.body;
+
+  try {
+    const branch = await prisma.branch.findFirst({ where: { id: branchId, organizationId: orgId } });
+    if (!branch) return res.status(404).json({ success: false, error: 'Branch not found in this organisation' });
+
+    const org = await prisma.organization.findUnique({ where: { id: orgId }, select: { maxRooms: true } });
+    if (!org) return res.status(404).json({ success: false, error: 'Organization not found' });
+
+    const roomCount = await prisma.room.count({ where: { organizationId: orgId } });
+    if (roomCount >= org.maxRooms) {
+      return res.status(403).json({
+        success: false,
+        error: `Room limit reached (${org.maxRooms}). Raise the plan limit first.`,
+      });
+    }
+
+    const room = await prisma.$transaction(async (tx) => {
+      const newRoom = await tx.room.create({
+        data: {
+          organizationId: orgId,
+          branchId,
+          roomNumber,
+          floor: floor ?? 0,
+          roomType: roomType || 'CUSTOM',
+          totalCapacity,
+          rentAmount,
+          genderType: genderType || 'BOYS',
+        },
+      });
+
+      const bedData = [];
+      for (let b = 1; b <= totalCapacity; b++) {
+        bedData.push({
+          organizationId: orgId,
+          roomId: newRoom.id,
+          bedNumber: `Bed ${String.fromCharCode(64 + b)}`,
+        });
+      }
+      await tx.bed.createMany({ data: bedData });
+      return newRoom;
+    });
+
+    await CacheService.deleteByPattern(`heatmap:${orgId}:*`);
+    res.status(201).json({ success: true, data: room });
+  } catch (err) {
+    console.error('Admin room create error:', err);
+    res.status(500).json({ success: false, error: 'Failed to create room' });
+  }
+});
+
+// DELETE /api/admin/rooms/:roomId — blocked while admission history exists
+router.delete('/rooms/:roomId', async (req, res) => {
+  const { roomId } = req.params as { roomId: string };
+
+  const room = await prisma.room.findUnique({ where: { id: roomId } });
+  if (!room) return res.status(404).json({ success: false, error: 'Room not found' });
+
+  const admissions = await prisma.admission.count({ where: { roomId } });
+  if (admissions > 0) {
+    return res.status(400).json({
+      success: false,
+      error: 'Cannot delete a room with admission history. Mark it INACTIVE instead.',
+    });
+  }
+
+  await prisma.$transaction([
+    prisma.bed.deleteMany({ where: { roomId } }),
+    prisma.room.delete({ where: { id: roomId } }),
+  ]);
+
+  await CacheService.deleteByPattern(`heatmap:${room.organizationId}:*`);
+  res.json({ success: true, message: 'Room deleted' });
 });
 
 export default router;

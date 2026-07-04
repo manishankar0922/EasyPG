@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
-import { Building2, MapPin, Bed, Users, Plus } from 'lucide-react';
+import { Building2, MapPin, Bed, Users, Info } from 'lucide-react';
 import Link from 'next/link';
+import { useLanguage } from '@/context/LanguageContext';
 
 interface Branch {
   id: string;
@@ -16,44 +17,40 @@ interface Branch {
 }
 
 export default function BranchesPage() {
-  const [branches, setBranches] = useState<Branch[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { t } = useLanguage();
 
-  useEffect(() => {
-    async function fetchBranches() {
-      try {
-        const { data } = await api.get('/branches');
-        if (data.success) {
-          setBranches(data.data);
-        }
-      } catch (err) {
-        console.error('Failed to fetch branches', err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchBranches();
-  }, []);
+  const { data: branches = [], isLoading: loading } = useQuery<Branch[]>({
+    queryKey: ['branches'],
+    queryFn: async () => {
+      const { data } = await api.get('/branches');
+      if (!data.success) throw new Error('Failed to fetch branches');
+      return data.data as Branch[];
+    },
+    staleTime: 60 * 1000,
+    gcTime: 5 * 60 * 1000,
+  });
 
-  if (loading) return <div>Loading branches...</div>;
+  if (loading) return (
+    <div className="space-y-6">
+      <div className="h-8 w-40 animate-pulse rounded bg-slate-200" />
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="h-52 animate-pulse rounded-xl bg-slate-200" />
+        ))}
+      </div>
+    </div>
+  );
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-slate-900">Branches</h1>
-        <Link 
-          href="/branches/create" 
-          className="flex items-center space-x-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition"
-        >
-          <Plus className="h-4 w-4" />
-          <span>Add Branch</span>
-        </Link>
       </div>
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
         {branches.map((branch) => (
-          <Link 
-            key={branch.id} 
+          <Link
+            key={branch.id}
             href={`/branches/${branch.id}`}
             className="group block rounded-xl bg-white p-6 shadow-sm border border-slate-200 hover:border-blue-300 hover:shadow-md transition"
           >
@@ -87,6 +84,12 @@ export default function BranchesPage() {
             </div>
           </Link>
         ))}
+      </div>
+
+      {/* Structure is developer-managed: owners see, admins change */}
+      <div className="flex items-start gap-2.5 rounded-xl border border-slate-200 bg-white px-4 py-3">
+        <Info className="mt-0.5 h-4 w-4 flex-shrink-0 text-slate-400" />
+        <p className="text-sm font-medium text-slate-500">{t.viewOnlyStructure}</p>
       </div>
     </div>
   );

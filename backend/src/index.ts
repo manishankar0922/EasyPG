@@ -201,7 +201,7 @@ app.use((req, res, next) => {
 });
 
 // Metrics endpoint — protected: only SuperAdmins can access Prometheus data
-app.get('/metrics', requireAuth, requireRole('SUPERADMIN', 'SUPER_ADMIN'), async (req, res) => {
+app.get('/metrics', requireAuth, requireRole('SUPERADMIN'), async (req, res) => {
   res.set('Content-Type', client.register.contentType);
   res.end(await client.register.metrics());
 });
@@ -240,7 +240,7 @@ const swaggerSpec = swaggerJsdoc(swaggerOptions);
 if (process.env.NODE_ENV !== 'production') {
   app.use('/api/v1/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 } else {
-  app.use('/api/v1/docs', requireAuth, requireRole('SUPERADMIN', 'SUPER_ADMIN'), swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+  app.use('/api/v1/docs', requireAuth, requireRole('SUPERADMIN'), swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 }
 
 // Health endpoints

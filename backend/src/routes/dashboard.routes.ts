@@ -9,20 +9,34 @@ const router = Router();
 router.use(authMiddleware);
 router.use(checkSubscription);
 
+// Resolve which branch a dashboard query is scoped to.
+// OWNER/SUPERADMIN: org-wide by default, optionally narrowed via ?branchId=
+// (pass nothing or 'all' for every branch). WARDEN: always their own branch —
+// requireBranchAccess has already rejected any cross-branch ?branchId=.
+const effectiveBranchId = (req: any): string | undefined => {
+  const { role, branchId: userBranchId } = req.user!;
+  const q = typeof req.query.branchId === 'string' && req.query.branchId !== 'all' && req.query.branchId !== ''
+    ? req.query.branchId
+    : undefined;
+  if (role === 'OWNER' || role === 'SUPERADMIN') return q;
+  return userBranchId || undefined;
+};
+
 // GET /dashboard/overview
 router.get('/overview', async (req, res) => {
-  const { role, branchId: userBranchId, organizationId: orgId } = req.user!;
-  
-  const cacheKey = `dashboard:overview:${orgId}:${role}:${userBranchId || 'all'}`;
+  const { role, organizationId: orgId } = req.user!;
+  const branchId = effectiveBranchId(req);
+
+  const cacheKey = `dashboard:overview:${orgId}:${role}:${branchId || 'all'}`;
   const cachedData = await CacheService.get(cacheKey);
   if (cachedData) {
     return res.json({ success: true, data: cachedData });
   }
 
-  const roomAgg = await prisma.room.aggregate({ 
-    where: { 
+  const roomAgg = await prisma.room.aggregate({
+    where: {
       organizationId: orgId,
-      ...(role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && { branchId: userBranchId })
+      ...(branchId && { branchId })
     },
     _count: true,
     _sum: {
@@ -33,22 +47,22 @@ router.get('/overview', async (req, res) => {
   const total_rooms = roomAgg._count || 0;
   const total_capacity = roomAgg._sum.totalCapacity || 0;
   const occupied_capacity = roomAgg._sum.occupiedCapacity || 0;
-  
-  const total_tenants = await prisma.tenant.count({ 
-    where: { 
-      organizationId: orgId, 
+
+  const total_tenants = await prisma.tenant.count({
+    where: {
+      organizationId: orgId,
       status: 'ACTIVE',
-      ...(role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && {
-        admissions: { some: { room: { branchId: userBranchId }, status: 'ACTIVE' } }
+      ...(branchId && {
+        admissions: { some: { room: { branchId }, status: 'ACTIVE' } }
       })
-    } 
+    }
   });
 
-  const invoiceAgg = await prisma.invoice.aggregate({ 
-    where: { 
+  const invoiceAgg = await prisma.invoice.aggregate({
+    where: {
       organizationId: orgId,
-      ...(role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && {
-        tenant: { admissions: { some: { room: { branchId: userBranchId }, status: 'ACTIVE' } } }
+      ...(branchId && {
+        tenant: { admissions: { some: { room: { branchId }, status: 'ACTIVE' } } }
       })
     },
     _sum: { amount: true }
@@ -58,8 +72,8 @@ router.get('/overview', async (req, res) => {
   const paymentAgg = await prisma.payment.aggregate({
     where: {
       organizationId: orgId,
-      ...(role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && {
-        invoice: { tenant: { admissions: { some: { room: { branchId: userBranchId }, status: 'ACTIVE' } } } }
+      ...(branchId && {
+        invoice: { tenant: { admissions: { some: { room: { branchId }, status: 'ACTIVE' } } } }
       })
     },
     _sum: { amount: true }
@@ -88,9 +102,10 @@ router.get('/overview', async (req, res) => {
 
 // GET /dashboard/mobile-home
 router.get('/mobile-home', async (req, res) => {
-  const { role, branchId: userBranchId, organizationId: orgId } = req.user!;
-  const branchIdQuery = req.query.branchId as string;
-  const branchId = userBranchId || branchIdQuery;
+  const { role, organizationId: orgId } = req.user!;
+  // Fix: an OWNER with a non-null branchId was silently pinned to that branch
+  // here while /overview stayed org-wide — inconsistent dashboard numbers.
+  const branchId = effectiveBranchId(req);
 
   const cacheKey = `dashboard:mobile-home:${orgId}:${role}:${branchId || 'all'}`;
   const cachedData = await CacheService.get(cacheKey);
@@ -246,9 +261,10 @@ router.get('/mobile-home', async (req, res) => {
 
 // GET /dashboard/revenue
 router.get('/revenue', async (req, res) => {
-  const { role, branchId: userBranchId, organizationId: orgId } = req.user!;
-  
-  const cacheKey = `dashboard:revenue:${orgId}:${role}:${userBranchId || 'all'}`;
+  const { role, organizationId: orgId } = req.user!;
+  const branchId = effectiveBranchId(req);
+
+  const cacheKey = `dashboard:revenue:${orgId}:${role}:${branchId || 'all'}`;
   const cachedData = await CacheService.get(cacheKey);
   if (cachedData) {
     return res.json({ success: true, data: cachedData });
@@ -265,8 +281,8 @@ router.get('/revenue', async (req, res) => {
       where: {
         organizationId: orgId,
         paymentDate: { gte: windowStart },
-        ...(role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && {
-          invoice: { tenant: { admissions: { some: { room: { branchId: userBranchId }, status: 'ACTIVE' } } } }
+        ...(branchId && {
+          invoice: { tenant: { admissions: { some: { room: { branchId }, status: 'ACTIVE' } } } }
         })
       },
       select: { paymentDate: true, amount: true },
@@ -295,9 +311,10 @@ router.get('/revenue', async (req, res) => {
 
 // GET /dashboard/occupancy
 router.get('/occupancy', async (req, res) => {
-  const { role, branchId: userBranchId, organizationId: orgId } = req.user!;
+  const { role, organizationId: orgId } = req.user!;
+  const branchId = effectiveBranchId(req);
 
-  const cacheKey = `dashboard:occupancy:${orgId}:${role}:${userBranchId || 'all'}`;
+  const cacheKey = `dashboard:occupancy:${orgId}:${role}:${branchId || 'all'}`;
   const cached = await CacheService.get(cacheKey);
   if (cached) {
     return res.json({ success: true, data: cached });
@@ -307,7 +324,7 @@ router.get('/occupancy', async (req, res) => {
   const branches = await prisma.branch.findMany({
     where: {
       organizationId: orgId,
-      ...(role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && { id: userBranchId })
+      ...(branchId && { id: branchId })
     },
     select: {
       name: true,
@@ -332,9 +349,10 @@ router.get('/occupancy', async (req, res) => {
 
 // GET /dashboard/pending-payments
 router.get('/pending-payments', async (req, res) => {
-  const { role, branchId: userBranchId, organizationId: orgId } = req.user!;
+  const { role, organizationId: orgId } = req.user!;
+  const branchId = effectiveBranchId(req);
 
-  const cacheKey = `dashboard:pending:${orgId}:${role}:${userBranchId || 'all'}`;
+  const cacheKey = `dashboard:pending:${orgId}:${role}:${branchId || 'all'}`;
   const cached = await CacheService.get(cacheKey);
   if (cached) {
     return res.json({ success: true, data: cached });
@@ -348,8 +366,8 @@ router.get('/pending-payments', async (req, res) => {
     where: {
       organizationId: orgId,
       status: { not: 'PAID' },
-      ...(role !== 'OWNER' && role !== 'SUPER_ADMIN' && userBranchId && {
-        tenant: { admissions: { some: { room: { branchId: userBranchId }, status: 'ACTIVE' } } }
+      ...(branchId && {
+        tenant: { admissions: { some: { room: { branchId }, status: 'ACTIVE' } } }
       })
     },
     select: {
