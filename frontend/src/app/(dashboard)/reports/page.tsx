@@ -5,7 +5,7 @@ import api from '@/lib/api';
 import { useLanguage } from '@/context/LanguageContext';
 import { useBranch } from '@/context/BranchContext';
 import { useUserRole } from '@/hooks/useUserRole';
-import { IndianRupee, Wallet, PieChart, Users, Download, Printer } from 'lucide-react';
+import { IndianRupee, Wallet, PieChart, Users, Download, Printer, TriangleAlert } from 'lucide-react';
 import { Card, CardHeader, StatTile, Skeleton, EmptyState } from '@/components/analytics/ui';
 import { AreaTrendChart, BarCompare, GaugeDonut, type TrendPoint, type BarDatum } from '@/components/analytics/charts';
 import { formatCompactCurrency, formatCurrency, monthLabel, downloadCsv } from '@/lib/format';
@@ -131,14 +131,16 @@ export default function ReportsPage() {
           <div className="flex items-center gap-2 print:hidden">
             <button
               onClick={exportPending}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
+              aria-label={t.exportCsv}
+              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
             >
               <Download className="h-4 w-4" />
               <span className="hidden sm:inline">{t.exportCsv}</span>
             </button>
             <button
               onClick={() => window.print()}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700"
+              aria-label={t.printReport}
+              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700"
             >
               <Printer className="h-4 w-4" />
               <span className="hidden sm:inline">{t.printReport}</span>
@@ -150,10 +152,11 @@ export default function ReportsPage() {
       <main className="mx-auto max-w-6xl space-y-5 p-4 md:p-6">
         {/* Branch filter — owners can compare all branches or focus on one */}
         {isOwner && branches.length > 1 && (
-          <div className="flex flex-wrap items-center gap-2 print:hidden">
+          <div role="group" aria-label={t.branchOccupancy} className="flex flex-wrap items-center gap-2 print:hidden">
             <button
               onClick={() => setScope('all')}
-              className={`rounded-full px-3.5 py-1.5 text-sm font-semibold transition-colors ${
+              aria-pressed={scope === 'all'}
+              className={`min-h-[44px] rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
                 scope === 'all'
                   ? 'bg-blue-600 text-white shadow-sm'
                   : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
@@ -165,7 +168,8 @@ export default function ReportsPage() {
               <button
                 key={b.id}
                 onClick={() => setScope(b.id)}
-                className={`rounded-full px-3.5 py-1.5 text-sm font-semibold transition-colors ${
+                aria-pressed={scope === b.id}
+                className={`min-h-[44px] rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
                   scope === b.id
                     ? 'bg-blue-600 text-white shadow-sm'
                     : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
@@ -241,7 +245,7 @@ export default function ReportsPage() {
             {loading ? (
               <Skeleton className="h-[240px] w-full" />
             ) : trend.some((p) => p.value > 0) ? (
-              <AreaTrendChart data={trend} />
+              <AreaTrendChart data={trend} ariaLabel={`${t.revenueTrend} — ${t.last12Months}`} />
             ) : (
               <EmptyState message={t.noData} />
             )}
@@ -324,10 +328,16 @@ export default function ReportsPage() {
                           </td>
                           <td className="px-2 py-2.5 text-right">
                             <span
-                              className={`inline-block rounded-md px-1.5 py-0.5 text-xs font-medium tabular-nums ${
+                              className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium tabular-nums ${
                                 overdue ? 'bg-rose-50 text-rose-600' : 'text-slate-500'
                               }`}
                             >
+                              {overdue && (
+                                <>
+                                  <TriangleAlert className="h-3 w-3 shrink-0" aria-hidden />
+                                  <span className="sr-only">{t.overdue}</span>
+                                </>
+                              )}
                               {new Date(p.dueDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
                             </span>
                           </td>

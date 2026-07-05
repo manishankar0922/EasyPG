@@ -187,12 +187,14 @@ export default function UsersPage() {
       </div>
 
       {success && (
-        <div className="rounded-lg bg-green-50 p-4 text-sm text-green-700 border border-green-200">
+        <div role="status" aria-live="polite" className="flex items-center gap-2 rounded-lg bg-green-50 p-4 text-sm text-green-700 border border-green-200">
+          <CheckCircle className="h-4 w-4 shrink-0" />
           {success}
         </div>
       )}
       {error && (
-        <div className="rounded-lg bg-red-50 p-4 text-sm text-red-700 border border-red-200">
+        <div role="alert" className="flex items-center gap-2 rounded-lg bg-red-50 p-4 text-sm text-red-700 border border-red-200">
+          <AlertCircle className="h-4 w-4 shrink-0" />
           {error}
         </div>
       )}
@@ -261,11 +263,13 @@ export default function UsersPage() {
                 <td className="px-6 py-4 text-right relative">
                   {currentUser?.role === 'OWNER' && user.id !== currentUser.id && (
                     <div className="inline-block">
-                      <button 
+                      <button
                         onClick={() => setActiveMenu(activeMenu === user.id ? null : user.id)}
-                        className="rounded-lg p-2 hover:bg-slate-100 text-slate-400 hover:text-slate-600"
+                        aria-label={`Actions for ${user.name}`}
+                        aria-expanded={activeMenu === user.id}
+                        className="min-h-[44px] min-w-[44px] rounded-lg p-2 hover:bg-slate-100 text-slate-400 hover:text-slate-600"
                       >
-                        <MoreVertical className="h-5 w-5" />
+                        <MoreVertical className="h-5 w-5 mx-auto" />
                       </button>
 
                       {activeMenu === user.id && (
@@ -339,11 +343,12 @@ export default function UsersPage() {
                 <h2 className="text-xl font-bold text-slate-900">Add Team Member</h2>
                 <p className="text-xs text-slate-500 mt-0.5">Invite a new staff member or warden to your organization.</p>
               </div>
-              <button 
+              <button
                 onClick={() => setShowModal(false)}
-                className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
+                aria-label="Close"
+                className="min-h-[44px] min-w-[44px] rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
               >
-                <MoreVertical className="h-5 w-5 rotate-90" />
+                <X className="h-5 w-5 mx-auto" />
               </button>
             </div>
             
@@ -483,12 +488,13 @@ export default function UsersPage() {
       {/* Created credentials — shown exactly once */}
       {createdCreds && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-[2px]">
-          <div className="relative w-full max-w-md rounded-2xl bg-white p-8 shadow-2xl animate-in zoom-in duration-200">
+          <div role="dialog" aria-modal="true" aria-label={t.wardenCreated} className="relative w-full max-w-md rounded-2xl bg-white p-8 shadow-2xl animate-in zoom-in duration-200">
             <button
               onClick={() => setCreatedCreds(null)}
-              className="absolute right-4 top-4 rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
+              aria-label="Close"
+              className="absolute right-3 top-3 min-h-[44px] min-w-[44px] rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
             >
-              <X className="h-5 w-5" />
+              <X className="h-5 w-5 mx-auto" />
             </button>
 
             <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50">
