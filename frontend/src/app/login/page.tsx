@@ -6,7 +6,7 @@ import { useAuthStore, setServerSideCookies } from '@/store/auth-store';
 import { Loader2, Mail, Lock } from 'lucide-react';
 
 export default function AdminLogin() {
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -24,10 +24,19 @@ export default function AdminLogin() {
 
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || '/api-backend/v1';
 
-      const response = await fetch(`${apiUrl}/auth/login`, {
+      const isPhone = /^[0-9\+\-\s]+$/.test(identifier) && identifier.replace(/\D/g, '').length >= 10;
+      // Heuristic: Tenant PINs are usually 4 digits. If it's a number and password is short, assume tenant.
+      const isTenant = isPhone && password.trim().length <= 10 && /^\d+$/.test(password.trim());
+
+      const endpoint = isTenant ? '/tenant-auth/login' : '/auth/login';
+      const payload = isTenant
+        ? { phone: identifier.trim(), password: password.trim() }
+        : { identifier: identifier.trim().toLowerCase(), password };
+
+      const response = await fetch(`${apiUrl}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim().toLowerCase(), password })
+        body: JSON.stringify(payload)
       });
 
       const data = await response.json();
@@ -84,18 +93,18 @@ export default function AdminLogin() {
         <form className="mt-8 space-y-6" onSubmit={handleLogin}>
           <div className="space-y-5">
             <div className="group">
-              <label className="block text-[0.7rem] font-bold uppercase tracking-widest text-slate-400 mb-2.5 transition-colors group-focus-within:text-slate-900">Email Address</label>
+              <label className="block text-[0.7rem] font-bold uppercase tracking-widest text-slate-400 mb-2.5 transition-colors group-focus-within:text-slate-900">Email or Phone Number</label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                   <Mail className="h-5 w-5 text-slate-400 transition-colors group-focus-within:text-slate-900" />
                 </div>
                 <input
-                  type="email"
+                  type="text"
                   required
                   className="block w-full rounded-2xl border-2 border-slate-100 bg-slate-50/50 pl-12 pr-5 py-4 text-slate-900 font-medium placeholder-slate-400 transition-all hover:bg-white focus:bg-white focus:border-slate-900 focus:ring-0 focus:outline-none [&:-webkit-autofill]:shadow-[inset_0_0_0px_1000px_#ffffff] [&:-webkit-autofill]:[-webkit-text-fill-color:#0f172a]"
-                  placeholder="name@company.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="name@company.com or 9876543210"
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
                 />
               </div>
             </div>
