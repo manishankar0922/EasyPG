@@ -70,7 +70,7 @@ export default function RoomHeatmap({ branchId }: { branchId: string }) {
     <div className="w-full bg-white border border-slate-200 rounded-3xl p-4 sm:p-6 shadow-sm overflow-hidden">
       <div className="mb-6 flex flex-wrap gap-4 items-center text-xs font-bold text-slate-500 uppercase tracking-wider">
         <div className="flex items-center"><div className="w-4 h-4 rounded-full bg-emerald-500 mr-2" /> Full</div>
-        <div className="flex items-center"><div className="w-4 h-4 rounded-full bg-amber-400 mr-2" /> Partial</div>
+        <div className="flex items-center"><div className="w-4 h-4 rounded-full bg-amber-500 mr-2" /> Partial</div>
         <div className="flex items-center"><div className="w-4 h-4 rounded-full bg-rose-500 mr-2" /> Vacant</div>
         <div className="flex items-center"><div className="w-4 h-4 rounded-full bg-slate-300 mr-2" /> Inactive</div>
       </div>
@@ -90,20 +90,27 @@ export default function RoomHeatmap({ branchId }: { branchId: string }) {
                 style={{ gridTemplateColumns: `repeat(${maxRooms}, minmax(48px, 1fr))` }}
               >
                 {floor.rooms.map((room) => {
-                  let bgColor = "bg-slate-300"; // Inactive default
-                  if (room.status === 'FULL') bgColor = "bg-emerald-500";
-                  if (room.status === 'PARTIAL') bgColor = "bg-amber-400";
-                  if (room.status === 'VACANT') bgColor = "bg-rose-500";
+                  // tinted cell + dark ink: white-on-amber/emerald failed contrast,
+                  // and the visible bed count carries status without relying on color
+                  const cellStyle =
+                    room.status === 'FULL' ? 'bg-emerald-100 text-emerald-900 ring-emerald-300'
+                    : room.status === 'PARTIAL' ? 'bg-amber-100 text-amber-900 ring-amber-300'
+                    : room.status === 'VACANT' ? 'bg-rose-100 text-rose-900 ring-rose-300'
+                    : 'bg-slate-100 text-slate-400 ring-slate-200';
 
                   const pendingNotice = room.tenants?.find(t => t.vacateNotice);
 
                   return (
                     <Popover key={room.roomId}>
                       <PopoverTrigger asChild>
-                        <button 
-                          className={`relative w-12 h-12 sm:w-14 sm:h-14 rounded-xl flex items-center justify-center font-black text-white text-sm shadow-sm transition-transform active:scale-90 ${bgColor}`}
+                        <button
+                          aria-label={`Room ${room.roomName}: ${room.occupiedBeds}/${room.totalBeds} beds occupied`}
+                          className={`relative w-12 h-12 sm:w-14 sm:h-14 rounded-xl flex flex-col items-center justify-center leading-none shadow-sm ring-1 ring-inset transition-transform active:scale-90 ${cellStyle}`}
                         >
-                          {room.roomName.split('-')[1]}
+                          <span className="text-sm font-black">{room.roomName.split('-')[1]}</span>
+                          <span className="mt-0.5 text-[10px] font-bold tabular-nums opacity-70">
+                            {room.occupiedBeds}/{room.totalBeds}
+                          </span>
                           {pendingNotice && (
                             <span 
                               className="absolute -top-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-orange-500 border-2 border-white"
@@ -118,7 +125,7 @@ export default function RoomHeatmap({ branchId }: { branchId: string }) {
                             <h4 className="font-black text-lg text-slate-900">Room {room.roomName}</h4>
                             <p className="text-xs font-bold text-slate-400 uppercase">Floor {floor.floor} {room.hasAC ? '• AC' : ''}</p>
                           </div>
-                          <div className={`px-2 py-1 rounded-md text-xs font-bold text-white ${bgColor}`}>
+                          <div className={`px-2 py-1 rounded-md text-xs font-bold tabular-nums ring-1 ring-inset ${cellStyle}`}>
                             {room.occupiedBeds}/{room.totalBeds}
                           </div>
                         </div>
