@@ -18,7 +18,7 @@ const AXIS_INK = '#94a3b8';
 
 export type TrendPoint = { label: string; value: number };
 
-export function AreaTrendChart({ data }: { data: TrendPoint[] }) {
+export function AreaTrendChart({ data, ariaLabel }: { data: TrendPoint[]; ariaLabel?: string }) {
   const [hover, setHover] = useState<number | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
 
@@ -79,7 +79,7 @@ export function AreaTrendChart({ data }: { data: TrendPoint[] }) {
         onPointerMove={onMove}
         onPointerLeave={() => setHover(null)}
         role="img"
-        aria-label="Revenue trend over the last 12 months"
+        aria-label={ariaLabel ?? 'Revenue trend over the last 12 months'}
       >
         <defs>
           <linearGradient id="revFill" x1="0" y1="0" x2="0" y2="1">
@@ -145,7 +145,9 @@ export type BarDatum = { label: string; value: number; caption?: string };
 
 export function BarCompare({ data, unit = '%' }: { data: BarDatum[]; unit?: string }) {
   const [hover, setHover] = useState<number | null>(null);
-  const max = Math.max(1, ...data.map((d) => d.value));
+  // percentages are anchored to the true 0–100 scale; a 60%-full branch must
+  // never render as a full bar just because it happens to be the max
+  const max = unit === '%' ? 100 : Math.max(1, ...data.map((d) => d.value));
 
   if (!data.length) return null;
 
@@ -230,8 +232,8 @@ export function GaugeDonut({
         </div>
       </div>
       <span
-        className="mt-3 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold"
-        style={{ backgroundColor: `${status.color}14`, color: status.color }}
+        className="mt-3 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold text-slate-700"
+        style={{ backgroundColor: `${status.color}14` }}
       >
         <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: status.color }} />
         {status.word}

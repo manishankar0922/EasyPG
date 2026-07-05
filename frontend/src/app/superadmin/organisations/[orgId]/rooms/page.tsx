@@ -45,8 +45,9 @@ function RoomChip({ room, onEdit }: { room: Room; onEdit: (r: Room) => void }) {
       </div>
       <button
         onClick={() => onEdit(room)}
-        className="ml-3 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-600 bg-slate-700 hover:border-emerald-500 hover:bg-emerald-950/30 hover:text-emerald-400 text-slate-400 transition"
+        className="ml-3 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-600 bg-slate-700 hover:border-emerald-500 hover:bg-emerald-950/30 hover:text-emerald-400 text-slate-400 transition"
         title="Edit room"
+        aria-label={`Edit room ${room.roomNumber}`}
       >
         <Pencil className="h-3.5 w-3.5" />
       </button>
@@ -124,7 +125,7 @@ function EditSheet({
             <h3 className="text-lg font-bold text-white">Edit Room {room.roomNumber}</h3>
             <p className="text-xs text-slate-400 mt-0.5">Floor {room.floor} · {room.occupiedCapacity} bed(s) currently occupied</p>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-200 transition">
+          <button onClick={onClose} aria-label="Close" className="flex h-11 w-11 items-center justify-center text-slate-400 hover:text-slate-200 transition">
             <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
               <path d="M6 18L18 6M6 6l12 12" strokeLinecap="round" />
             </svg>
@@ -289,7 +290,7 @@ function AddRoomSheet({
             <h3 className="text-lg font-bold text-white">Add Room</h3>
             <p className="text-xs text-slate-400 mt-0.5">Creates the room with its beds, ready for admissions</p>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-200 transition">
+          <button onClick={onClose} aria-label="Close" className="flex h-11 w-11 items-center justify-center text-slate-400 hover:text-slate-200 transition">
             <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
               <path d="M6 18L18 6M6 6l12 12" strokeLinecap="round" />
             </svg>

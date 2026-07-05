@@ -60,7 +60,7 @@ function BranchSheet({
       <div className="w-full max-w-md rounded-t-2xl sm:rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl animate-in slide-in-from-bottom-4 duration-200">
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-lg font-bold text-white">{branch ? `Edit ${branch.name}` : 'Add Branch'}</h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-200 transition">
+          <button onClick={onClose} aria-label="Close" className="flex h-11 w-11 items-center justify-center text-slate-400 hover:text-slate-200 transition">
             <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
               <path d="M6 18L18 6M6 6l12 12" strokeLinecap="round" />
             </svg>
