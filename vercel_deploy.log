@@ -1,0 +1,62 @@
+Retrieving project…
+Deploying manishankar0922s-projects/frontend
+Uploading [--------------------] (0.0B/61B)
+Uploading [====================] (61.0B/61B)
+  Inspect     https://vercel.com/manishankar0922s-projects/frontend/4m26puR7dG8DVko9VYb7dsFvR8vN
+▲ Production  https://frontend-fyov717hz-manishankar0922s-projects.vercel.app
+https://frontend-fyov717hz-manishankar0922s-projects.vercel.appBuilding…
+Building…
+Running build in Washington, D.C., USA (East) – iad1
+Build machine configuration: 2 cores, 8 GB
+Retrieving list of deployment files...
+Downloading 407 deployment files...
+Restored build cache from previous deployment (R2rG2YvvRUQyfZe9me8gwmi4vPxo)
+Running "vercel build"
+Vercel CLI 54.19.0
+Installing dependencies...
+npm warn deprecated inflight@1.0.6: This module is not supported, and leaks memory. Do not use it. Check out lru-cache if you want a good and tested way to coalesce async requests by a key value, which is much more comprehensive and powerful.
+npm warn deprecated @types/uuid@11.0.0: This is a stub types definition. uuid provides its own type definitions, so you do not need this installed.
+npm warn deprecated @types/bcryptjs@3.0.0: This is a stub types definition. bcryptjs provides its own type definitions, so you do not need this installed.
+npm warn deprecated @types/express-mongo-sanitize@2.1.2: This is a stub types definition. express-mongo-sanitize provides its own type definitions, so you do not need this installed.
+npm warn deprecated glob@7.2.3: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
+npm warn deprecated glob@11.1.0: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
+npm warn deprecated glob@10.5.0: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
+npm warn deprecated glob@10.5.0: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
+npm warn deprecated glob@10.5.0: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
+added 683 packages in 12s
+98 packages are looking for funding
+run `npm fund` for details
+npm warn deprecated @types/uuid@11.0.0: This is a stub types definition. uuid provides its own type definitions, so you do not need this installed.
+npm warn deprecated @types/express-mongo-sanitize@2.1.2: This is a stub types definition. express-mongo-sanitize provides its own type definitions, so you do not need this installed.
+npm warn deprecated @types/bcryptjs@3.0.0: This is a stub types definition. bcryptjs provides its own type definitions, so you do not need this installed.
+npm warn deprecated inflight@1.0.6: This module is not supported, and leaks memory. Do not use it. Check out lru-cache if you want a good and tested way to coalesce async requests by a key value, which is much more comprehensive and powerful.
+npm warn deprecated glob@7.2.3: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
+npm warn deprecated glob@11.1.0: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
+npm warn deprecated glob@10.5.0: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
+npm warn deprecated glob@10.5.0: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
+npm warn deprecated glob@10.5.0: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
+added 683 packages, and audited 684 packages in 8s
+98 packages are looking for funding
+run `npm fund` for details
+found 0 vulnerabilities
+> backend@1.0.0 build
+> prisma generate && tsc
+Environment variables loaded from .env
+Prisma schema loaded from prisma/schema.prisma
+✔ Generated Prisma Client (v5.22.0) to ./node_modules/@prisma/client in 263ms
+Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
+Help us improve the Prisma ORM for everyone. Share your feedback in a short 2-min survey: https://pris.ly/orm/survey/release-5-22
+[MIXED_EXPORTS] Warning: Entry module "src/index.ts" is using named (including "default", "httpRequestDurationMicroseconds") and default exports together. Consumers of your bundle will have to use `chunk.default` to access the default export, which may not be what you want. Use `output.exports: "named"` to disable this warning.
+✓ Build complete — Using src/index.ts as the root entrypoint.
+✓ Typecheck skipped (Build Command is configured)
+Build Completed in /vercel/output [34s]
+Deploying outputs...
+[2K[1A[2K[G▲ Production  https://frontend-fyov717hz-manishankar0922s-projects.vercel.app
+Completing…
+▲ Aliased     https://frontend-nine-eta-26.vercel.app
+
+✓ Ready in 53s
+
+Common next commands:
+- `vercel inspect frontend-fyov717hz-manishankar0922s-projects.vercel.app --logs`
+- `vercel redeploy frontend-fyov717hz-manishankar0922s-projects.vercel.app`

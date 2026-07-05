@@ -25,12 +25,11 @@ const DUMMY_HASH = '$2b$12$dummyhashfortimingnormalizationi8Ge5SomeTrulyRandomDa
 // ─── INPUT SCHEMAS (OWASP API3: Broken Object Property Level Authorization) ───────
 // Strict schemas reject unexpected fields and enforce type+length constraints.
 
-/** Schema for POST /login — only email + password, nothing else */
+/** Schema for POST /login — accepts identifier (email or phone) + password */
 const loginSchema = z.object({
-  // Strip whitespace; lower-case; hard cap at 254 (RFC 5321 max)
-  email: z.string({ error: 'Email is required' })
-    .email('Invalid email address')
-    .max(254, 'Email must not exceed 254 characters')
+  // Accept identifier, strip whitespace, lower-case, hard cap at 254 (RFC 5321 max)
+  identifier: z.string({ error: 'Identifier is required' })
+    .max(254, 'Identifier must not exceed 254 characters')
     .toLowerCase()
     .trim(),
   // Hard cap at 128; no regex — we compare a hash, not enforce strength here
@@ -83,7 +82,7 @@ router.post('/login',
 
       // req.body is already validated+typed by loginSchema middleware above.
       // Zod has already: verified types, trimmed, lower-cased, enforced lengths.
-      const { email, password } = req.body
+      const { identifier, password } = req.body
 
       // Removed manual type+presence checks — validate() middleware handles these.
       // Zod's .strict() also ensures no extra fields were injected.
@@ -94,9 +93,14 @@ router.post('/login',
       }
       const JWT_SECRET = process.env.JWT_SECRET;
 
-      // Find user
-      const user = await prisma.user.findUnique({
-        where: { email: email.toLowerCase().trim() },
+      // Find user by either email or phone
+      const user = await prisma.user.findFirst({
+        where: { 
+          OR: [
+            { email: identifier },
+            { phone: identifier }
+          ]
+        },
         include: {
           organisation: { include: { subscription: true } },
           branch: true
@@ -110,7 +114,7 @@ router.post('/login',
       const isValid = await bcrypt.compare(password, hashToCompare);
       // ──────────────────────────────────────────────────────────────────────
 
-      const identifier = email.toLowerCase().trim();
+      // ──────────────────────────────────────────────────────────────────────
 
       if (!user || !isValid) {
         // Record failed attempt for account lockout tracking

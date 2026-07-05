@@ -1,0 +1,4 @@
+.scratch-redis
+backend/logs
+frontend/.next
+vercel_deploy.log
