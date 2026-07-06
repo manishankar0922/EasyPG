@@ -2,7 +2,12 @@ import { Worker } from 'bullmq';
 import { redisConnection } from './index';
 import prisma from '../config/db';
 
-export const orgSetupWorker = new Worker(
+// On Vercel (serverless), Workers cannot run — no persistent Redis connection.
+const isVercel = !!process.env.VERCEL;
+
+export const orgSetupWorker = isVercel
+  ? ({ on: () => {} } as any)
+  : new Worker(
   'org-setup-queue',
   async (job) => {
     if (job.name === 'process-org-setup') {
@@ -57,10 +62,13 @@ export const orgSetupWorker = new Worker(
   { connection: redisConnection as any }
 );
 
-orgSetupWorker.on('failed', (job, err) => {
-  console.error(`Job ${job?.id} in orgSetupQueue failed with error:`, err.message);
-});
+if (!isVercel) {
+  orgSetupWorker.on('failed', (job: any, err: any) => {
+    console.error(`Job ${job?.id} in orgSetupQueue failed with error:`, err.message);
+  });
 
-orgSetupWorker.on('error', (err) => {
-  // Catch worker level connection errors
-});
+  orgSetupWorker.on('error', (err: any) => {
+    // Catch worker level connection errors
+  });
+}
+

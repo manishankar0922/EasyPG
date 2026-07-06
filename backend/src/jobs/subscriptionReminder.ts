@@ -2,7 +2,12 @@ import { Worker, Job } from 'bullmq';
 import { redisConnection } from './index';
 import prisma from '../config/db';
 
-export const subscriptionReminderWorker = new Worker(
+// On Vercel (serverless), Workers cannot run — no persistent Redis connection.
+const isVercel = !!process.env.VERCEL;
+
+export const subscriptionReminderWorker = isVercel
+  ? ({ on: () => {} } as any)
+  : new Worker(
   'subscription-reminder-queue',
   async (job: Job) => {
     console.log(`[Job ${job.id}] Starting subscription renewal reminders...`);
@@ -120,6 +125,9 @@ export const subscriptionReminderWorker = new Worker(
   { connection: redisConnection as any }
 );
 
-subscriptionReminderWorker.on('error', (err) => {
-  // Catch worker level connection errors
-});
+if (!isVercel) {
+  subscriptionReminderWorker.on('error', (err: any) => {
+    // Catch worker level connection errors
+  });
+}
+
