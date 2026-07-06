@@ -4,16 +4,21 @@ import Redlock from 'redlock';
 import { generateMonthlyRentJob } from './generateMonthlyRent';
 
 const isProd = process.env.NODE_ENV === 'production';
+const isVercel = !!process.env.VERCEL;
 
-export const redisConnection = isProd ? new Redis(process.env.REDIS_URL || 'redis://localhost:6379', {
-  maxRetriesPerRequest: null,
-  lazyConnect: true,
-  enableReadyCheck: false,
-  keepAlive: 10000,
-}) : {} as any;
+// On Vercel (serverless), never instantiate Redis — there is no persistent TCP connection.
+// Queues/workers are skipped on Vercel; background jobs should run on a separate server/cron.
+export const redisConnection = (isProd && !isVercel)
+  ? new Redis(process.env.REDIS_URL || 'redis://localhost:6379', {
+      maxRetriesPerRequest: null,
+      lazyConnect: true,
+      enableReadyCheck: false,
+      keepAlive: 10000,
+    })
+  : {} as any;
 
 // Mock Redlock properly so local development doesn't crash on undefined 'acquire' function
-export const redlock = isProd ? new Redlock([redisConnection], {
+export const redlock = (isProd && !isVercel) ? new Redlock([redisConnection], {
   driftFactor: 0.01,
   retryCount: 10,
   retryDelay: 200,
@@ -25,7 +30,7 @@ export const redlock = isProd ? new Redlock([redisConnection], {
   })
 } as any;
 
-if (isProd) {
+if (isProd && !isVercel) {
   let hasLoggedRedisError = false;
   redisConnection.on('error', (err: any) => {
     if (!hasLoggedRedisError) {
@@ -35,19 +40,19 @@ if (isProd) {
   });
 }
 
-export const rentQueue = isProd ? new Queue('rent-generation', { 
+export const rentQueue = (isProd && !isVercel) ? new Queue('rent-generation', { 
   connection: redisConnection as any 
 }) : { add: async () => {}, on: () => {} } as any;
 
-if (isProd) {
+if (isProd && !isVercel) {
   rentQueue.on('error', (err: any) => {});
 }
 
-export const subscriptionReminderQueue = isProd ? new Queue('subscription-reminder-queue', {
+export const subscriptionReminderQueue = (isProd && !isVercel) ? new Queue('subscription-reminder-queue', {
   connection: redisConnection as any
 }) : { add: async () => {}, on: () => {} } as any;
 
-if (isProd) {
+if (isProd && !isVercel) {
   subscriptionReminderQueue.on('error', (err: any) => {});
 }
 
