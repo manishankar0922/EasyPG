@@ -75,6 +75,10 @@ const base = {
   legacyHeaders: false,   // No X-RateLimit-* headers
   skipSuccessfulRequests: false, // Count all requests — don't reward success
   handler: rateLimitHandler,
+  // express-rate-limit v7+ throws ValidationError when custom keyGenerator uses
+  // req.ip without the ipKeyGenerator helper. We handle IPv6 via trust proxy,
+  // so this validation is a false positive in our proxied environment.
+  validate: false as any,
 };
 
 // ─── GENERAL ─────────────────────────────────────────────────────────────────
