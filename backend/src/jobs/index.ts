@@ -94,7 +94,10 @@ export const setupJobs = async () => {
     // Catch worker level connection errors
   });
 
-  // Import the worker to instantiate it
-  require('./subscriptionReminder');
-  require('./orgSetup');
+  // Workers are instantiated at module load time in their own files.
+  // Both subscriptionReminder.ts and orgSetup.ts are self-guarded with isVercel.
+  // Dynamic import avoids the circular dependency that crashes the rolldown bundler.
+  await import('./subscriptionReminder');
+  await import('./orgSetup');
 };
+
