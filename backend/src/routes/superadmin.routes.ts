@@ -3,8 +3,7 @@ import { requireAuth, attachUserContext, requireRole } from '../middlewares/auth
 import prisma from '../config/db';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
-import { v4 as uuidv4 } from 'uuid';
-import { randomBytes } from 'crypto';
+import { randomBytes, randomUUID as uuidv4 } from 'crypto';
 import { passwordResetLimiter } from '../middlewares/rateLimiter';
 import { CacheService } from '../services/cache';
 import { validate } from '../middlewares/validate';
