@@ -3,12 +3,19 @@
 import { useState, useEffect } from 'react';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/auth-store';
+import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { Loader2, ShieldCheck, KeyRound, CheckCircle, AlertTriangle, Upload, X } from 'lucide-react';
+import { Loader2, ShieldCheck, KeyRound, CheckCircle, AlertTriangle, Upload, X, LogOut } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function SettingsPage() {
-  const { user } = useAuthStore();
+  const { user, logout } = useAuthStore();
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    await logout();
+    router.push('/login');
+  };
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [passwordLoading, setPasswordLoading] = useState(false);
@@ -168,7 +175,7 @@ export default function SettingsPage() {
           <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2">
             <div>
               <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Full Name</label>
-              <p className="mt-1 text-base font-semibold text-slate-800">{profile.name}</p>
+              <p className="mt-1 text-base font-semibold text-slate-800">{profile.name || 'N/A'}</p>
             </div>
             
             <div>
@@ -311,6 +318,17 @@ export default function SettingsPage() {
             )}
           </button>
         </form>
+      </div>
+
+      {/* Logout Card */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <button
+          onClick={handleLogout}
+          className="w-full h-14 bg-rose-50 text-rose-600 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-rose-100 transition-colors border border-rose-100"
+        >
+          <LogOut className="h-5 w-5" />
+          Logout
+        </button>
       </div>
 
       {/* Upgrade Modal */}
