@@ -21,20 +21,20 @@
 
 import rateLimit from 'express-rate-limit';
 import { RedisStore } from 'rate-limit-redis';
-import { redisConnection } from '../jobs/index';
+import { redisConnection, hasRedis } from '../jobs/index';
 import { Request, Response } from 'express';
 
-// On Vercel, redisConnection is a {} mock (see jobs/index.ts) — wiring a RedisStore
-// to it crashes every request with FUNCTION_INVOCATION_FAILED. Fall back to the
-// default in-memory store there, same as in development.
+// Without a real Redis (see hasRedis in jobs/index.ts), redisConnection is a {}
+// mock — wiring a RedisStore to it crashes/hangs every request. Fall back to the
+// library's default in-memory store, same as in development.
 const createRedisStore = (prefix: string) => {
-  if (process.env.NODE_ENV === 'production' && !process.env.VERCEL) {
+  if (hasRedis) {
     return new RedisStore({
       prefix: `rl:${prefix}:`,
       sendCommand: (...args: string[]) => redisConnection.call(...args),
     });
   }
-  return undefined; // Use default in-memory store in development / on Vercel
+  return undefined; // in-memory store: dev, Vercel, or prod without REDIS_URL
 };
 
 /**

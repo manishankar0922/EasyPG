@@ -6,10 +6,15 @@ import { generateMonthlyRentJob } from './generateMonthlyRent';
 const isProd = process.env.NODE_ENV === 'production';
 const isVercel = !!process.env.VERCEL;
 
-// On Vercel (serverless), never instantiate Redis — there is no persistent TCP connection.
-// Queues/workers are skipped on Vercel; background jobs should run on a separate server/cron.
-export const redisConnection = (isProd && !isVercel)
-  ? new Redis(process.env.REDIS_URL || 'redis://localhost:6379', {
+// Real Redis ONLY when a REDIS_URL is actually configured (and not on Vercel —
+// serverless has no persistent TCP). Without this, ioredis (maxRetriesPerRequest:
+// null) queues commands forever against a non-existent localhost Redis and every
+// request that awaits it hangs — which took Render down when NODE_ENV became
+// production. No REDIS_URL → same mock/no-op mode as development.
+export const hasRedis = isProd && !isVercel && !!process.env.REDIS_URL;
+
+export const redisConnection = hasRedis
+  ? new Redis(process.env.REDIS_URL!, {
       maxRetriesPerRequest: null,
       lazyConnect: true,
       enableReadyCheck: false,
@@ -18,7 +23,7 @@ export const redisConnection = (isProd && !isVercel)
   : {} as any;
 
 // Mock Redlock properly so local development doesn't crash on undefined 'acquire' function
-export const redlock = (isProd && !isVercel) ? new Redlock([redisConnection], {
+export const redlock = hasRedis ? new Redlock([redisConnection], {
   driftFactor: 0.01,
   retryCount: 10,
   retryDelay: 200,
@@ -30,7 +35,7 @@ export const redlock = (isProd && !isVercel) ? new Redlock([redisConnection], {
   })
 } as any;
 
-if (isProd && !isVercel) {
+if (hasRedis) {
   let hasLoggedRedisError = false;
   redisConnection.on('error', (err: any) => {
     if (!hasLoggedRedisError) {
@@ -40,19 +45,19 @@ if (isProd && !isVercel) {
   });
 }
 
-export const rentQueue = (isProd && !isVercel) ? new Queue('rent-generation', { 
+export const rentQueue = hasRedis ? new Queue('rent-generation', { 
   connection: redisConnection as any 
 }) : { add: async () => {}, on: () => {} } as any;
 
-if (isProd && !isVercel) {
+if (hasRedis) {
   rentQueue.on('error', (err: any) => {});
 }
 
-export const subscriptionReminderQueue = (isProd && !isVercel) ? new Queue('subscription-reminder-queue', {
+export const subscriptionReminderQueue = hasRedis ? new Queue('subscription-reminder-queue', {
   connection: redisConnection as any
 }) : { add: async () => {}, on: () => {} } as any;
 
-if (isProd && !isVercel) {
+if (hasRedis) {
   subscriptionReminderQueue.on('error', (err: any) => {});
 }
 
