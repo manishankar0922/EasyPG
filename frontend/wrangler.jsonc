@@ -1,8 +1,0 @@
-{
-  "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "u9pgs",
-  "compatibility_date": "2026-06-25",
-  "compatibility_flags": [
-    "nodejs_compat"
-  ]
-}

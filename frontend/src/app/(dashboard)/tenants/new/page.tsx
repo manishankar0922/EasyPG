@@ -8,6 +8,7 @@ import LoadingScreen from '@/components/shared/LoadingScreen';
 import { Loader2, UserPlus, Phone, Calendar, Banknote, BedDouble, AlertCircle, CheckCircle2, MessageCircle, User, CreditCard, School, MapPin, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/auth-store';
+import { useBranch } from '@/context/BranchContext';
 import { toast } from 'sonner';
 
 type Bed = { id: string; bedNumber: string; isOccupied: boolean };
@@ -22,6 +23,14 @@ type Room = {
 export default function AddTenantPage() {
   const router = useRouter();
   const user = useAuthStore(state => state.user);
+  const { activeBranchId, branches } = useBranch();
+  const [selectedBranchId, setSelectedBranchId] = useState<string>('');
+
+  useEffect(() => {
+    if (activeBranchId && !selectedBranchId) {
+      setSelectedBranchId(activeBranchId);
+    }
+  }, [activeBranchId, selectedBranchId]);
 
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -75,8 +84,10 @@ export default function AddTenantPage() {
   // Fetch rooms with beds
   useEffect(() => {
     async function fetchRooms() {
+      if (!selectedBranchId) return;
+      setLoadingRooms(true);
       try {
-        const { data } = await api.get('/rooms?includeBeds=true');
+        const { data } = await api.get(`/rooms?includeBeds=true&branchId=${selectedBranchId}&limit=1000`);
         if (data.success) {
           setRooms(Array.isArray(data.data) ? data.data : data.data?.rooms ?? []);
         } else {
@@ -90,7 +101,7 @@ export default function AddTenantPage() {
       }
     }
     fetchRooms();
-  }, []);
+  }, [selectedBranchId]);
 
   // Compute best bed for auto-assign
   const bestBed = React.useMemo(() => {
@@ -225,20 +236,6 @@ export default function AddTenantPage() {
   const selectedRoom = Array.isArray(rooms)
     ? rooms.find(r => r.id === selectedRoomId)
     : undefined;
-
-  if (loadingRooms) return <LoadingScreen message="Loading rooms..." />;
-  if (!Array.isArray(rooms) || rooms.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center p-8 gap-3 min-h-screen bg-slate-50">
-        <div className="h-20 w-20 bg-blue-50 rounded-full flex items-center justify-center">
-          <BedDouble className="h-10 w-10 text-blue-300" />
-        </div>
-        <p className="text-gray-500 text-center">
-          No rooms found. Ask your admin to set up rooms first.
-        </p>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-slate-50 pb-20">
@@ -444,9 +441,35 @@ export default function AddTenantPage() {
               </label>
             </div>
 
+            {branches.length > 1 && (
+              <div className="space-y-1.5 mb-4 border-b border-slate-100 pb-4">
+                <label className="text-xs font-semibold text-slate-600">Select Branch for this Tenant</label>
+                <select
+                  value={selectedBranchId}
+                  onChange={(e) => {
+                    setSelectedBranchId(e.target.value);
+                    setSelectedFloor(null);
+                    setSelectedRoomId(null);
+                    setSelectedBedId(null);
+                  }}
+                  className="w-full rounded-xl border border-slate-200 bg-white py-3 px-4 text-slate-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition shadow-sm text-sm"
+                >
+                  <option value="" disabled>Select a branch</option>
+                  {branches.map(b => (
+                    <option key={b.id} value={b.id}>{b.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             {loadingRooms ? (
               <div className="flex items-center justify-center p-4">
                 <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+              </div>
+            ) : !rooms || rooms.length === 0 ? (
+              <div className="flex flex-col items-center justify-center p-6 gap-2 bg-slate-50 rounded-xl">
+                <BedDouble className="h-8 w-8 text-slate-300" />
+                <p className="text-sm text-slate-500 font-semibold text-center">No rooms found in this branch.</p>
               </div>
             ) : autoAssign ? (
               <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-4">

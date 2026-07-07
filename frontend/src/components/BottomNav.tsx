@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -34,6 +34,13 @@ export default function BottomNav() {
   const { t } = useLanguage();
   const { isAdmin, isOwner } = useUserRole();
   const [moreOpen, setMoreOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  // Wait for client-side hydration before rendering.
+  // Zustand `persist` reads from localStorage which doesn't exist on the server,
+  // so `user` (and therefore `canManage`) differs between SSR and CSR passes.
+  // Returning null until mounted guarantees both passes are identical.
+  useEffect(() => { setMounted(true); }, []);
 
   const canManage = isAdmin || isOwner;
 
@@ -79,6 +86,8 @@ export default function BottomNav() {
         ? 'bg-blue-50 text-blue-700'
         : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
     );
+
+  if (!mounted) return null;
 
   return (
     <>

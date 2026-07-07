@@ -27,13 +27,12 @@ const MAX_STRIKES = 10;           // Ban after 10 suspicious actions
 const BAN_DURATION = 24 * 60 * 60 * 1000; // 24 hours
 const isProd = process.env.NODE_ENV === 'production';
 
-export const getClientIp = (req: Request): string => {
-  const forwarded = req.headers['x-forwarded-for'];
-  if (typeof forwarded === 'string') {
-    return forwarded.split(',')[0].trim();
-  }
-  return req.socket.remoteAddress || 'unknown';
-};
+// SECURITY: req.ip is derived via Express "trust proxy" (index.ts) from the
+// proxy-appended hop of X-Forwarded-For. Never parse the raw header ourselves —
+// the first entries are client-controlled, letting an attacker spoof any IP to
+// dodge bans or get innocent IPs banned.
+export const getClientIp = (req: Request): string =>
+  req.ip || req.socket.remoteAddress || 'unknown';
 
 const getStrike = async (ip: string): Promise<StrikeInfo | null> => {
   if (isProd) {

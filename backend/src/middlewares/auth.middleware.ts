@@ -111,6 +111,9 @@ export const requireAuth = async (
       where: { id: decoded.userId },
       select: {
         id: true,
+        name: true,
+        email: true,
+        phone: true,
         role: true,
         isActive: true,
         organisationId: true,
