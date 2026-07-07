@@ -13,7 +13,7 @@
 
 import { Request, Response, NextFunction } from 'express';
 import logger from '../lib/logger';
-import { redisConnection } from '../jobs/index';
+import { redisConnection, hasRedis } from '../jobs/index';
 
 interface StrikeInfo {
   strikes: number;
@@ -25,7 +25,7 @@ const memoryStrikes = new Map<string, StrikeInfo>();
 
 const MAX_STRIKES = 10;           // Ban after 10 suspicious actions
 const BAN_DURATION = 24 * 60 * 60 * 1000; // 24 hours
-const isProd = process.env.NODE_ENV === 'production';
+const isProd = hasRedis; // real Redis only when REDIS_URL is set — else in-memory fallback
 
 // SECURITY: req.ip is derived via Express "trust proxy" (index.ts) from the
 // proxy-appended hop of X-Forwarded-For. Never parse the raw header ourselves —

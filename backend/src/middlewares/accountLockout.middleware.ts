@@ -22,7 +22,7 @@
  */
 
 import { Request, Response, NextFunction } from 'express';
-import { redisConnection } from '../jobs/index';
+import { redisConnection, hasRedis } from '../jobs/index';
 import logger from '../lib/logger';
 
 interface LockoutEntry {
@@ -42,7 +42,7 @@ const LOCKOUT_DURATIONS = [
 ];
 
 const WINDOW_MS = 30 * 60 * 1000; // Reset attempt counter after 30 min of no failures
-const isProd = process.env.NODE_ENV === 'production';
+const isProd = hasRedis; // real Redis only when REDIS_URL is set — else in-memory fallback
 
 const getEntry = async (identifier: string): Promise<LockoutEntry | null> => {
   if (isProd) {
