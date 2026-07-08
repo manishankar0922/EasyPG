@@ -62,7 +62,7 @@ router.get('/overview', async (req, res) => {
     where: {
       organizationId: orgId,
       ...(branchId && {
-        tenant: { admissions: { some: { room: { branchId }, status: 'ACTIVE' } } }
+        tenant: { admissions: { some: { room: { branchId } } } }
       })
     },
     _sum: { amount: true }
@@ -73,7 +73,7 @@ router.get('/overview', async (req, res) => {
     where: {
       organizationId: orgId,
       ...(branchId && {
-        invoice: { tenant: { admissions: { some: { room: { branchId }, status: 'ACTIVE' } } } }
+        invoice: { tenant: { admissions: { some: { room: { branchId } } } } }
       })
     },
     _sum: { amount: true }
@@ -281,8 +281,10 @@ router.get('/revenue', async (req, res) => {
       where: {
         organizationId: orgId,
         paymentDate: { gte: windowStart },
+        // NOTE: no status filter — vacated tenants' past payments must still
+        // count in historical months, or branch revenue shrinks over time.
         ...(branchId && {
-          invoice: { tenant: { admissions: { some: { room: { branchId }, status: 'ACTIVE' } } } }
+          invoice: { tenant: { admissions: { some: { room: { branchId } } } } }
         })
       },
       select: { paymentDate: true, amount: true },
@@ -326,6 +328,7 @@ router.get('/occupancy', async (req, res) => {
       organizationId: orgId,
       ...(branchId && { id: branchId })
     },
+    orderBy: { name: 'asc' },
     select: {
       name: true,
       rooms: { select: { totalCapacity: true, occupiedCapacity: true } }

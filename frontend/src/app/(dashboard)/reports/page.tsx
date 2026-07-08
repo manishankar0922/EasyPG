@@ -193,9 +193,11 @@ export default function ReportsPage() {
             Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-[116px]" />)
           ) : (
             <>
+              {/* This month's collection (last trend bucket) — matches the MoM
+                  delta shown; all-time total lives in Pending Dues math only. */}
               <StatTile
                 label={t.collected}
-                value={formatCompactCurrency(overview.total_collected)}
+                value={formatCompactCurrency(trend.length ? trend[trend.length - 1].value : overview.total_collected)}
                 sub={t.vsLastMonth}
                 icon={Wallet}
                 tone="good"

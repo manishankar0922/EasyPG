@@ -31,6 +31,7 @@ export default function SettingsPage() {
   const [upgradeError, setUpgradeError] = useState('');
 
   const [passwordData, setPasswordData] = useState({
+    currentPassword: '',
     newPassword: '',
     confirmPassword: '',
   });
@@ -56,8 +57,8 @@ export default function SettingsPage() {
     setPasswordError('');
     setPasswordSuccess('');
 
-    if (passwordData.newPassword.length < 6) {
-      setPasswordError('Password must be at least 6 characters long');
+    if (passwordData.newPassword.length < 8) {
+      setPasswordError('Password must be at least 8 characters long');
       return;
     }
 
@@ -69,12 +70,16 @@ export default function SettingsPage() {
     setPasswordLoading(true);
     try {
       const res = await api.post('/auth/change-password', {
+        currentPassword: passwordData.currentPassword,
         newPassword: passwordData.newPassword,
       });
 
       if (res.data.success) {
         setPasswordSuccess(res.data.message || 'Password updated successfully!');
-        setPasswordData({ newPassword: '', confirmPassword: '' });
+        setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+        // Backend invalidates all sessions after a password change — send the
+        // user to login cleanly instead of letting the next API call 401.
+        setTimeout(() => handleLogout(), 2000);
       } else {
         throw new Error(res.data.error || 'Failed to update password');
       }
@@ -236,8 +241,21 @@ export default function SettingsPage() {
                   {profile.subscriptionStatus}
                 </span>
               </div>
+              {profile.subscriptionEndsAt && (() => {
+                const daysLeft = Math.ceil((new Date(profile.subscriptionEndsAt).getTime() - Date.now()) / 86400000);
+                return (
+                  <p className={cn(
+                    "mt-2 text-sm font-bold",
+                    daysLeft <= 0 ? "text-rose-600" : daysLeft <= 7 ? "text-amber-600" : "text-slate-600"
+                  )}>
+                    {daysLeft <= 0
+                      ? `Expired on ${new Date(profile.subscriptionEndsAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`
+                      : `${daysLeft} day${daysLeft === 1 ? '' : 's'} left — expires ${new Date(profile.subscriptionEndsAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`}
+                  </p>
+                );
+              })()}
               <p className="mt-2 text-sm text-slate-500 max-w-md">
-                {profile.plan === 'PRO' || profile.subscriptionStatus === 'TRIAL' 
+                {profile.plan === 'PRO' || profile.subscriptionStatus === 'TRIAL'
                   ? "You have full access to premium features including automated WhatsApp receipts and the dedicated Tenant App."
                   : "You are currently on the limited free tier. Upgrade to unlock the Tenant App and automated receipt generation."}
               </p>
@@ -280,12 +298,24 @@ export default function SettingsPage() {
           )}
 
           <div>
+            <label className="block text-sm font-medium text-slate-700">Current Password</label>
+            <input
+              type="password"
+              required
+              className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              placeholder="Your current password"
+              value={passwordData.currentPassword}
+              onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
+            />
+          </div>
+
+          <div>
             <label className="block text-sm font-medium text-slate-700">New Password</label>
             <input
               type="password"
               required
               className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              placeholder="Min. 6 characters"
+              placeholder="Min. 8 characters"
               value={passwordData.newPassword}
               onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
             />

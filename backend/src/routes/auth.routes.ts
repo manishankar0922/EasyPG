@@ -275,6 +275,51 @@ router.get('/me', requireAuth, async (req: any, res) => {
   res.json({ success: true, data: req.user });
 });
 
+// POST /api/v1/auth/change-password — authenticated password change
+const changePasswordSchema = z.object({
+  body: z.object({
+    currentPassword: z.string().max(128).optional(),
+    newPassword: z.string().min(8, 'Password must be at least 8 characters').max(128),
+  }),
+});
+
+router.post('/change-password', requireAuth, validate(changePasswordSchema), async (req: any, res: Response, next: NextFunction) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'User not found' });
+    }
+
+    // SECURITY: verify the current password — otherwise a hijacked session
+    // could silently lock the real owner out of their account.
+    if (user.passwordHash) {
+      const ok = currentPassword && await bcrypt.compare(currentPassword, user.passwordHash);
+      if (!ok) {
+        return res.status(401).json({ success: false, error: 'Current password is incorrect' });
+      }
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    // tokenVersion bump invalidates every existing session (including any attacker's)
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash, tokenVersion: { increment: 1 } },
+    });
+
+    logSecurityEvent({
+      eventType: SecurityEventType.PASSWORD_RESET_REQUEST,
+      userId: user.id,
+      req,
+      metadata: { action: 'change-password', ip: getClientIp(req) },
+    });
+
+    res.json({ success: true, message: 'Password updated. Please login again with your new password.' });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // POST /api/v1/auth/forgot-password
 router.post('/forgot-password', passwordResetLimiter, validate(forgotPasswordSchema), async (req: Request, res: Response, next: NextFunction) => {
   try {

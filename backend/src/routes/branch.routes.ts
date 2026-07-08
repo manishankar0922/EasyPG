@@ -34,6 +34,7 @@ router.get('/', async (req, res) => {
 
   const branches = await prisma.branch.findMany({
     where: { organizationId: orgId },
+    orderBy: { name: 'asc' },
     include: {
       _count: {
         select: { rooms: true }

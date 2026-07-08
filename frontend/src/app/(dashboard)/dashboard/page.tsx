@@ -7,10 +7,12 @@ import { useAuthStore } from '@/store/auth-store';
 import { useLanguage } from '@/context/LanguageContext';
 import { useBranch } from '@/context/BranchContext';
 import BranchSwitcher from '@/components/shared/BranchSwitcher';
-import { Bed, Users, IndianRupee, MessageCircle, Wallet, DoorOpen } from 'lucide-react';
+import { Bed, Users, IndianRupee, MessageCircle, Wallet, DoorOpen, BarChart3 } from 'lucide-react';
 import Image from 'next/image';
 import LoadingScreen from '@/components/shared/LoadingScreen';
 import TenantDashboard from '@/components/tenant/TenantDashboard';
+import { AreaTrendChart, type TrendPoint } from '@/components/analytics/charts';
+import { monthLabel } from '@/lib/format';
 
 export default function MobileDashboard() {
   const { user } = useAuthStore();
@@ -18,6 +20,7 @@ export default function MobileDashboard() {
   const router = useRouter();
   const { activeBranchId, loading: branchLoading, error: branchError } = useBranch();
   const [data, setData] = useState<any>(null);
+  const [revenue, setRevenue] = useState<Record<string, number>>({});
   const [vacancies, setVacancies] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [dashboardError, setDashboardError] = useState<string | null>(null);
@@ -29,11 +32,16 @@ export default function MobileDashboard() {
         setLoading(true);
         setDashboardError(null);
 
-        // Run both API calls in parallel
-        const [dashboardResult, vacanciesResult] = await Promise.allSettled([
+        // Run the API calls in parallel
+        const [dashboardResult, vacanciesResult, revenueResult] = await Promise.allSettled([
           api.get(`/dashboard/mobile-home?branchId=${activeBranchId}`),
-          api.get(`/branches/${activeBranchId}/upcoming-vacancies`)
+          api.get(`/branches/${activeBranchId}/upcoming-vacancies`),
+          api.get(`/dashboard/revenue?branchId=${activeBranchId}`)
         ]);
+
+        if (revenueResult.status === 'fulfilled' && revenueResult.value.data?.success) {
+          setRevenue(revenueResult.value.data.data || {});
+        }
 
         if (dashboardResult.status === 'fulfilled' && dashboardResult.value.data?.success) {
           setData(dashboardResult.value.data.data);
@@ -194,6 +202,23 @@ export default function MobileDashboard() {
             </div>
           </div>
         </div>
+
+        {/* Monthly Collection trend — same data as /reports */}
+        {(() => {
+          const trend: TrendPoint[] = Object.keys(revenue)
+            .sort()
+            .map((ym) => ({ label: monthLabel(ym, lang), value: revenue[ym] }));
+          if (!trend.some(p => p.value > 0)) return null;
+          return (
+            <div className="bg-white rounded-2xl p-4 md:p-6 shadow-sm shadow-slate-900/[0.03] border border-slate-200/80">
+              <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-slate-500 mb-4">
+                <BarChart3 className="h-4 w-4 text-blue-500" />
+                {t.revenueTrend}
+              </h2>
+              <AreaTrendChart data={trend} ariaLabel={t.revenueTrend} />
+            </div>
+          );
+        })()}
 
         <div className={`grid grid-cols-1 ${vacancies.length > 0 ? 'lg:grid-cols-2' : ''} gap-8 items-start mt-8`}>
           {/* Upcoming Vacancies List */}

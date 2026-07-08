@@ -11,6 +11,7 @@ export const translations = {
     moreTitle: "More options",
     branches: "Branches",
     admissions: "Admissions",
+    vacateHistory: "Vacate History",
     staff: "Staff",
     settings: "Settings",
 
@@ -190,6 +191,7 @@ export const translations = {
     moreTitle: "अधिक विकल्प",
     branches: "ब्रांच",
     admissions: "एडमिशन",
+    vacateHistory: "वेकेट हिस्ट्री",
     staff: "स्टाफ",
     settings: "सेटिंग्स",
 
@@ -369,6 +371,7 @@ export const translations = {
     moreTitle: "మరిన్ని ఎంపికలు",
     branches: "బ్రాంచ్‌లు",
     admissions: "అడ్మిషన్లు",
+    vacateHistory: "ఖాళీ చేసిన చరిత్ర",
     staff: "స్టాఫ్",
     settings: "సెట్టింగ్స్",
 

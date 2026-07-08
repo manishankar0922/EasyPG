@@ -165,7 +165,9 @@ export const requireAuth = async (
       organizationId: user.organisationId,
       plan: effectivePlan,
       underlyingPlan: sub?.plan || 'PRO',
-      subscriptionStatus: sub?.status || 'ACTIVE'
+      subscriptionStatus: sub?.status || 'ACTIVE',
+      // When the current plan/trial runs out — drives the "X days left" UI
+      subscriptionEndsAt: sub ? (sub.status === 'TRIAL' ? sub.trialEndsAt : sub.currentPeriodEnd) : null
     };
     next();
 

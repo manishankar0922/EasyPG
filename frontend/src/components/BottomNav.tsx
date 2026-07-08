@@ -64,7 +64,7 @@ export default function BottomNav() {
     ...(canManage
       ? [
           { name: t.branches, href: '/branches', icon: Building2 },
-          { name: t.admissions, href: '/admissions', icon: UserCheck },
+          { name: t.vacateHistory, href: '/vacate-history', icon: UserCheck },
           { name: t.staff, href: '/users', icon: UserPlus },
           { name: t.settings, href: '/settings', icon: Settings },
         ]
@@ -203,7 +203,7 @@ export default function BottomNav() {
             <div className="pt-4 mt-3 border-t border-slate-100 space-y-1">
               {[
                 { name: t.branches, href: '/branches', icon: Building2 },
-                { name: t.admissions, href: '/admissions', icon: UserCheck },
+                { name: t.vacateHistory, href: '/vacate-history', icon: UserCheck },
                 { name: t.staff, href: '/users', icon: UserPlus },
                 { name: t.settings, href: '/settings', icon: Settings },
               ].map((item) => {
