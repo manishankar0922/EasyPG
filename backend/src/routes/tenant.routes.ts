@@ -144,6 +144,66 @@ router.get('/search', async (req, res) => {
   res.json({ success: true, data: tenants });
 });
 
+// Vacate history — profiles of tenants who moved out (COMPLETED admissions).
+// ponytail: reads existing Admission+Tenant rows; a separate "vacated" table
+// would duplicate this data and drift out of sync.
+router.get('/vacate-history', async (req, res) => {
+  const orgId = req.user!.organizationId;
+  const { role, branchId: userBranchId } = req.user!;
+  const branchId = userBranchId || (req.query.branchId as string | undefined);
+
+  const vacated = await prisma.admission.findMany({
+    where: {
+      organizationId: orgId,
+      status: 'COMPLETED',
+      ...(branchId && { room: { branchId } })
+    },
+    select: {
+      id: true,
+      checkinDate: true,
+      checkoutDate: true,
+      monthlyRent: true,
+      room: { select: { roomNumber: true, branch: { select: { name: true } } } },
+      bed: { select: { bedNumber: true } },
+      tenant: {
+        select: {
+          id: true,
+          name: true,
+          phone: true,
+          parentPhone: true,
+          photoUrl: true,
+          aadhaarLast4: true,
+          aadhaarPhotoUrl: true,
+          location: true,
+          collegeName: true
+        }
+      }
+    },
+    orderBy: { checkoutDate: 'desc' }
+  });
+
+  res.json({
+    success: true,
+    data: vacated.map(a => ({
+      admissionId: a.id,
+      tenantId: a.tenant.id,
+      name: a.tenant.name,
+      phone: a.tenant.phone,
+      parentPhone: a.tenant.parentPhone,
+      photoUrl: a.tenant.photoUrl,
+      aadhaarLast4: a.tenant.aadhaarLast4,
+      aadhaarPhotoUrl: a.tenant.aadhaarPhotoUrl,
+      location: a.tenant.location,
+      collegeName: a.tenant.collegeName,
+      joinedDate: a.checkinDate,
+      vacatedDate: a.checkoutDate,
+      roomNumber: a.room.roomNumber,
+      branchName: a.room.branch?.name || null,
+      bedNumber: a.bed?.bedNumber || null
+    }))
+  });
+});
+
 // Get single tenant profile and history
 router.get('/:id', validate(z.object({ params: z.object({ id: z.string().min(5) }) })), async (req, res) => {
   const tenantId = req.params.id as string;
