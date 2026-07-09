@@ -2,8 +2,15 @@ import { Router, Request, Response } from 'express';
 import prisma from '../config/db';
 import jwt from 'jsonwebtoken';
 import { redisConnection } from '../jobs/index';
+import {
+  requireAuth,
+  attachUserContext
+} from '../middlewares/auth.middleware';
 
 const router = Router();
+
+router.use(requireAuth);
+router.use(attachUserContext);
 
 // Middleware strictly for Tenants
 // SECURITY (audit #6): tenant tokens live 30 days, so the decoded payload cannot

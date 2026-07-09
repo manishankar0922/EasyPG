@@ -1,13 +1,21 @@
 import { Router } from 'express';
 import prisma from '../config/db';
 import { authMiddleware } from '../middlewares/auth.middleware';
+import { z } from 'zod';
+import { validate } from '../middlewares/validation.middleware';
+
+const vacateSchema = z.object({
+  tenantId: z.string().cuid(),
+  plannedVacateDate: z.string().datetime(),
+  reason: z.string().max(500).optional()
+});
 
 const router = Router();
 router.use(authMiddleware);
 
 // PATCH /api/vacate-notices/:id/confirm
-router.patch('/:id/confirm', async (req, res) => {
-  const { id } = req.params;
+router.patch('/:id/confirm', validate(z.object({ body: vacateSchema.partial() })), async (req, res) => {
+  const id = req.params.id as string;
   const orgId = req.user!.organizationId;
 
   try {
@@ -72,8 +80,8 @@ router.patch('/:id/confirm', async (req, res) => {
 });
 
 // PATCH /api/vacate-notices/:id/cancel
-router.patch('/:id/cancel', async (req, res) => {
-  const { id } = req.params;
+router.patch('/:id/cancel', validate(z.object({ body: vacateSchema.partial() })), async (req, res) => {
+  const id = req.params.id as string;
   const orgId = req.user!.organizationId;
 
   try {

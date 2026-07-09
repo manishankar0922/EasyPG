@@ -43,7 +43,7 @@ export const subscriptionReminderWorker = isVercel
         const msg = `⚠️ మీ U9PGs subscription ${dateStr}న expire అవుతుంది. Renew చేయడానికి app తెరవండి.`;
         
         // Simulate sending WhatsApp message
-        console.log(`[WhatsApp Mock] To: ${ownerPhone} | Msg: ${msg}`);
+        console.log(`[WhatsApp Mock] To: ${ownerPhone?.replace(/\\d(?=\\d{4})/g, 'X') || 'Unknown'} | Msg: ${msg}`);
       }
 
       // --- AUTO-DOWNGRADE TRIAL LOGIC ---
