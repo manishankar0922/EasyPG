@@ -4,6 +4,14 @@ import { authMiddleware } from '../middlewares/auth.middleware';
 import { checkSubscription } from '../middlewares/subscription.middleware';
 
 import { CacheService } from '../services/cache';
+import { z } from 'zod';
+import { validate } from '../middlewares/validation.middleware';
+
+const querySchema = z.object({
+  branchId: z.string().min(1).optional(),
+  month: z.coerce.number().min(1).max(12).optional(),
+  year: z.coerce.number().min(2020).optional()
+});
 
 const router = Router();
 router.use(authMiddleware);
@@ -23,7 +31,7 @@ const effectiveBranchId = (req: any): string | undefined => {
 };
 
 // GET /dashboard/overview
-router.get('/overview', async (req, res) => {
+router.get('/overview', validate(z.object({ query: querySchema })), async (req, res) => {
   const { role, organizationId: orgId } = req.user!;
   const branchId = effectiveBranchId(req);
 
@@ -101,7 +109,7 @@ router.get('/overview', async (req, res) => {
 });
 
 // GET /dashboard/mobile-home
-router.get('/mobile-home', async (req, res) => {
+router.get('/mobile-home', validate(z.object({ query: querySchema })), async (req, res) => {
   const { role, organizationId: orgId } = req.user!;
   // Fix: an OWNER with a non-null branchId was silently pinned to that branch
   // here while /overview stayed org-wide — inconsistent dashboard numbers.
@@ -260,7 +268,7 @@ router.get('/mobile-home', async (req, res) => {
 });
 
 // GET /dashboard/revenue
-router.get('/revenue', async (req, res) => {
+router.get('/revenue', validate(z.object({ query: querySchema })), async (req, res) => {
   const { role, organizationId: orgId } = req.user!;
   const branchId = effectiveBranchId(req);
 
@@ -312,7 +320,7 @@ router.get('/revenue', async (req, res) => {
 });
 
 // GET /dashboard/occupancy
-router.get('/occupancy', async (req, res) => {
+router.get('/occupancy', validate(z.object({ query: querySchema })), async (req, res) => {
   const { role, organizationId: orgId } = req.user!;
   const branchId = effectiveBranchId(req);
 
@@ -351,7 +359,7 @@ router.get('/occupancy', async (req, res) => {
 });
 
 // GET /dashboard/pending-payments
-router.get('/pending-payments', async (req, res) => {
+router.get('/pending-payments', validate(z.object({ query: querySchema })), async (req, res) => {
   const { role, organizationId: orgId } = req.user!;
   const branchId = effectiveBranchId(req);
 
