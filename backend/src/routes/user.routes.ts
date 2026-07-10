@@ -59,24 +59,18 @@ router.post('/', validate(createProfileSchema), async (req, res) => {
   }
 
   try {
-    let newUserId: string;
+    // 3. Create User in Supabase using Admin SDK (bypasses email confirmation)
+    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: { name, organizationId, branchId }
+    });
 
-    if (process.env.NODE_ENV === 'development' && process.env.ENABLE_MOCK_AUTH === 'true') {
-      newUserId = randomUUID();
-    } else {
-      // 3. Create User in Supabase using Admin SDK (bypasses email confirmation)
-      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-        email,
-        password,
-        email_confirm: true,
-        user_metadata: { name, organizationId, branchId }
-      });
-
-      if (authError || !authData.user) {
-        return res.status(400).json({ success: false, error: authError?.message || 'Failed to create auth user' });
-      }
-      newUserId = authData.user.id;
+    if (authError || !authData.user) {
+      return res.status(400).json({ success: false, error: authError?.message || 'Failed to create auth user' });
     }
+    const newUserId = authData.user.id;
 
     // 4. Create Profile in Prisma
     const profile = await prisma.profile.create({
@@ -91,12 +85,12 @@ router.post('/', validate(createProfileSchema), async (req, res) => {
       }
     });
 
-    res.status(201).json({ 
-      success: true, 
+    res.status(201).json({
+      success: true,
       // Never return the raw password in the API response — send it
       // to the user via SMS/WhatsApp separately if needed
       message: 'User created successfully. Temporary password sent separately.',
-      data: profile 
+      data: profile
     });
 
   } catch (err: any) {
@@ -142,16 +136,12 @@ router.post('/:id/reset-password', passwordResetLimiter, validate(z.object({
   }
 
   try {
-    if (process.env.NODE_ENV === 'development' && process.env.ENABLE_MOCK_AUTH === 'true') {
-      // Mock success
-    } else {
-      const { error } = await supabaseAdmin.auth.admin.updateUserById(targetId, {
-        password: newPassword
-      });
+    const { error } = await supabaseAdmin.auth.admin.updateUserById(targetId, {
+      password: newPassword
+    });
 
-      if (error) {
-        return res.status(400).json({ success: false, error: error.message });
-      }
+    if (error) {
+      return res.status(400).json({ success: false, error: error.message });
     }
 
     res.json({ success: true, message: 'Password reset successful' });

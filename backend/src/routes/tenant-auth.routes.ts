@@ -69,9 +69,11 @@ router.post('/login',
         }
       });
 
-      // Timing Attack Prevention: if tenant doesn't exist, simulate a ~10ms DB delay
+      // Timing Attack Prevention: match bcrypt comparison time (~200ms) even if tenant doesn't exist
+      // This prevents attackers from enumerating valid phone numbers via response-time analysis
       if (!tenant) {
-        await new Promise(resolve => setTimeout(resolve, 10));
+        // Dummy bcrypt comparison to simulate the cost of a real password check
+        await new Promise(resolve => setTimeout(resolve, 200));
       }
 
       // SECURITY (audit #1): the PIN is aadhaarLast4 ONLY. The old fallback to the

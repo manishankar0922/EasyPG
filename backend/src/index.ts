@@ -50,6 +50,14 @@ import tenantPortalRoutes from './routes/tenant-portal.routes';
 
 dotenv.config();
 
+// SECURITY: Fail fast if NODE_ENV is invalid. Never default to a permissive mode.
+const VALID_ENVIRONMENTS = ['development', 'production', 'test'];
+if (!process.env.NODE_ENV || !VALID_ENVIRONMENTS.includes(process.env.NODE_ENV)) {
+  console.error(`❌ FATAL: NODE_ENV must be one of: ${VALID_ENVIRONMENTS.join(', ')}`);
+  console.error(`   Got: ${process.env.NODE_ENV || 'undefined'}`);
+  process.exit(1);
+}
+
 const app = express();
 
 // Trust proxy for rate limiting behind reverse proxies (Render, Heroku, etc.)
@@ -236,11 +244,10 @@ const swaggerOptions = {
 };
 
 const swaggerSpec = swaggerJsdoc(swaggerOptions);
-// OpenAPI Swagger — development only, gated in production (prevents API surface mapping by attackers)
-if (process.env.NODE_ENV !== 'production') {
+// SECURITY: Swagger disabled in production. Use offline documentation (Postman, OpenAPI spec file) instead.
+// Swagger endpoint is a reconnaissance vector and rate-limit bypass.
+if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test') {
   app.use('/api/v1/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
-} else {
-  app.use('/api/v1/docs', requireAuth, requireRole('SUPERADMIN'), swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 }
 
 // Health endpoints
