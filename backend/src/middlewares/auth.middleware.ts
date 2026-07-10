@@ -93,18 +93,8 @@ export const requireAuth = async (
       }
     }
 
-    // Mock bypass for dev accounts (Strictly limited to non-production)
-    if (process.env.NODE_ENV !== 'production' && (decoded.userId === 'mock-admin' || decoded.userId === 'mock-dev')) {
-      req.user = {
-        id: decoded.userId,
-        role: 'SUPERADMIN',
-        isActive: true,
-        organisationId: null,
-        organizationId: null,
-        branchId: null
-      };
-      return next();
-    }
+    // SECURITY: Mock bypass removed from runtime entirely. Tests should not rely on this.
+    // If testing requires mock users, use a test harness that does not execute this code.
 
     // Verify user still exists and is active
     const user = await prisma.user.findUnique({

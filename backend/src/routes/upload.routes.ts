@@ -53,8 +53,8 @@ router.post('/signature', validate(signatureSchema), (req, res) => {
         timestamp,
         folder: paramsToSign.folder,
         allowedFormats: paramsToSign.allowed_formats,
-        cloudName: process.env.CLOUDINARY_CLOUD_NAME,
-        apiKey: process.env.CLOUDINARY_API_KEY,
+        cloudName: process.env.CLOUDINARY_CLOUD_NAME
+        // SECURITY: apiKey removed. Frontend infers cloud name from folder/signature.
       }
     });
   } catch (error) {

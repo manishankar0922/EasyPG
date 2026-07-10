@@ -18,7 +18,15 @@ router.get('/', async (req, res) => {
   const orgId = req.user!.organizationId;
   const { role, branchId: userBranchId } = req.user!;
   const branchIdQuery = req.query.branchId as string;
-  const branchId = userBranchId || branchIdQuery;
+
+  // SECURITY: WARDEN can only see their own branch, never fall back to query param
+  let branchId: string | undefined;
+  if (role === 'WARDEN') {
+    branchId = userBranchId;
+  } else {
+    // OWNER/SUPERADMIN can override via query param
+    branchId = userBranchId || branchIdQuery;
+  }
 
   try {
     const currentMonthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
@@ -150,7 +158,14 @@ router.get('/search', async (req, res) => {
 router.get('/vacate-history', async (req, res) => {
   const orgId = req.user!.organizationId;
   const { role, branchId: userBranchId } = req.user!;
-  const branchId = userBranchId || (req.query.branchId as string | undefined);
+
+  // SECURITY: WARDEN can only see their own branch, never fall back to query param
+  let branchId: string | undefined;
+  if (role === 'WARDEN') {
+    branchId = userBranchId;
+  } else {
+    branchId = userBranchId || (req.query.branchId as string | undefined);
+  }
 
   const vacated = await prisma.admission.findMany({
     where: {
