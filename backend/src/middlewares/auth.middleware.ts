@@ -96,48 +96,90 @@ export const requireAuth = async (
     // SECURITY: Mock bypass removed from runtime entirely. Tests should not rely on this.
     // If testing requires mock users, use a test harness that does not execute this code.
 
-    // Verify user still exists and is active
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        phone: true,
-        role: true,
-        isActive: true,
-        organisationId: true,
-        branchId: true,
-        tokenVersion: true,
-        organisation: {
-          select: { subscription: true }
+    // Branch: Handle Tenant vs User
+    let user: any;
+    
+    if (decoded.role === 'TENANT') {
+      const tenant = await prisma.tenant.findUnique({
+        where: { id: decoded.userId },
+        select: {
+          id: true,
+          name: true,
+          phone: true,
+          status: true,
+          organizationId: true,
+          organization: {
+            select: { subscription: true }
+          }
         }
+      });
+
+      if (!tenant) {
+        return res.status(401).json({
+          success: false,
+          error: 'Tenant not found. Please login again.'
+        });
       }
-    });
 
-    if (!user) {
-      return res.status(401).json({
-        success: false,
-        error: 'User not found. Please login again.'
+      if (tenant.status !== 'ACTIVE') {
+        return res.status(403).json({
+          success: false,
+          error: 'Account no longer active. Contact PG owner.'
+        });
+      }
+      
+      // Map tenant to user object structure expected by remaining code
+      user = {
+        ...tenant,
+        role: 'TENANT',
+        organisationId: tenant.organizationId
+      };
+    } else {
+      // Verify user still exists and is active
+      const dbUser = await prisma.user.findUnique({
+        where: { id: decoded.userId },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phone: true,
+          role: true,
+          isActive: true,
+          organisationId: true,
+          branchId: true,
+          tokenVersion: true,
+          organisation: {
+            select: { subscription: true }
+          }
+        }
       });
+
+      if (!dbUser) {
+        return res.status(401).json({
+          success: false,
+          error: 'User not found. Please login again.'
+        });
+      }
+
+      if (!dbUser.isActive) {
+        return res.status(403).json({
+          success: false,
+          error: 'Account deactivated. Contact admin.'
+        });
+      }
+
+      if (decoded.tokenVersion !== undefined && decoded.tokenVersion !== dbUser.tokenVersion) {
+        return res.status(401).json({
+          success: false,
+          error: 'Session invalidated due to security changes. Please login again.'
+        });
+      }
+      
+      user = dbUser;
     }
 
-    if (!user.isActive) {
-      return res.status(403).json({
-        success: false,
-        error: 'Account deactivated. Contact admin.'
-      });
-    }
-
-    if (decoded.tokenVersion !== undefined && decoded.tokenVersion !== user.tokenVersion) {
-      return res.status(401).json({
-        success: false,
-        error: 'Session invalidated due to security changes. Please login again.'
-      });
-    }
-
-    let effectivePlan = user.organisation?.subscription?.plan || 'PRO';
-    const sub = user.organisation?.subscription;
+    let effectivePlan = user.organisation?.subscription?.plan || (decoded.role === 'TENANT' ? user.organization?.subscription?.plan : 'PRO') || 'PRO';
+    const sub = user.organisation?.subscription || user.organization?.subscription;
     
     if (sub) {
       if (sub.status === 'TRIAL') {
