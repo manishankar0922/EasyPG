@@ -1,0 +1,127 @@
+# =============================================================================
+# docker-compose.yml — EasyPG / U9 Solutions (local full-stack dev stack)
+#
+# Wires the four services the app needs to run end-to-end locally:
+#   postgres  : PostgreSQL 16  (replaces Supabase for local dev)
+#   redis     : Redis 7        (BullMQ queues + rate-limit store; OPTIONAL for
+#                               the app — backend already falls back to an
+#                               in-memory store when REDIS_URL is unset, but
+#                               providing it here exercises the real path)
+#   backend   : Express API    (builds from backend/Dockerfile, applies Prisma
+#                               migrations, then starts the server)
+#   frontend  : Next.js app    (builds from frontend/Dockerfile)
+#
+# Usage:
+#   1. Copy docker.env.example -> .env.docker  and fill in real secrets.
+#   2. npm run docker:up        (== docker-compose up --build)
+#   3. npm run docker:down      (== docker-compose down)
+#
+# Backend  -> http://localhost:3001   (health: /api/v1/health)
+# Frontend -> http://localhost:3000
+# =============================================================================
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: easypg-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-easypg}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-easypg}
+      POSTGRES_DB: ${POSTGRES_DB:-easypg}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      # pg_isready returns 0 only when the server accepts connections.
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-easypg} -d ${POSTGRES_DB:-easypg}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: easypg-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: easypg-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: "3001"
+      FRONTEND_URL: http://localhost:3000
+      # Point both datasources at the local Postgres. Prisma uses DIRECT_URL for
+      # migrations and DATABASE_URL for pooled runtime queries.
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-easypg}:${POSTGRES_PASSWORD:-easypg}@postgres:5432/${POSTGRES_DB:-easypg}?schema=public"
+      DIRECT_URL: "postgresql://${POSTGRES_USER:-easypg}:${POSTGRES_PASSWORD:-easypg}@postgres:5432/${POSTGRES_DB:-easypg}?schema=public"
+      REDIS_URL: "redis://redis:6379"
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required (see docker.env.example)}
+      # Cloudinary / Supabase — read from the host .env.docker. They may be
+      # placeholders for local-only runs; the backend warns but does not crash
+      # outside production-mode hard checks when these are missing.
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-}
+      ENABLE_MOCK_AUTH: ${ENABLE_MOCK_AUTH:-false}
+    ports:
+      - "3001:3001"
+    # Override the image CMD: apply pending Prisma migrations (tracked locally
+    # under backend/prisma/migrations), then start the server.
+    command: ["/bin/sh", "-c", "npx prisma migrate deploy && node dist/src/index.js"]
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3001/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # NEXT_PUBLIC_* are inlined into the client bundle at BUILD time, so they
+        # must be passed as build args (frontend/Dockerfile declares matching ARGs).
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001/api/v1}
+        NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME: ${NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME:-}
+        NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET: ${NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET:-}
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}
+    container_name: easypg-frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: "0.0.0.0"
+    ports:
+      - "3000:3000"
+
+volumes:
+  postgres_data:
+  redis_data:
