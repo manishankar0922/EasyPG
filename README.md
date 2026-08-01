@@ -195,7 +195,6 @@ npx prisma db seed
 
 | Role | Email / Phone | Password | Scope |
 | :--- | :--- | :--- | :--- |
-| **Super Admin** | `admin@u9pgs.com` | `u9pgs123` | Global Platform Control |
 | **Warden (Org 1, Branch 1)** | `warden1@org1branch1.com` | `u9pgs123` | Branch 1 Operations |
 | **Warden (Org 2, Branch 1)** | `warden1@org2branch1.com` | `u9pgs123` | Branch 2 Operations |
 
@@ -314,4 +313,4 @@ node test-auth.js
 
 ## 👨‍💻 Project Maintainer & Acknowledgments
 
-Designed, engineered, and maintained by **[Urban9Solutions](https://github.com/manishankar0922)**.
+Designed, engineered, and maintained by **[@manishankar0922](https://github.com/manishankar0922)**.
