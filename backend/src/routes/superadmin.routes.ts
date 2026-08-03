@@ -83,7 +83,10 @@ router.get('/dashboard', async (req, res) => {
     });
 
     const totalOrgs = orgs.length;
-    const activeOrgs = orgs.filter(o => o.subscriptionStatus === 'ACTIVE').length;
+    // ponytail: count from Subscription table (source of truth), not legacy subscriptionStatus
+    const activeOrgs = await prisma.subscription.count({
+      where: { status: { in: ['ACTIVE', 'TRIAL'] } }
+    });
     const totalBranches = orgs.reduce((acc, o) => acc + o._count.branches, 0);
     const totalTenants = orgs.reduce((acc, o) => acc + o._count.tenants, 0);
 
