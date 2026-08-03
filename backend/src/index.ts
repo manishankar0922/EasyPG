@@ -79,7 +79,8 @@ const allowedOrigins = [
   process.env.FRONTEND_URL || 'http://localhost:3000',
   'http://localhost:3000',
   'http://localhost:3001',
-  'http://127.0.0.1:3000'
+  'http://127.0.0.1:3000',
+  'https://u9pgs-ui.vercel.app'
 ];
 
 app.use(cors({
@@ -115,7 +116,8 @@ app.use(cors({
           originHost === `admin-${frontendHost}` ||
           originHost === `dev-${frontendHost}` ||
           originHost === `tenant-${frontendHost}` ||
-          originHost === `tenet-${frontendHost}`;
+          originHost === `tenet-${frontendHost}` ||
+          originHost.endsWith('.vercel.app');
 
         if (isMatched && originUrlObj.protocol === frontendUrlObj.protocol) {
           return callback(null, true);
