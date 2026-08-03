@@ -35,6 +35,10 @@ export default function OrgTable({ organisations }: OrgTableProps) {
     }
   };
 
+  const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [planFilter, setPlanFilter] = useState<string>('ALL');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+
   if (!organisations || organisations.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center p-12 bg-slate-900/50 rounded-2xl border border-slate-700/50 shadow-sm">
@@ -45,7 +49,51 @@ export default function OrgTable({ organisations }: OrgTableProps) {
     );
   }
 
+  const filteredOrgs = organisations.filter(org => {
+    const matchStatus = statusFilter === 'ALL' || org.subscriptionStatus === statusFilter;
+    const matchPlan = planFilter === 'ALL' || org.subscriptionPlan === planFilter;
+    const searchLower = searchQuery.toLowerCase();
+    const matchSearch = org.name?.toLowerCase().includes(searchLower) || org.ownerName?.toLowerCase().includes(searchLower);
+    return matchStatus && matchPlan && matchSearch;
+  });
+
   return (
+    <div className="space-y-4">
+      {/* Filters */}
+      <div className="flex flex-col sm:flex-row gap-3 bg-slate-900/50 p-4 rounded-2xl border border-slate-700/50">
+        <div className="flex-1">
+          <input
+            type="text"
+            placeholder="Search by Org or Owner Name..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full bg-slate-800 border border-slate-700 text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:border-blue-500 transition-colors"
+          />
+        </div>
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="bg-slate-800 border border-slate-700 text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:border-blue-500 transition-colors"
+        >
+          <option value="ALL">All Statuses</option>
+          <option value="ACTIVE">Active</option>
+          <option value="TRIAL">Trial</option>
+          <option value="EXPIRED">Expired</option>
+          <option value="INACTIVE">Inactive</option>
+        </select>
+        <select
+          value={planFilter}
+          onChange={(e) => setPlanFilter(e.target.value)}
+          className="bg-slate-800 border border-slate-700 text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:border-blue-500 transition-colors"
+        >
+          <option value="ALL">All Plans</option>
+          <option value="BASIC">Basic</option>
+          <option value="STRICT_BASIC">Strict Basic</option>
+          <option value="PRO">Pro</option>
+          <option value="ENTERPRISE">Enterprise</option>
+        </select>
+      </div>
+
     <div className="bg-slate-900/50 rounded-2xl shadow-sm border border-slate-700/50 overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse">
@@ -59,7 +107,8 @@ export default function OrgTable({ organisations }: OrgTableProps) {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-700/50">
-            {organisations.map((org) => (
+            {filteredOrgs.length > 0 ? (
+              filteredOrgs.map((org) => (
               <tr 
                 key={org.id} 
                 className="hover:bg-slate-800/50 transition-colors group cursor-pointer"
@@ -95,18 +144,25 @@ export default function OrgTable({ organisations }: OrgTableProps) {
                   </div>
                 </td>
                 <td className="px-6 py-4">
-                  <span className={cn(
-                    "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border",
-                    org.subscriptionStatus === 'ACTIVE' 
-                      ? "bg-emerald-900/20 text-emerald-400 border-emerald-800/30" 
-                      : "bg-rose-900/20 text-rose-400 border-rose-800/30"
-                  )}>
+                  <div className="flex flex-col gap-1">
                     <span className={cn(
-                      "h-1.5 w-1.5 rounded-full",
-                      org.subscriptionStatus === 'ACTIVE' ? "bg-emerald-500" : "bg-rose-500"
-                    )} />
-                    {org.subscriptionStatus}
-                  </span>
+                      "inline-flex w-max items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold border",
+                      org.subscriptionStatus === 'ACTIVE' 
+                        ? "bg-emerald-900/20 text-emerald-400 border-emerald-800/30" 
+                        : org.subscriptionStatus === 'TRIAL'
+                        ? "bg-amber-900/20 text-amber-400 border-amber-800/30"
+                        : "bg-rose-900/20 text-rose-400 border-rose-800/30"
+                    )}>
+                      <span className={cn(
+                        "h-1.5 w-1.5 rounded-full",
+                        org.subscriptionStatus === 'ACTIVE' ? "bg-emerald-500" : org.subscriptionStatus === 'TRIAL' ? "bg-amber-500" : "bg-rose-500"
+                      )} />
+                      {org.subscriptionStatus}
+                    </span>
+                    <span className="inline-flex w-max items-center px-2 py-0.5 rounded text-[9px] font-bold tracking-wider uppercase text-slate-400 bg-slate-800 border border-slate-700">
+                      {org.subscriptionPlan}
+                    </span>
+                  </div>
                 </td>
                 <td className="px-6 py-4 text-right">
                   <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
@@ -174,10 +230,17 @@ export default function OrgTable({ organisations }: OrgTableProps) {
                   </div>
                 </td>
               </tr>
-            ))}
+            ))) : (
+              <tr>
+                <td colSpan={5} className="px-6 py-12 text-center text-slate-500 text-sm font-semibold">
+                  No organisations match your filters
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
+    </div>
     </div>
   );
 }
