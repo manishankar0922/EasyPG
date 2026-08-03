@@ -390,6 +390,7 @@ router.put('/organizations/:id/subscription', validate(updateSubscriptionSchema)
       return org;
     });
 
+    await CacheService.deleteByPattern('superadmin:*');
     res.json({ success: true, data: updatedOrg });
   } catch (error: any) {
     console.error('Error updating organization subscription:', error);
