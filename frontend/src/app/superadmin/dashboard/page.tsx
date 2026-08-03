@@ -6,6 +6,7 @@ import { useAuthStore } from '@/store/auth-store';
 import { Building2, Layers, Users, IndianRupee, Plus, ShieldAlert, LogOut, Clock, CheckCircle2, AlertTriangle, TrendingUp, ArrowRight } from 'lucide-react';
 import OrgTable from '@/components/superadmin/OrgTable';
 import DevLoader from '@/components/superadmin/DevLoader';
+import SuperadminAnalyticsCharts from '@/components/superadmin/SuperadminAnalyticsCharts';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
@@ -161,6 +162,13 @@ export default function SuperAdminDashboard() {
             </div>
           </div>
         </div>
+
+        {/* Analytics Charts Section */}
+        <SuperadminAnalyticsCharts
+          organisations={organisations}
+          subStats={subs}
+          monthlyRevenue={summary.totalRevenue}
+        />
 
         {/* SaaS Analytics: Subscription health + MRR + Pending approvals */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
