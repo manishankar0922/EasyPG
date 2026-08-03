@@ -54,3 +54,4 @@ coverage/
 .scratch-redis/
 .agent/
 .kombai/
+artifacts/
