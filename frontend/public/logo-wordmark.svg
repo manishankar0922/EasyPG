@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 32" fill="none">
+  <rect width="32" height="32" rx="8" fill="#2563EB"/>
+  <path d="M10 9.5h6.2c3 0 4.9 1.55 4.9 4.05 0 2.55-1.9 4.15-4.95 4.15H13.1V23H10V9.5Zm3.1 5.85h2.85c1.35 0 2.15-.65 2.15-1.75 0-1.15-.8-1.8-2.15-1.8H13.1v3.55Z" fill="#fff"/>
+  <circle cx="22.5" cy="22.5" r="2.5" fill="#fff" fill-opacity="0.35"/>
+  <text x="40" y="22" font-family="Inter, sans-serif" font-size="17" font-weight="700" fill="#0F172A" letter-spacing="-0.3">U9PGs</text>
+</svg>
