@@ -117,7 +117,45 @@ router.get('/dashboard', async (req, res) => {
       totalRevenue
     };
 
-    const responseData = { summary, organisations: orgs };
+    // --- NEW: Analytics Data ---
+    const [totalBeds, occupiedBeds] = await Promise.all([
+      prisma.bed.count(),
+      prisma.bed.count({ where: { isOccupied: true } })
+    ]);
+
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    
+    const recentTenants = await prisma.tenant.findMany({
+      where: { 
+        status: 'ACTIVE',
+        createdAt: { gte: sixMonthsAgo } 
+      },
+      select: { createdAt: true }
+    });
+    
+    const tenantGrowth = recentTenants.map(t => t.createdAt);
+    
+    const planDistributionRaw = await prisma.subscription.groupBy({
+      by: ['plan'],
+      _count: {
+        plan: true,
+      },
+    });
+    
+    const planDistribution = planDistributionRaw.map(p => ({
+      plan: p.plan,
+      count: p._count.plan
+    }));
+
+    const analytics = {
+      totalBeds,
+      occupiedBeds,
+      tenantGrowth,
+      planDistribution
+    };
+
+    const responseData = { summary, organisations: orgs, analytics };
     await CacheService.set(cacheKey, responseData, 60);
 
     res.json({ success: true, data: responseData });

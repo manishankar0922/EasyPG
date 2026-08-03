@@ -168,6 +168,7 @@ export default function SuperAdminDashboard() {
           organisations={organisations}
           subStats={subs}
           monthlyRevenue={summary.totalRevenue}
+          analytics={data?.analytics}
         />
 
         {/* SaaS Analytics: Subscription health + MRR + Pending approvals */}
