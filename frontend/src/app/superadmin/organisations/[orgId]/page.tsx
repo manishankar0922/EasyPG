@@ -33,12 +33,17 @@ export default function OrgDetailsPage() {
   }, [orgId]);
 
   const toggleStatus = async () => {
-    if (!confirm(`Are you sure you want to ${org.subscriptionStatus === 'ACTIVE' ? 'suspend' : 'activate'} this organisation?`)) return;
+    // ponytail: use subscription.status (source of truth) if present, else legacy field
+    const effectiveStatus = org.subscription?.status || org.subscriptionStatus;
+    const isSuspending = effectiveStatus === 'ACTIVE' || effectiveStatus === 'TRIAL';
+    if (!confirm(`Are you sure you want to ${isSuspending ? 'suspend' : 'activate'} this organisation?`)) return;
     try {
       setIsToggling(true);
       const res = await api.patch(`/superadmin/organisations/${orgId}/toggle-status`);
       if (res.data.success) {
-        setOrg({ ...org, subscriptionStatus: org.subscriptionStatus === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE' });
+        // Use the newStatus returned by the API, not our local toggle guess
+        const newStatus = res.data.newStatus;
+        setOrg({ ...org, subscriptionStatus: newStatus });
       }
     } catch (error) {
       alert('Failed to toggle status');
@@ -287,7 +292,11 @@ export default function OrgDetailsPage() {
                 className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-bold text-sm transition border border-slate-700 disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 <Power className="h-4 w-4" />
-                {org.subscriptionStatus === 'ACTIVE' ? 'Suspend Access' : 'Activate Access'}
+                {(() => {
+                  const effectiveStatus = org.subscription?.status || org.subscriptionStatus;
+                  const isSuspending = effectiveStatus === 'ACTIVE' || effectiveStatus === 'TRIAL';
+                  return isSuspending ? 'Suspend Access' : 'Activate Access';
+                })()}
               </button>
             </div>
 

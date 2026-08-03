@@ -447,11 +447,17 @@ router.patch('/organisations/:orgId/toggle-status', async (req, res) => {
     });
     if (!org) return res.status(404).json({ success: false, error: 'Organisation not found' });
 
-    // Determine current status from the Subscription model
     const currentStatus = org.subscription?.status || org.subscriptionStatus;
-    const newStatus = (currentStatus === 'ACTIVE' || currentStatus === 'TRIAL') ? 'SUSPENDED' : 'ACTIVE';
-    
-    // Update both legacy field and new Subscription model
+    const isSuspending = currentStatus === 'ACTIVE' || currentStatus === 'TRIAL';
+    const newStatus = isSuspending ? 'SUSPENDED' : 'ACTIVE';
+
+    // ponytail: when re-activating (from SUSPENDED or EXPIRED), extend currentPeriodEnd
+    // by 30 days. Without this the subscription middleware sees currentPeriodEnd < now
+    // and immediately flips the status back to EXPIRED on the very next request.
+    const newPeriodEnd = (!isSuspending && org.subscription)
+      ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+      : undefined;
+
     await prisma.$transaction([
       prisma.organization.update({
         where: { id: orgId },
@@ -460,13 +466,16 @@ router.patch('/organisations/:orgId/toggle-status', async (req, res) => {
       ...(org.subscription ? [
         prisma.subscription.update({
           where: { organizationId: orgId },
-          data: { status: newStatus as any }
+          data: {
+            status: newStatus as any,
+            ...(newPeriodEnd ? { currentPeriodEnd: newPeriodEnd } : {})
+          }
         })
       ] : [])
     ]);
 
     await CacheService.deleteByPattern('superadmin:*');
-    res.json({ success: true, message: `Organisation unlocked and status updated to ${newStatus}` });
+    res.json({ success: true, newStatus, message: `Organisation status updated to ${newStatus}` });
   } catch (error: any) {
     console.error('Toggle status error:', error);
     res.status(500).json({ success: false, error: 'Failed to toggle organisation status' });
